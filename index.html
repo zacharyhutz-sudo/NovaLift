@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050816" />
-    <title>NovaLift v0.5.3</title>
+    <title>NovaLift v0.5.4</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -15,7 +15,7 @@
         <section id="hud" class="compact-hud" aria-label="Flight status">
           <div class="brand-chip">
             <strong>NovaLift</strong>
-            <span>v0.5.3</span>
+            <span>v0.5.4</span>
           </div>
           <div class="hud-stats">
             <div class="hud-stat"><span>Alt</span><strong id="altitude">0 m</strong></div>
@@ -146,6 +146,8 @@
           <span>Next Stage</span>
           <strong id="nextStageAction">No stages remaining</strong>
         </div>
+
+        <div id="stageFuelPanel" class="stage-fuel-panel" aria-label="Fuel remaining by stage"></div>
 
         <div class="flight-controls">
           <button class="control-button rotate-button" type="button" data-hold-action="left" aria-label="Rotate left">

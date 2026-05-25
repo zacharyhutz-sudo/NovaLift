@@ -20,6 +20,113 @@ export function getActiveParts(rocket) {
   return Array.isArray(rocket.parts) ? rocket.parts.filter((part) => part.active !== false) : [];
 }
 
+
+function getPartStage(part) {
+  const stage = Number(part?.stage ?? 0);
+  return Number.isFinite(stage) ? Math.max(0, Math.round(stage)) : 0;
+}
+
+function isEngineIgnited(part) {
+  if (!part || part.type !== "engine" || part.active === false) return false;
+  return getPartStage(part) === 0 || part.engineIgnited === true;
+}
+
+function getPartFuelRemaining(part) {
+  if (!part || part.type !== "fuel") return 0;
+  if (typeof part.fuelRemaining !== "number") part.fuelRemaining = part.fuelCapacity ?? 0;
+  if (typeof part.maxFuelPart !== "number") part.maxFuelPart = part.fuelCapacity ?? 0;
+  return Math.max(0, part.fuelRemaining ?? 0);
+}
+
+function getActiveFuelParts(rocket) {
+  return getActiveParts(rocket).filter((part) => part.type === "fuel");
+}
+
+function getStageFuelParts(rocket, stage) {
+  return getActiveFuelParts(rocket).filter((part) => getPartStage(part) === stage);
+}
+
+function getRemainingFuel(rocket) {
+  return getActiveFuelParts(rocket).reduce((total, part) => total + getPartFuelRemaining(part), 0);
+}
+
+function getMaxFuelForActiveParts(rocket) {
+  return getActiveFuelParts(rocket).reduce((total, part) => total + (part.maxFuelPart ?? part.fuelCapacity ?? 0), 0);
+}
+
+function getFueledEngineGroups(rocket) {
+  const activeParts = getActiveParts(rocket);
+  const engines = activeParts.filter(isEngineIgnited);
+  const byStage = new Map();
+
+  engines.forEach((engine) => {
+    const stage = getPartStage(engine);
+    if (!byStage.has(stage)) {
+      byStage.set(stage, { stage, engines: [], fuelParts: [], availableFuel: 0, maxFuel: 0, thrust: 0, fuelUse: 0 });
+    }
+    byStage.get(stage).engines.push(engine);
+  });
+
+  byStage.forEach((group, stage) => {
+    group.fuelParts = getStageFuelParts(rocket, stage);
+    group.availableFuel = group.fuelParts.reduce((total, part) => total + getPartFuelRemaining(part), 0);
+    group.maxFuel = group.fuelParts.reduce((total, part) => total + (part.maxFuelPart ?? part.fuelCapacity ?? 0), 0);
+    if (group.availableFuel > 0) {
+      group.thrust = group.engines.reduce((total, engine) => total + (engine.thrust ?? 0), 0);
+      group.fuelUse = group.engines.reduce((total, engine) => total + (engine.fuelUse ?? 0), 0);
+    }
+  });
+
+  const groups = [...byStage.values()].filter((group) => group.thrust > 0 && group.fuelUse > 0 && group.availableFuel > 0);
+  return {
+    groups,
+    totalThrust: groups.reduce((total, group) => total + group.thrust, 0),
+    totalFuelUse: groups.reduce((total, group) => total + group.fuelUse, 0)
+  };
+}
+
+function consumeFuelFromStage(rocket, stage, amount) {
+  let remaining = Math.max(0, amount);
+  const fuelParts = getStageFuelParts(rocket, stage).filter((part) => getPartFuelRemaining(part) > 0);
+  for (const part of fuelParts) {
+    if (remaining <= 0) break;
+    const available = getPartFuelRemaining(part);
+    const used = Math.min(available, remaining);
+    part.fuelRemaining = available - used;
+    remaining -= used;
+  }
+  return amount - remaining;
+}
+
+export function getStageFuelSummary(rocket) {
+  if (!rocket || !Array.isArray(rocket.parts)) return [];
+  const stageMap = new Map();
+  getActiveFuelParts(rocket).forEach((part) => {
+    const stage = getPartStage(part);
+    if (!stageMap.has(stage)) stageMap.set(stage, { stage, current: 0, max: 0, engineActive: false, engineCount: 0 });
+    const entry = stageMap.get(stage);
+    entry.current += getPartFuelRemaining(part);
+    entry.max += part.maxFuelPart ?? part.fuelCapacity ?? 0;
+  });
+  getActiveParts(rocket)
+    .filter((part) => part.type === "engine")
+    .forEach((engine) => {
+      const stage = getPartStage(engine);
+      if (!stageMap.has(stage)) stageMap.set(stage, { stage, current: 0, max: 0, engineActive: false, engineCount: 0 });
+      const entry = stageMap.get(stage);
+      entry.engineCount += 1;
+      entry.engineActive = entry.engineActive || isEngineIgnited(engine);
+    });
+
+  return [...stageMap.values()]
+    .sort((a, b) => a.stage - b.stage)
+    .map((entry) => ({
+      ...entry,
+      label: entry.stage === 0 ? "Flight" : `Stage ${entry.stage}`,
+      percent: entry.max > 0 ? (entry.current / entry.max) * 100 : 0
+    }));
+}
+
 export function getRocketMass(rocket) {
   return rocket.dryMass + Math.max(0, rocket.fuel) * rocket.fuelMassPerUnit;
 }
@@ -185,11 +292,13 @@ export function stepRocket(rocket, input, dt, planet = PLANET) {
   if (rocket.crashed) return;
   recalculateRocketStats(rocket);
 
+  let engineInfo = getFueledEngineGroups(rocket);
+
   if (rocket.landed) {
-    const thrusting = input.thrusting && rocket.fuel > 0 && rocket.thrust > 0;
+    const thrusting = input.thrusting && engineInfo.totalThrust > 0;
     const mass = getRocketMass(rocket);
     const gravity = getGravityVector(rocket, planet);
-    const thrustAcceleration = rocket.thrust / mass;
+    const thrustAcceleration = engineInfo.totalThrust / mass;
 
     rocket.vx = 0;
     rocket.vy = 0;
@@ -209,14 +318,25 @@ export function stepRocket(rocket, input, dt, planet = PLANET) {
   rocket.vx += gravity.x * dt;
   rocket.vy += gravity.y * dt;
 
-  if (input.thrusting && rocket.fuel > 0 && rocket.thrust > 0) {
+  if (input.thrusting) {
+    engineInfo = getFueledEngineGroups(rocket);
     const mass = getRocketMass(rocket);
-    const thrustAcceleration = rocket.thrust / mass;
-    const throttleFuel = Math.min(rocket.fuel, rocket.fuelUse * dt);
+    let effectiveThrust = 0;
 
-    rocket.vx += Math.cos(rocket.angle) * thrustAcceleration * dt;
-    rocket.vy += Math.sin(rocket.angle) * thrustAcceleration * dt;
-    rocket.fuel -= throttleFuel;
+    engineInfo.groups.forEach((group) => {
+      const desiredFuel = group.fuelUse * dt;
+      const fuelUsed = consumeFuelFromStage(rocket, group.stage, desiredFuel);
+      const fuelRatio = desiredFuel > 0 ? fuelUsed / desiredFuel : 0;
+      effectiveThrust += group.thrust * fuelRatio;
+    });
+
+    if (effectiveThrust > 0) {
+      const thrustAcceleration = effectiveThrust / mass;
+      rocket.vx += Math.cos(rocket.angle) * thrustAcceleration * dt;
+      rocket.vy += Math.sin(rocket.angle) * thrustAcceleration * dt;
+    }
+
+    recalculateRocketStats(rocket);
   }
 
   const drag = getDragVector(rocket, planet, PHYSICS.dragScale);
@@ -389,7 +509,7 @@ export function getNextStageDescription(rocket) {
   }
   if (hasParachute) actions.push("deploy parachute");
   if (hasLegs) actions.push("deploy landing legs");
-  if (engines.length) actions.push(engines.length > 1 ? "use staged engines" : "use staged engine");
+  if (engines.length) actions.push(engines.length > 1 ? "ignite staged engines" : "ignite staged engine");
 
   if (!actions.length) {
     const labels = stagedParts.map((part) => part.shortName ?? part.name).slice(0, 2).join(" + ");
@@ -444,6 +564,13 @@ export function activateNextStage(rocket, planet = PLANET) {
   });
 
   // Refresh after possible decoupling.
+  getActiveParts(rocket)
+    .filter((part) => part.stage === stageNumber && part.type === "engine")
+    .forEach((part) => {
+      part.engineIgnited = true;
+      messages.push(`Stage ${stageNumber}: ${part.shortName ?? part.name} ignited.`);
+    });
+
   getActiveParts(rocket)
     .filter((part) => part.stage === stageNumber && part.stageAction === "deployPayload")
     .forEach((part) => {
@@ -506,18 +633,27 @@ export function activateNextStage(rocket, planet = PLANET) {
 
 export function recalculateRocketStats(rocket) {
   if (!Array.isArray(rocket.parts)) return;
-  const stats = calculateStatsFromParts(rocket.parts.filter((part) => part.active !== false));
-  const previousMaxFuel = Math.max(rocket.maxFuel ?? 0, 0);
-  const currentFuel = Math.max(rocket.fuel ?? 0, 0);
+
+  rocket.parts.forEach((part) => {
+    if (part.type === "fuel") {
+      if (typeof part.maxFuelPart !== "number") part.maxFuelPart = part.fuelCapacity ?? 0;
+      if (typeof part.fuelRemaining !== "number") part.fuelRemaining = Math.min(part.maxFuelPart, part.fuelCapacity ?? part.maxFuelPart);
+      part.fuelRemaining = Math.max(0, Math.min(part.fuelRemaining, part.maxFuelPart));
+    }
+    if (part.type === "engine" && typeof part.engineIgnited !== "boolean") {
+      part.engineIgnited = getPartStage(part) === 0;
+    }
+  });
+
+  const activeParts = rocket.parts.filter((part) => part.active !== false);
+  const stats = calculateStatsFromParts(activeParts);
+  const engineInfo = getFueledEngineGroups(rocket);
 
   rocket.dryMass = stats.dryMass;
-  rocket.maxFuel = stats.fuelCapacity;
-  rocket.fuel = Math.min(currentFuel, stats.fuelCapacity);
-  if (previousMaxFuel > 0 && rocket.fuel === 0 && currentFuel > 0) {
-    rocket.fuel = Math.min(currentFuel, stats.fuelCapacity);
-  }
-  rocket.thrust = stats.thrust;
-  rocket.fuelUse = stats.fuelUse;
+  rocket.maxFuel = getMaxFuelForActiveParts(rocket);
+  rocket.fuel = getRemainingFuel(rocket);
+  rocket.thrust = engineInfo.totalThrust;
+  rocket.fuelUse = engineInfo.totalFuelUse;
   rocket.dragArea = stats.dragArea;
   rocket.frontalArea = stats.frontalArea;
   rocket.collisionRadius = stats.collisionRadius;
@@ -590,6 +726,8 @@ export function makeDetachedObject(kind, parts, rocket, planet, name) {
   const separation = isDebris ? -18 : 18;
   const partCost = parts.reduce((total, part) => total + (part.cost ?? 0), 0);
   const incomeRate = parts.reduce((total, part) => total + (part.incomeRate ?? 0), 0);
+  const remainingFuel = parts.reduce((total, part) => total + (part.type === "fuel" ? getPartFuelRemaining(part) : 0), 0);
+  const maxFuel = parts.reduce((total, part) => total + (part.type === "fuel" ? (part.maxFuelPart ?? part.fuelCapacity ?? 0) : 0), 0);
 
   return {
     id: `${actualKind}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -602,10 +740,10 @@ export function makeDetachedObject(kind, parts, rocket, planet, name) {
     vy: rocket.vy + sideY * (isDebris ? -2 : 2),
     angle: rocket.angle,
     dryMass: stats.dryMass,
-    fuel: 0,
-    maxFuel: 0,
+    fuel: remainingFuel,
+    maxFuel,
     fuelMassPerUnit: rocket.fuelMassPerUnit,
-    mass: Math.max(stats.dryMass, 0.25),
+    mass: Math.max(stats.dryMass + remainingFuel * rocket.fuelMassPerUnit, 0.25),
     dragArea: stats.dragArea,
     collisionRadius: isDebris ? Math.max(14, stats.collisionRadius ?? 14) : 8,
     color: parts[0]?.color ?? "#aab4ca",

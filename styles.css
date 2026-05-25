@@ -1920,3 +1920,75 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.stage-fuel-panel {
+  width: min(92vw, 440px);
+  margin: 8px auto 0;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 16px;
+  background: rgba(6, 12, 28, 0.72);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.26);
+}
+
+.stage-fuel-panel.hidden {
+  display: none;
+}
+
+.stage-fuel-row {
+  display: grid;
+  grid-template-columns: minmax(88px, 0.8fr) 1.4fr;
+  align-items: center;
+  gap: 8px;
+  color: rgba(226, 232, 240, 0.92);
+  font-size: 0.72rem;
+}
+
+.stage-fuel-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.stage-fuel-meta strong {
+  font-size: 0.72rem;
+  line-height: 1;
+  color: #f8fafc;
+}
+
+.stage-fuel-meta span {
+  margin-top: 2px;
+  color: rgba(148, 163, 184, 0.9);
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.stage-fuel-row.active .stage-fuel-meta span {
+  color: rgba(125, 211, 252, 0.95);
+}
+
+.stage-fuel-track {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.92);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.2);
+}
+
+.stage-fuel-track span {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #22d3ee, #a78bfa);
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.36);
+  transition: width 160ms linear;
+}
+
+.stage-fuel-row.standby .stage-fuel-track span {
+  opacity: 0.62;
+}

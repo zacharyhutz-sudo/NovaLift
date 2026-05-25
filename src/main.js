@@ -78,6 +78,7 @@ const trackerListEl = document.querySelector("#trackerList");
 const trackerSummaryEl = document.querySelector("#trackerSummary");
 const toggleTrackerButton = document.querySelector("#toggleTracker");
 const closeTrackerButton = document.querySelector("#closeTracker");
+const stageFuelPanelEl = document.querySelector("#stageFuelPanel");
 const objectNameEl = document.querySelector("#objectName");
 const objectDetailsEl = document.querySelector("#objectDetails");
 const explodeObjectButton = document.querySelector("#explodeObject");
@@ -569,6 +570,7 @@ function updateHud(data) {
   if (builderCashEl) builderCashEl.textContent = data.company?.mode === "sandbox" ? "∞" : formatMoney(data.company?.money ?? 0);
   if (builderModeLabelEl) builderModeLabelEl.textContent = data.company?.mode === "sandbox" ? "Sandbox Mode" : "Career Mode";
   if (nextStageActionEl) nextStageActionEl.textContent = screenMode === "builder" ? "Build a rocket first" : data.nextStageDescription;
+  updateStageFuelPanel(data.stageFuel ?? []);
   updateObjectInspector(data.selectedObject);
   updateTrackerPanel(data.trackedObjects ?? []);
   updateFlightSummaryModal(data.flightSummary);
@@ -598,6 +600,33 @@ function updateHud(data) {
   debugPanelEl.classList.toggle("hidden", !debugVisible);
   gameShellEl.classList.toggle("debug-active", debugVisible);
   if (debugVisible) debugTextEl.textContent = data.debugText;
+}
+
+function updateStageFuelPanel(stageFuel = []) {
+  if (!stageFuelPanelEl) return;
+  const visible = screenMode !== "builder" && stageFuel.length > 0;
+  stageFuelPanelEl.classList.toggle("hidden", !visible);
+  if (!visible) {
+    stageFuelPanelEl.innerHTML = "";
+    return;
+  }
+
+  stageFuelPanelEl.innerHTML = stageFuel
+    .map((stage) => {
+      const percent = Math.max(0, Math.min(100, stage.percent ?? 0));
+      const label = escapeHtml(stage.label ?? `Stage ${stage.stage}`);
+      const engineLabel = stage.engineCount ? (stage.engineActive ? "active" : "standby") : "tank";
+      return `
+        <div class="stage-fuel-row ${stage.engineActive ? "active" : "standby"}">
+          <div class="stage-fuel-meta">
+            <strong>${label}</strong>
+            <span>${Math.round(percent)}% · ${engineLabel}</span>
+          </div>
+          <div class="stage-fuel-track" aria-hidden="true"><span style="width:${percent}%"></span></div>
+        </div>
+      `;
+    })
+    .join("");
 }
 
 function updateTrackerPanel(objects = []) {

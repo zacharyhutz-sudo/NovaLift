@@ -109,13 +109,13 @@ export const AVAILABLE_PARTS = [
     type: "fuel",
     cost: 13000,
     dryMass: 0.65,
-    fuelCapacity: 225,
+    fuelCapacity: 281.25,
     thrust: 0,
     fuelUse: 0,
     dragArea: 0.65,
     width: 1,
     color: "#38bdf8",
-    description: "Light tank with reduced fuel capacity. Good for upper stages and small orbital launches."
+    description: "Light tank with 25% more fuel capacity. Good for upper stages and small orbital launches."
   },
   {
     id: "fuel_tank_medium",
@@ -124,13 +124,13 @@ export const AVAILABLE_PARTS = [
     type: "fuel",
     cost: 24000,
     dryMass: 1.05,
-    fuelCapacity: 350,
+    fuelCapacity: 437.5,
     thrust: 0,
     fuelUse: 0,
     dragArea: 0.85,
     width: 1.1,
     color: "#0ea5e9",
-    description: "Balanced reduced-capacity fuel storage for most early rockets."
+    description: "Balanced fuel storage with 25% more capacity for most early rockets."
   },
   {
     id: "decoupler_basic",

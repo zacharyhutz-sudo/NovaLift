@@ -1,8 +1,19 @@
-# NovaLift v0.5.3 — Planet + FX + Economy Scale Polish
+# NovaLift v0.5.4 — Stage Fuel Logic + Fuel Bars
 
-NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version refines the visual style, scales up the starter world, and makes the economy numbers feel more substantial.
+NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version refines fuel capacity and fixes staging/fuel logic so upper-stage tanks are not drained by lower-stage engines.
 
-## What is new in v0.5.3
+
+## What is new in v0.5.4
+
+- Increased fuel tank capacity by 25%.
+- Fuel is now tracked per tank instead of as one shared global pool.
+- Engines only consume fuel from tanks assigned to the same stage.
+- Future-stage tanks are preserved until that stage is active.
+- Staged engines ignite when their assigned stage is pressed.
+- Added a flight-view fuel panel showing each stage's fuel percentage and a live bar.
+- Auto-stage now assigns upper-stage engines/tanks to their own stage after a decoupler.
+
+## What was new in v0.5.3
 
 ### Cleaner starter planet
 

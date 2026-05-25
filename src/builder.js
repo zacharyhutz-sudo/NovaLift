@@ -110,14 +110,31 @@ export function autoStageStack(stack) {
   const staged = normalized.map((entry) => ({ ...entry, stage: 0 }));
   let nextStage = 1;
 
-  // Drop lower boosters first. With a vertical stack, bottom parts have larger indexes.
+  // Drop lower sections first. Top of stack is index 0, bottom is the largest index.
   const decouplerIndexes = staged
     .map((entry, index) => ({ entry, index, part: getPartById(entry.id) }))
     .filter(({ part }) => part.stageAction === "decoupleBelow")
     .sort((a, b) => b.index - a.index);
 
-  decouplerIndexes.forEach(({ index }) => {
+  decouplerIndexes.forEach(({ index }, decouplerOrder) => {
     staged[index].stage = clampStage(nextStage++);
+
+    // The section immediately above a decoupler should usually be the next stage's
+    // fuel/engine package. This prevents upper-stage tanks from feeding the booster.
+    const nextUpperDecouplerIndex = decouplerIndexes[decouplerOrder + 1]?.index ?? -1;
+    const sectionStart = nextUpperDecouplerIndex + 1;
+    const sectionEnd = index - 1;
+    const propulsionIndexes = [];
+    for (let i = sectionStart; i <= sectionEnd; i++) {
+      const part = getPartById(staged[i].id);
+      if (part.type === "fuel" || part.type === "engine") propulsionIndexes.push(i);
+    }
+    if (propulsionIndexes.length && nextStage <= STAGE_MAX) {
+      const propulsionStage = clampStage(nextStage++);
+      propulsionIndexes.forEach((partIndex) => {
+        staged[partIndex].stage = propulsionStage;
+      });
+    }
   });
 
   const payloadIndexes = staged
@@ -151,7 +168,10 @@ export function buildRocketFromStack(stack) {
     ...part,
     instanceId: `${part.id}-${index}-${Math.random().toString(36).slice(2, 8)}`,
     active: true,
-    deployed: false
+    deployed: false,
+    engineIgnited: part.type === "engine" ? part.stage === 0 : undefined,
+    maxFuelPart: part.type === "fuel" ? part.fuelCapacity : undefined,
+    fuelRemaining: part.type === "fuel" ? part.fuelCapacity : undefined
   }));
 
   return {
