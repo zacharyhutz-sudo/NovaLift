@@ -173,26 +173,39 @@ function updateOrbitMission(rocket, dt, planet) {
   }
 }
 
-export function predictTrajectory(rocket, planet = PLANET) {
-  if (rocket.crashed || rocket.landed) return [];
+export function predictTrajectory(rocket, planet = PLANET, options = {}) {
+  if (rocket.crashed) return [];
 
   const ghost = {
     ...rocket,
-    fuel: 0,
     crashed: false,
     landed: false,
     missionComplete: false
   };
   const points = [];
+  const shouldPreviewThrust = Boolean(options.thrusting) && ghost.fuel > 0;
+
+  if (rocket.landed && !shouldPreviewThrust) return [];
 
   for (let i = 0; i < PHYSICS.trajectorySteps; i++) {
     const gravity = getGravityVector(ghost, planet);
     ghost.vx += gravity.x * PHYSICS.trajectoryDt;
     ghost.vy += gravity.y * PHYSICS.trajectoryDt;
+
+    if (shouldPreviewThrust && ghost.fuel > 0) {
+      const mass = getRocketMass(ghost);
+      const thrustAcceleration = ghost.thrust / mass;
+      const fuelBurn = Math.min(ghost.fuel, ghost.fuelUse * PHYSICS.trajectoryDt);
+
+      ghost.vx += Math.cos(ghost.angle) * thrustAcceleration * PHYSICS.trajectoryDt;
+      ghost.vy += Math.sin(ghost.angle) * thrustAcceleration * PHYSICS.trajectoryDt;
+      ghost.fuel -= fuelBurn;
+    }
+
     ghost.x += ghost.vx * PHYSICS.trajectoryDt;
     ghost.y += ghost.vy * PHYSICS.trajectoryDt;
 
-    if (i % 4 === 0) points.push({ x: ghost.x, y: ghost.y });
+    if (i % 3 === 0) points.push({ x: ghost.x, y: ghost.y });
     if (getAltitude(ghost, planet) <= 0) break;
   }
 

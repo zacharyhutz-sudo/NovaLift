@@ -1,6 +1,6 @@
 {
   "name": "novalift-v0.1",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Portrait-first 2D space flight sandbox prototype for NovaLift.",
   "type": "module",
   "scripts": {

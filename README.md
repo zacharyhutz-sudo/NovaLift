@@ -1,4 +1,4 @@
-# NovaLift v0.1 — Vertical Flight Sandbox
+# NovaLift v0.1.1 — Vertical Flight Sandbox
 
 A portrait-first 2D browser prototype for a simplified Kerbal-style space company game.
 
@@ -22,8 +22,8 @@ http://localhost:8000
 
 ## Mobile controls
 
-- Hold **Thrust** to fire the engine.
-- Hold **Left** or **Right** to rotate.
+- Hold **Thrust** to fire the engine. The button text is protected from mobile text selection/highlighting.
+- Hold **Left** or **Right** to rotate. Rotation is intentionally gentle for mobile control.
 - Tap **Reset** to restart the launch.
 - Tap **Pause** to pause/resume.
 - Tap **DBG** to show debug data, vectors, and predicted trajectory.
@@ -36,6 +36,13 @@ http://localhost:8000
 - `R`: reset launch
 - `Space`: pause
 - `F`: toggle debug overlay
+
+## v0.1.1 patch notes
+
+- Prevented mobile text selection/callout behavior on the touch controls.
+- Reduced engine thrust for a slower, less jumpy launch.
+- Greatly reduced left/right rotation power for more precise mobile steering.
+- Added a live dotted trajectory arc that stays visible during flight and previews continued thrust while the thrust button is held.
 
 ## What changed in this mobile version
 
@@ -58,7 +65,7 @@ http://localhost:8000
 - Crash detection
 - Basic orbit status detection
 - Debug overlay
-- Predicted trajectory when debug is enabled
+- Live dotted trajectory prediction, visible during flight and updated by current thrust input
 
 ## What is intentionally not included yet
 
@@ -78,4 +85,5 @@ http://localhost:8000
 3. Stop thrusting in space. The rocket should coast under gravity.
 4. Hit the planet at high speed. The rocket should crash.
 5. Tap **Reset**. The rocket should reset to the launchpad.
-6. Tap **DBG**. The debug panel, velocity vector, gravity vector, and projected trajectory should appear.
+6. Tap **DBG**. The debug panel, velocity vector, and gravity vector should appear. The dotted trajectory is now visible outside debug mode too.
+7. Hold **Thrust** and watch the dotted trajectory update as the rocket gains acceleration.

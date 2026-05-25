@@ -21,13 +21,24 @@ export class Input {
     window.addEventListener("keydown", (event) => this.handleKeyDown(event));
     window.addEventListener("keyup", (event) => this.handleKeyUp(event));
     window.addEventListener("blur", () => this.clear());
+    document.addEventListener("selectstart", (event) => this.preventGameSelection(event));
+    document.addEventListener("contextmenu", (event) => this.preventGameSelection(event));
 
     this.bindTouchControls();
+  }
+
+  preventGameSelection(event) {
+    if (event.target.closest("#gameShell")) event.preventDefault();
   }
 
   bindTouchControls() {
     const holdButtons = document.querySelectorAll("[data-hold-action]");
     const pressButtons = document.querySelectorAll("[data-press-action]");
+
+    document.querySelectorAll("button, #gameCanvas").forEach((element) => {
+      element.addEventListener("touchstart", (event) => event.preventDefault(), { passive: false });
+      element.addEventListener("touchmove", (event) => event.preventDefault(), { passive: false });
+    });
 
     holdButtons.forEach((button) => {
       const action = button.dataset.holdAction;
@@ -62,10 +73,18 @@ export class Input {
 
     pressButtons.forEach((button) => {
       const action = button.dataset.pressAction;
-      button.addEventListener("click", (event) => {
+      button.addEventListener("pointerdown", (event) => {
         event.preventDefault();
+        button.setPointerCapture?.(event.pointerId);
         this.pressed.add(action);
+        button.classList.add("is-active");
       });
+      button.addEventListener("pointerup", (event) => {
+        event.preventDefault();
+        button.classList.remove("is-active");
+      });
+      button.addEventListener("pointercancel", () => button.classList.remove("is-active"));
+      button.addEventListener("lostpointercapture", () => button.classList.remove("is-active"));
     });
   }
 

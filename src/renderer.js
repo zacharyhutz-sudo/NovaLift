@@ -53,8 +53,9 @@ export class Renderer {
     this.drawPlanet(ctx, PLANET);
     this.drawLaunchPad(ctx, PLANET);
 
+    this.drawTrajectory(ctx, predictTrajectory(rocket, PLANET, { thrusting: state.input.thrusting }));
+
     if (debug) {
-      this.drawTrajectory(ctx, predictTrajectory(rocket, PLANET));
       this.drawDebugVectors(ctx, rocket);
     }
 
@@ -177,9 +178,10 @@ export class Renderer {
     if (points.length < 2) return;
 
     ctx.save();
-    ctx.strokeStyle = "rgba(125, 211, 252, 0.55)";
-    ctx.lineWidth = Math.max(1, 1.5 * this.dpr);
-    ctx.setLineDash([5 * this.dpr, 9 * this.dpr]);
+    ctx.strokeStyle = "rgba(125, 211, 252, 0.72)";
+    ctx.lineWidth = Math.max(1, 1.65 * this.dpr);
+    ctx.setLineDash([3 * this.dpr, 8 * this.dpr]);
+    ctx.lineCap = "round";
     ctx.beginPath();
     points.forEach((point, index) => {
       const screen = this.worldToScreen(point.x, point.y);

@@ -2,8 +2,8 @@ export const PHYSICS = {
   fixedDt: 1 / 60,
   maxFrameTime: 0.25,
   orbitRequiredHoldSeconds: 6,
-  trajectorySteps: 420,
-  trajectoryDt: 0.55
+  trajectorySteps: 320,
+  trajectoryDt: 0.48
 };
 
 export const PLANET = {
@@ -28,9 +28,9 @@ export const ROCKET = {
   fuel: 140,
   maxFuel: 140,
   fuelMassPerUnit: 0.03,
-  thrust: 430,
-  fuelUse: 10.5,
-  rotateSpeed: 2.35,
+  thrust: 220,
+  fuelUse: 9.2,
+  rotateSpeed: 0.45,
   collisionRadius: 18,
   landed: true,
   crashed: false
