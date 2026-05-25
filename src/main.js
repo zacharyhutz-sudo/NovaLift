@@ -13,6 +13,7 @@ const fpsEl = document.querySelector("#fps");
 const missionResultEl = document.querySelector("#missionResult");
 const debugPanelEl = document.querySelector("#debugPanel");
 const debugTextEl = document.querySelector("#debugText");
+const gameShellEl = document.querySelector("#gameShell");
 
 const input = new Input();
 const renderer = new Renderer(canvas, recenterCameraButton);
@@ -28,7 +29,8 @@ function updateHud(data) {
   altitudeEl.textContent = formatDistance(data.altitude);
   speedEl.textContent = `${data.speed.toFixed(1)} m/s`;
   fuelEl.textContent = `${Math.max(0, data.fuelPercent).toFixed(0)}%`;
-  statusEl.textContent = data.status;
+  statusEl.textContent = compactStatus(data.status);
+  statusEl.title = data.status;
   fpsEl.textContent = `${Math.round(data.fps)}`;
 
   if (data.missionComplete) {
@@ -41,7 +43,26 @@ function updateHud(data) {
 
   const debugVisible = game.debug;
   debugPanelEl.classList.toggle("hidden", !debugVisible);
+  gameShellEl.classList.toggle("debug-active", debugVisible);
   if (debugVisible) debugTextEl.textContent = data.debugText;
+}
+
+function compactStatus(status) {
+  if (status.startsWith("Paused")) return "Paused";
+
+  const labels = new Map([
+    ["Orbit achieved", "Orbit"],
+    ["Stable orbit likely", "Stable"],
+    ["Almost orbital", "Almost"],
+    ["Climbing through atmosphere", "Climb"],
+    ["Suborbital arc", "Suborbit"],
+    ["Ready on pad", "Ready"],
+    ["Escaping", "Escape"],
+    ["Crashed", "Crash"],
+    ["Impact", "Impact"]
+  ]);
+
+  return labels.get(status) ?? status;
 }
 
 function formatDistance(value) {

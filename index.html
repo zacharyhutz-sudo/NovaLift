@@ -4,30 +4,33 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050816" />
-    <title>NovaLift v0.1.4</title>
+    <title>NovaLift v0.1.5</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <main id="gameShell">
       <canvas id="gameCanvas" aria-label="NovaLift 2D vertical space flight sandbox"></canvas>
-      <button id="recenterCamera" class="camera-button hidden" type="button" aria-label="Recenter camera on rocket">Center</button>
 
-      <section id="hud" class="panel hud-panel" aria-label="Flight status">
-        <div class="brand-row">
-          <div>
-            <div class="hud-title">NovaLift</div>
-            <div class="hud-subtitle">v0.1.4 Flight Sandbox</div>
+      <div class="top-layer" aria-label="Flight status and camera controls">
+        <section id="hud" class="compact-hud" aria-label="Flight status">
+          <div class="brand-chip">
+            <strong>NovaLift</strong>
+            <span>v0.1.5</span>
           </div>
+          <div class="hud-stats">
+            <div class="hud-stat"><span>Alt</span><strong id="altitude">0 m</strong></div>
+            <div class="hud-stat"><span>Spd</span><strong id="speed">0 m/s</strong></div>
+            <div class="hud-stat"><span>Fuel</span><strong id="fuel">100%</strong></div>
+            <div class="hud-stat"><span>Stat</span><strong id="status">Ready</strong></div>
+            <div class="hud-stat hud-stat-debug"><span>FPS</span><strong id="fps">60</strong></div>
+          </div>
+        </section>
+
+        <div class="top-controls" aria-label="Top controls">
           <button class="icon-button" type="button" data-press-action="debug" aria-label="Toggle debug panel">DBG</button>
+          <button id="recenterCamera" class="camera-button hidden" type="button" aria-label="Recenter camera on rocket">Center</button>
         </div>
-        <div class="hud-grid">
-          <div>Altitude</div><strong id="altitude">0 m</strong>
-          <div>Speed</div><strong id="speed">0 m/s</strong>
-          <div>Fuel</div><strong id="fuel">100%</strong>
-          <div>Status</div><strong id="status">Ready</strong>
-          <div>FPS</div><strong id="fps">60</strong>
-        </div>
-      </section>
+      </div>
 
       <section id="mission" class="panel mission-panel">
         <div class="mission-label">Mission</div>

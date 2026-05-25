@@ -68,10 +68,32 @@ export class Renderer {
     );
 
     if (this.recenterButton) {
-      this.recenterButton.addEventListener("click", (event) => {
+      const requestRecenter = (event) => {
         event.preventDefault();
+        event.stopPropagation();
+        this.pointers.clear();
+        this.gesture = null;
+        this.recenterButton.classList.remove("is-active");
         this.recenterCamera();
+      };
+
+      this.recenterButton.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.recenterButton.setPointerCapture?.(event.pointerId);
+        this.recenterButton.classList.add("is-active");
       });
+
+      this.recenterButton.addEventListener("pointerup", requestRecenter);
+      this.recenterButton.addEventListener("pointercancel", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.recenterButton.classList.remove("is-active");
+      });
+      this.recenterButton.addEventListener("lostpointercapture", () => {
+        this.recenterButton.classList.remove("is-active");
+      });
+      this.recenterButton.addEventListener("click", requestRecenter);
     }
   }
 

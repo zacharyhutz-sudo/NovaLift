@@ -1,4 +1,4 @@
-# NovaLift v0.1.4 — Vertical Flight Sandbox
+# NovaLift v0.1.5 — Vertical Flight Sandbox
 
 A portrait-first 2D browser prototype for a simplified Kerbal-style space company game.
 
@@ -26,7 +26,7 @@ http://localhost:8000
 - Hold **Left** or **Right** to rotate. Rotation is intentionally gentle for mobile control.
 - Tap **Reset** to restart the launch.
 - Tap **Pause** to pause/resume.
-- Tap **DBG** to show debug data and vectors. The dotted trajectory is visible during flight.
+- Tap **DBG** to show debug data, FPS, and vectors. The dotted trajectory is visible during flight.
 - Drag directly on the playfield to pan the camera.
 - Pinch on the playfield to zoom in/out.
 - Tap **Center** when it appears to snap the camera back to the rocket.
@@ -39,6 +39,14 @@ http://localhost:8000
 - `R`: reset launch
 - `Space`: pause
 - `F`: toggle debug overlay
+
+## v0.1.5 patch notes
+
+- Consolidated the large top HUD into a smaller mobile-friendly header.
+- Moved **Center** into an independent top control group so the HUD cannot cover it.
+- Made the HUD ignore pointer events, leaving only actual buttons tappable.
+- Made **Center** use pointer events instead of relying only on mobile click behavior.
+- Shortened flight status labels and hid FPS unless debug mode is enabled.
 
 ## v0.1.4 patch notes
 
