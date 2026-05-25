@@ -176,7 +176,7 @@ export function stepRocket(rocket, input, dt, planet = PLANET) {
 }
 
 export function stepDetachedObject(object, dt, planet = PLANET) {
-  if (object.crashed || object.landed) return;
+  if (object.exploded || object.crashed || object.landed) return;
 
   const gravity = getGravityVector(object, planet);
   object.vx += gravity.x * dt;
@@ -198,8 +198,12 @@ export function stepDetachedObject(object, dt, planet = PLANET) {
     object.vx = 0;
     object.vy = 0;
     object.crashed = true;
+    object.online = false;
     object.status = "crashed";
+    return;
   }
+
+  updateDetachedObjectStatus(object, planet);
 }
 
 function getDetachedDragVector(object, planet = PLANET) {
@@ -228,7 +232,7 @@ function resolveSurfaceContact(rocket, planet) {
   const legContact = contact.part?.type === "legs" && rocket.landingLegsDeployed;
   const safeTouchdownSpeed = legContact ? PHYSICS.landingSafeSpeedLegs : PHYSICS.landingSafeSpeedBare;
   const upright = getUprightAngleError(rocket, planet) <= PHYSICS.landingUprightAngle;
-  const safeTouchdown = speed < safeTouchdownSpeed && upright && !rocket.missionComplete;
+  const safeTouchdown = speed < safeTouchdownSpeed && upright;
 
   // Push the active rocket out of the planet by the exact hitbox penetration amount.
   // This lets each part, rather than one large invisible circle, interact with the ground.
@@ -296,6 +300,52 @@ function updateOrbitMission(rocket, dt, planet) {
   }
 }
 
+
+export function getNextStageDescription(rocket) {
+  if (rocket?.crashed) return "No stages available after crash";
+  if (!rocket || !Array.isArray(rocket.parts)) return "No stages assigned";
+
+  const stageNumber = rocket.nextStage ?? 1;
+  const maxStage = rocket.maxStage ?? 0;
+  if (stageNumber > maxStage) return "No stages remaining";
+
+  const activeParts = getActiveParts(rocket);
+  const stagedParts = activeParts.filter((part) => part.stage === stageNumber);
+  if (!stagedParts.length) return `Stage ${stageNumber}: no assigned parts`;
+
+  const actions = [];
+  const hasDecoupler = stagedParts.some((part) => part.stageAction === "decoupleBelow");
+  const payloads = stagedParts.filter((part) => part.stageAction === "deployPayload");
+  const hasParachute = stagedParts.some((part) => part.stageAction === "deployParachute");
+  const hasLegs = stagedParts.some((part) => part.stageAction === "deployLegs");
+  const engines = stagedParts.filter((part) => part.type === "engine");
+
+  if (hasDecoupler) actions.push("separate lower stage");
+  if (payloads.length) {
+    const dataCenters = payloads.filter((part) => part.id?.includes("data_center")).length;
+    const satellites = payloads.filter((part) => part.id?.includes("satellite")).length;
+    if (dataCenters) actions.push(dataCenters > 1 ? `deploy ${dataCenters} data centers` : "deploy data center");
+    if (satellites) actions.push(satellites > 1 ? `deploy ${satellites} satellites` : "deploy satellite");
+    if (!dataCenters && !satellites) actions.push(payloads.length > 1 ? `deploy ${payloads.length} payloads` : "deploy payload");
+  }
+  if (hasParachute) actions.push("deploy parachute");
+  if (hasLegs) actions.push("deploy landing legs");
+  if (engines.length) actions.push(engines.length > 1 ? "use staged engines" : "use staged engine");
+
+  if (!actions.length) {
+    const labels = stagedParts.map((part) => part.shortName ?? part.name).slice(0, 2).join(" + ");
+    actions.push(labels ? `activate ${labels}` : "activate assigned parts");
+  }
+
+  return `Stage ${stageNumber}: ${toSentence(actions)}`;
+}
+
+function toSentence(items) {
+  if (items.length <= 1) return items[0] ?? "nothing";
+  if (items.length === 2) return `${items[0]} + ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")} + ${items[items.length - 1]}`;
+}
+
 export function activateNextStage(rocket, planet = PLANET) {
   if (rocket.crashed) return { message: "Cannot stage after a crash.", objects: [] };
   recalculateRocketStats(rocket);
@@ -327,9 +377,9 @@ export function activateNextStage(rocket, planet = PLANET) {
       part.active = false;
       part.detached = true;
     });
-    const object = makeDetachedObject("booster", detached, rocket, planet, `Stage ${stageNumber} booster`);
+    const object = makeDetachedObject("debris", detached, rocket, planet, `Stage ${stageNumber} debris`);
     objects.push(object);
-    messages.push(`Stage ${stageNumber}: booster separated.`);
+    messages.push(`Stage ${stageNumber}: lower stage separated and now tracked as debris.`);
   });
 
   // Refresh after possible decoupling.
@@ -339,8 +389,9 @@ export function activateNextStage(rocket, planet = PLANET) {
       part.active = false;
       part.deployed = true;
       const stable = isStableEnoughForPayload(rocket, planet);
-      const object = makeDetachedObject(part.type, [part], rocket, planet, part.shortName ?? part.name);
+      const object = makeDetachedObject("payload", [part], rocket, planet, part.shortName ?? part.name);
       object.kind = "payload";
+      object.payloadType = part.id?.includes("data_center") ? "data_center" : "satellite";
       object.online = stable;
       object.status = stable ? "online" : "drifting";
       objects.push(object);
@@ -464,14 +515,17 @@ export function predictTrajectory(rocket, planet = PLANET) {
   return points;
 }
 
-function makeDetachedObject(kind, parts, rocket, planet, name) {
+export function makeDetachedObject(kind, parts, rocket, planet, name) {
   const stats = calculateStatsFromParts(parts.map((part) => ({ ...part, active: true })));
   const distance = getDistanceToPlanet(rocket, planet);
   const nx = (rocket.x - planet.x) / Math.max(distance, 1);
   const ny = (rocket.y - planet.y) / Math.max(distance, 1);
   const sideX = -ny;
   const sideY = nx;
-  const separation = kind === "booster" ? -10 : 10;
+  const isDebris = kind === "debris" || kind === "booster";
+  const separation = isDebris ? -18 : 18;
+  const partCost = parts.reduce((total, part) => total + (part.cost ?? 0), 0);
+  const incomeRate = parts.reduce((total, part) => total + (part.incomeRate ?? 0), 0);
 
   return {
     id: `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -479,8 +533,8 @@ function makeDetachedObject(kind, parts, rocket, planet, name) {
     kind,
     x: rocket.x + sideX * separation,
     y: rocket.y + sideY * separation,
-    vx: rocket.vx + sideX * (kind === "booster" ? -2 : 2),
-    vy: rocket.vy + sideY * (kind === "booster" ? -2 : 2),
+    vx: rocket.vx + sideX * (isDebris ? -2 : 2),
+    vy: rocket.vy + sideY * (isDebris ? -2 : 2),
     angle: rocket.angle,
     dryMass: stats.dryMass,
     fuel: 0,
@@ -488,16 +542,42 @@ function makeDetachedObject(kind, parts, rocket, planet, name) {
     fuelMassPerUnit: rocket.fuelMassPerUnit,
     mass: Math.max(stats.dryMass, 0.25),
     dragArea: stats.dragArea,
-    collisionRadius: kind === "booster" ? 14 : 8,
+    collisionRadius: isDebris ? Math.max(14, stats.collisionRadius ?? 14) : 8,
     color: parts[0]?.color ?? "#aab4ca",
-    parts: parts.map((part) => ({ ...part })),
-    status: kind === "booster" ? "falling" : "drifting",
+    parts: parts.map((part) => ({ ...part, active: part.active !== false })),
+    status: isDebris ? "falling" : "drifting",
+    cost: partCost,
+    recoveryValue: partCost * 0.45,
+    incomeRate,
+    revenueEarned: 0,
+    online: false,
     crashed: false,
-    landed: false
+    landed: false,
+    exploded: false
   };
 }
 
-function isStableEnoughForPayload(rocket, planet) {
+export function updateDetachedObjectStatus(object, planet = PLANET) {
+  if (!object || object.exploded) return "destroyed";
+  if (object.crashed) {
+    object.online = false;
+    object.status = "crashed";
+    return object.status;
+  }
+
+  const stable = isStableEnoughForPayload(object, planet);
+  if (object.kind === "payload") {
+    object.online = stable;
+    object.status = stable ? "online" : "drifting";
+  } else {
+    object.online = false;
+    object.status = stable ? "orbital debris" : "falling";
+  }
+
+  return object.status;
+}
+
+export function isStableEnoughForPayload(rocket, planet) {
   const altitude = getAltitude(rocket, planet);
   const radialVelocity = Math.abs(getRadialVelocity(rocket, planet));
   const tangentialSpeed = getTangentialSpeed(rocket, planet);

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050816" />
-    <title>NovaLift v0.3.2</title>
+    <title>NovaLift v0.4.0</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -15,7 +15,7 @@
         <section id="hud" class="compact-hud" aria-label="Flight status">
           <div class="brand-chip">
             <strong>NovaLift</strong>
-            <span>v0.3.2</span>
+            <span>v0.4.0</span>
           </div>
           <div class="hud-stats">
             <div class="hud-stat"><span>Alt</span><strong id="altitude">0 m</strong></div>
@@ -23,6 +23,10 @@
             <div class="hud-stat"><span>Fuel</span><strong id="fuel">100%</strong></div>
             <div class="hud-stat"><span>Stat</span><strong id="status">Ready</strong></div>
             <div class="hud-stat hud-stat-debug"><span>FPS</span><strong id="fps">60</strong></div>
+          </div>
+          <div class="economy-strip" aria-label="Company economy">
+            <span>Cash <strong id="companyCashHud">$0</strong></span>
+            <span>Income <strong id="companyIncomeHud">$0/s</strong></span>
           </div>
         </section>
 
@@ -37,13 +41,23 @@
           <div>
             <p class="eyebrow">Rocket Construction</p>
             <h1>Build your NovaLift rocket</h1>
-            <p class="builder-copy">Stack parts from top to bottom, then assign staged parts. Tap any part for a quick explanation and usage tip.</p>
+            <p class="builder-copy">Start from scratch, stack parts from top to bottom, then assign staged parts. Tap any part for a quick explanation and usage tip.</p>
           </div>
           <div class="budget-chip">
-            <span>Budget</span>
-            <strong>∞</strong>
+            <span>Cash</span>
+            <strong id="builderCash">$0</strong>
+            <small>Builds free</small>
           </div>
         </div>
+
+        <section class="builder-card builder-preview-card" aria-label="Live rocket preview">
+          <div class="builder-section-title">
+            <h2>Live Rocket Preview</h2>
+            <span>Updates as you build</span>
+          </div>
+          <canvas id="builderPreview" class="builder-preview-canvas" aria-label="Preview of the current rocket design"></canvas>
+          <p id="builderPreviewEmpty" class="preview-empty-note">No parts yet. Add parts below to design your rocket.</p>
+        </section>
 
         <section class="builder-card builder-stats-card" aria-label="Rocket stats">
           <div class="builder-stat"><span>Cost</span><strong id="buildCost">$0</strong></div>
@@ -102,9 +116,13 @@
       <section id="touchControls" class="touch-controls" aria-label="Touch flight controls">
         <div class="touch-actions">
           <button id="rebuildRocket" class="small-control" type="button">Build</button>
-          <button class="small-control" type="button" data-press-action="reset">Reset</button>
           <button class="small-control stage-control" type="button" data-press-action="stage">Stage</button>
           <button class="small-control" type="button" data-press-action="pause">Pause</button>
+        </div>
+
+        <div id="stagePreview" class="stage-preview" aria-live="polite">
+          <span>Next Stage</span>
+          <strong id="nextStageAction">No stages remaining</strong>
         </div>
 
         <div class="flight-controls">
@@ -122,7 +140,19 @@
           </button>
         </div>
 
-        <div class="keyboard-hint">Keyboard: W thrust · A/D rotate · X/Enter stage · R reset · Space pause · F debug</div>
+        <div class="keyboard-hint">Keyboard: W thrust · A/D rotate · X/Enter stage · Space pause · F debug · R debug reset</div>
+      </section>
+
+      <section id="objectInspector" class="panel object-panel hidden" aria-live="polite" aria-label="Selected orbital object">
+        <div class="object-panel-top">
+          <div>
+            <div class="object-label">Selected Object</div>
+            <h2 id="objectName">Orbital Object</h2>
+          </div>
+          <button id="closeObjectInspector" class="mini-button" type="button">Close</button>
+        </div>
+        <div id="objectDetails" class="object-details"></div>
+        <button id="explodeObject" class="danger-button" type="button">Explode Debris</button>
       </section>
 
       <section id="debugPanel" class="panel debug-panel hidden">

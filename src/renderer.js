@@ -29,6 +29,10 @@ export class Renderer {
     this.pointers = new Map();
     this.gesture = null;
     this.lastRocket = null;
+    this.lastObjects = [];
+    this.selectedObjectId = null;
+    this.onObjectTap = null;
+    this.tapCandidate = null;
     this.stars = makeStars(RENDER.starCount);
 
     this.resize();
@@ -103,6 +107,12 @@ export class Renderer {
     this.canvas.setPointerCapture?.(event.pointerId);
     const point = this.getCanvasPoint(event);
     this.pointers.set(event.pointerId, point);
+    this.tapCandidate = {
+      pointerId: event.pointerId,
+      startX: point.x,
+      startY: point.y,
+      moved: false
+    };
     this.resetGesture();
   }
 
@@ -125,10 +135,23 @@ export class Renderer {
   handlePointerUp(event) {
     if (!this.pointers.has(event.pointerId)) return;
     event.preventDefault();
+    const point = this.getCanvasPoint(event);
+    const wasSinglePointer = this.pointers.size === 1;
+    const candidate = this.tapCandidate;
+    const moved = candidate
+      ? candidate.moved || Math.hypot(point.x - candidate.startX, point.y - candidate.startY) > 8 * this.dpr
+      : true;
+
     this.pointers.delete(event.pointerId);
     if (this.canvas.hasPointerCapture?.(event.pointerId)) {
       this.canvas.releasePointerCapture(event.pointerId);
     }
+
+    if (wasSinglePointer && candidate?.pointerId === event.pointerId && !moved) {
+      this.tryTapObjectAt(point.x, point.y);
+    }
+
+    this.tapCandidate = null;
     this.resetGesture();
   }
 
@@ -172,6 +195,7 @@ export class Renderer {
       this.panCameraByScreenDelta(dx, dy);
       this.setManualCamera(true);
       this.gesture.hasMoved = true;
+      if (this.tapCandidate) this.tapCandidate.moved = true;
     }
 
     this.gesture.lastX = point.x;
@@ -192,12 +216,14 @@ export class Renderer {
       this.zoomCameraAt(pinch.midX, pinch.midY, zoomFactor);
       this.setManualCamera(true);
       this.gesture.hasMoved = true;
+      if (this.tapCandidate) this.tapCandidate.moved = true;
     }
 
     if (Math.hypot(midpointDx, midpointDy) >= 0.5) {
       this.panCameraByScreenDelta(midpointDx, midpointDy);
       this.setManualCamera(true);
       this.gesture.hasMoved = true;
+      if (this.tapCandidate) this.tapCandidate.moved = true;
     }
 
     this.gesture.lastDistance = pinch.distance;
@@ -258,10 +284,12 @@ export class Renderer {
   }
 
   render(state) {
-    const { rocket, debug, objects = [] } = state;
+    const { rocket, debug, objects = [], selectedObjectId = null } = state;
     const ctx = this.ctx;
 
     this.lastRocket = rocket;
+    this.lastObjects = objects;
+    this.selectedObjectId = selectedObjectId;
     this.updateCamera(rocket);
     ctx.clearRect(0, 0, this.width, this.height);
 
@@ -481,6 +509,10 @@ export class Renderer {
       ctx.scale(this.camera.scale, this.camera.scale);
       ctx.lineWidth = Math.max(ROCKET_WORLD_LINE, 1.25 / Math.max(this.camera.scale, 0.001));
 
+      if (object.id === this.selectedObjectId) {
+        this.drawObjectSelectionRing(ctx, object);
+      }
+
       if (object.kind === "payload") {
         this.drawDetachedPayload(ctx, object);
       } else {
@@ -493,6 +525,35 @@ export class Renderer {
 
       ctx.restore();
     });
+  }
+
+
+  tryTapObjectAt(screenX, screenY) {
+    if (!this.onObjectTap || !this.lastObjects?.length) return;
+
+    let best = null;
+    for (const object of this.lastObjects) {
+      if (!object || object.exploded) continue;
+      const screen = this.worldToScreen(object.x, object.y);
+      const radius = Math.max(24 * this.dpr, (object.collisionRadius ?? 20) * this.camera.scale);
+      const distance = Math.hypot(screen.x - screenX, screen.y - screenY);
+      if (distance <= radius && (!best || distance < best.distance)) {
+        best = { object, distance };
+      }
+    }
+
+    if (best) this.onObjectTap(best.object);
+  }
+
+  drawObjectSelectionRing(ctx, object) {
+    ctx.save();
+    ctx.strokeStyle = object.kind === "payload" ? "rgba(134, 239, 172, 0.95)" : "rgba(251, 191, 36, 0.95)";
+    ctx.lineWidth = Math.max(ROCKET_WORLD_LINE, 2 / Math.max(this.camera.scale, 0.001));
+    ctx.setLineDash([12, 10]);
+    ctx.beginPath();
+    ctx.arc(0, 0, Math.max(74, (object.collisionRadius ?? 12) * 1.6), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   drawDetachedPayload(ctx, object) {

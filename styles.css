@@ -970,3 +970,206 @@ body {
 .stack-item.selected .part-swatch {
   box-shadow: 0 0 0 2px rgba(125, 211, 252, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.34);
 }
+
+/* v0.3.3 persistent orbit + builder preview polish */
+.stage-preview {
+  justify-self: center;
+  width: min(100%, 390px);
+  display: grid;
+  gap: 3px;
+  padding: 9px 12px;
+  border: 1px solid rgba(125, 211, 252, 0.25);
+  border-radius: 18px;
+  background: rgba(8, 11, 20, 0.76);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+}
+
+.stage-preview span {
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.stage-preview strong {
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.25;
+  font-weight: 850;
+}
+
+.builder-preview-card {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 8%, rgba(125, 211, 252, 0.16), transparent 42%),
+    rgba(8, 11, 20, 0.74);
+}
+
+.builder-preview-canvas {
+  display: block;
+  width: 100%;
+  height: 280px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.62), rgba(2, 6, 23, 0.86)),
+    radial-gradient(circle at 50% 10%, rgba(56, 189, 248, 0.14), transparent 45%);
+}
+
+.preview-empty-note {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  margin: 16px 0 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+  pointer-events: none;
+}
+
+.preview-empty-note.hidden {
+  display: none;
+}
+
+.orbital-count-chip {
+  color: var(--success);
+}
+
+@media (max-height: 700px) {
+  .stage-preview {
+    padding: 8px 10px;
+  }
+
+  .stage-preview strong {
+    font-size: 11px;
+  }
+
+  .builder-preview-canvas {
+    height: 230px;
+  }
+}
+
+/* v0.4 economy + object interaction */
+.economy-strip {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.economy-strip strong {
+  color: var(--success);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-chip small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.object-panel {
+  left: 10px;
+  right: 10px;
+  bottom: calc(220px + var(--safe-bottom));
+  z-index: 7;
+  pointer-events: auto;
+}
+
+.object-panel-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.object-label {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.object-panel h2 {
+  margin: 2px 0 0;
+  font-size: 17px;
+  line-height: 1.15;
+}
+
+.object-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin: 10px 0;
+}
+
+.object-detail {
+  min-width: 0;
+  border-radius: 13px;
+  padding: 8px 9px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.object-detail span {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.object-detail strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.danger-button {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 999px;
+  border: 1px solid rgba(251, 113, 133, 0.45);
+  background: rgba(251, 113, 133, 0.12);
+  color: var(--danger);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.danger-button.hidden {
+  display: none;
+}
+
+@media (max-height: 700px) {
+  .object-panel {
+    bottom: calc(198px + var(--safe-bottom));
+  }
+}

@@ -2,6 +2,7 @@ import { Game } from "./game.js";
 import { Input } from "./input.js";
 import { Renderer } from "./renderer.js";
 import { PHYSICS } from "./config.js";
+import { BuilderPreview } from "./preview.js";
 import {
   AVAILABLE_PARTS,
   MAX_STACK_PARTS,
@@ -50,17 +51,33 @@ const selectedPartMetaEl = document.querySelector("#selectedPartMeta");
 const selectedPartDescriptionEl = document.querySelector("#selectedPartDescription");
 const selectedPartUsageEl = document.querySelector("#selectedPartUsage");
 const selectedPartMetricsEl = document.querySelector("#selectedPartMetrics");
+const builderPreviewCanvas = document.querySelector("#builderPreview");
+const builderPreviewEmptyEl = document.querySelector("#builderPreviewEmpty");
+const nextStageActionEl = document.querySelector("#nextStageAction");
+const companyCashHudEl = document.querySelector("#companyCashHud");
+const companyIncomeHudEl = document.querySelector("#companyIncomeHud");
+const builderCashEl = document.querySelector("#builderCash");
+const objectInspectorEl = document.querySelector("#objectInspector");
+const objectNameEl = document.querySelector("#objectName");
+const objectDetailsEl = document.querySelector("#objectDetails");
+const explodeObjectButton = document.querySelector("#explodeObject");
+const closeObjectInspectorButton = document.querySelector("#closeObjectInspector");
 
-let builderStack = normalizeStack(STARTING_STACK);
+let builderStack = [];
 let screenMode = "builder";
-let selectedPartId = STARTING_STACK[0]?.id ?? AVAILABLE_PARTS[0]?.id ?? null;
-
-renderBuilder();
+let selectedPartId = AVAILABLE_PARTS[0]?.id ?? null;
+const builderPreview = new BuilderPreview(builderPreviewCanvas, builderPreviewEmptyEl);
 
 const input = new Input();
 const renderer = new Renderer(canvas, recenterCameraButton);
 const initialRocket = buildRocketFromStack(builderStack).rocket;
 const game = new Game(input, renderer, initialRocket);
+
+renderBuilder();
+renderer.onObjectTap = (object) => {
+  game.selectObject(object.id);
+  updateObjectInspector(game.getHudData().selectedObject);
+};
 game.paused = true;
 
 bindBuilderEvents();
@@ -83,6 +100,14 @@ function bindBuilderEvents() {
     renderBuilder();
   });
   bindActivation(rebuildRocketButton, showBuilder);
+  bindActivation(closeObjectInspectorButton, () => {
+    game.clearSelectedObject();
+    updateObjectInspector(null);
+  });
+  bindActivation(explodeObjectButton, () => {
+    game.explodeObject();
+    updateObjectInspector(null);
+  });
 
   bindDelegatedActivation(partsCatalogEl, "[data-add-part]", (button) => {
     if (builderStack.length >= MAX_STACK_PARTS) return;
@@ -167,6 +192,8 @@ function bindDelegatedActivation(container, selector, handler) {
 function showBuilder() {
   screenMode = "builder";
   game.paused = true;
+  game.clearSelectedObject();
+  updateObjectInspector(null);
   builderScreenEl.classList.remove("hidden");
   gameShellEl.classList.add("builder-open");
   renderBuilder();
@@ -197,6 +224,7 @@ function renderBuilder(highlightErrors = false) {
   const stats = validation.stats;
 
   buildCostEl.textContent = formatMoney(stats.cost);
+  if (builderCashEl) builderCashEl.textContent = formatMoney(game?.company?.money ?? 0);
   buildMassEl.textContent = `${formatStatNumber(stats.launchMass)}t`;
   buildFuelEl.textContent = Math.round(stats.fuelCapacity).toLocaleString();
   buildTwrEl.textContent = formatStatNumber(stats.twr, 2);
@@ -205,6 +233,7 @@ function renderBuilder(highlightErrors = false) {
   buildStagesEl.textContent = String(stats.stageCount);
 
   renderStackList(stats.parts);
+  builderPreview.render(stats.parts);
   renderPartsCatalog();
   renderSelectedPart();
   renderValidation(validation, highlightErrors);
@@ -262,6 +291,7 @@ function renderPartsCatalog() {
           <span>Mass ${formatStatNumber(part.dryMass)}t</span>
           ${part.fuelCapacity ? `<span>Fuel ${Math.round(part.fuelCapacity)}</span>` : ""}
           ${part.thrust ? `<span>Thrust ${Math.round(part.thrust)}</span>` : ""}
+          ${part.incomeRate ? `<span>Income ${formatMoney(part.incomeRate)}/s</span>` : ""}
           <span>Drag ${formatStatNumber(part.dragArea ?? 0, 1)}</span>
           ${part.stageAction ? `<span>Staged</span>` : ""}
         </div>
@@ -283,6 +313,7 @@ function renderSelectedPart() {
     `Mass ${formatStatNumber(part.dryMass)}t`,
     part.fuelCapacity ? `Fuel ${Math.round(part.fuelCapacity)}` : "",
     part.thrust ? `Thrust ${Math.round(part.thrust)}` : "",
+    part.incomeRate ? `Income ${formatMoney(part.incomeRate)}/s` : "",
     `Drag ${formatStatNumber(part.dragArea ?? 0, 1)}`,
     part.stageAction ? `Default ${getStageLabel(getDefaultStageForPart(part))}` : "Flight part"
   ]
@@ -330,21 +361,27 @@ function updateHud(data) {
   statusEl.textContent = screenMode === "builder" ? "Build" : compactStatus(data.status);
   statusEl.title = data.status;
   fpsEl.textContent = `${Math.round(data.fps)}`;
+  if (companyCashHudEl) companyCashHudEl.textContent = formatMoney(data.company?.money ?? 0);
+  if (companyIncomeHudEl) companyIncomeHudEl.textContent = `${formatMoney(data.company?.incomePerSecond ?? 0)}/s`;
+  if (builderCashEl) builderCashEl.textContent = formatMoney(data.company?.money ?? 0);
+  if (nextStageActionEl) nextStageActionEl.textContent = screenMode === "builder" ? "Build a rocket first" : data.nextStageDescription;
+  updateObjectInspector(data.selectedObject);
 
   if (screenMode === "builder") {
-    missionResultEl.textContent = "Build a staged rocket, then launch.";
+    missionResultEl.textContent = "Build a staged rocket from scratch, then launch.";
     missionResultEl.classList.remove("success");
   } else if (data.missionComplete) {
-    missionResultEl.textContent = data.onlinePayloads > 0 ? `Payload online: ${data.onlinePayloads} deployed.` : "Mission complete: stable orbit achieved.";
+    missionResultEl.textContent = data.onlinePayloads > 0 ? `Payload online: ${data.onlinePayloads} active · ${formatMoney(data.company?.incomePerSecond ?? 0)}/s income · ${data.debrisCount} debris.` : "Mission complete: stable orbit achieved.";
     missionResultEl.classList.add("success");
   } else if (data.stageMessage) {
     missionResultEl.textContent = data.stageMessage;
     missionResultEl.classList.remove("success");
   } else if (data.flightSummary) {
-    missionResultEl.textContent = `${data.flightSummary.outcome}: max ${formatDistance(data.flightSummary.maxAltitude)}, ${data.flightSummary.maxSpeed.toFixed(0)} m/s. ${data.flightSummary.tip}`;
+    const refundText = data.flightSummary.recoveryRefund > 0 ? ` Refund ${formatMoney(data.flightSummary.recoveryRefund)}.` : "";
+    missionResultEl.textContent = `${data.flightSummary.outcome}: max ${formatDistance(data.flightSummary.maxAltitude)}, ${data.flightSummary.maxSpeed.toFixed(0)} m/s.${refundText} ${data.flightSummary.tip}`;
     missionResultEl.classList.toggle("success", data.flightSummary.outcome === "Recovered");
   } else {
-    missionResultEl.textContent = `Stage ${data.nextStage}/${Math.max(data.maxStage, data.nextStage - 1)} · Orbit hold ${data.orbitHoldTime.toFixed(1)}s/${PHYSICS.orbitRequiredHoldSeconds.toFixed(0)}s · ATM ${data.atmospherePercent.toFixed(0)}%`;
+    missionResultEl.textContent = `${data.nextStageDescription} · Orbit hold ${data.orbitHoldTime.toFixed(1)}s/${PHYSICS.orbitRequiredHoldSeconds.toFixed(0)}s · ATM ${data.atmospherePercent.toFixed(0)}%`;
     missionResultEl.classList.remove("success");
   }
 
@@ -352,6 +389,35 @@ function updateHud(data) {
   debugPanelEl.classList.toggle("hidden", !debugVisible);
   gameShellEl.classList.toggle("debug-active", debugVisible);
   if (debugVisible) debugTextEl.textContent = data.debugText;
+}
+
+function updateObjectInspector(info) {
+  if (!objectInspectorEl || !objectNameEl || !objectDetailsEl || !explodeObjectButton) return;
+  if (!info || screenMode === "builder") {
+    objectInspectorEl.classList.add("hidden");
+    return;
+  }
+
+  objectInspectorEl.classList.remove("hidden");
+  objectNameEl.textContent = info.name;
+  objectDetailsEl.innerHTML = [
+    ["Type", info.kind === "payload" ? "Payload" : "Debris"],
+    ["Status", titleCase(info.status)],
+    ["Altitude", formatDistance(info.altitude)],
+    ["Speed", `${info.speed.toFixed(1)} m/s`],
+    ["Income", info.incomeRate > 0 ? `${formatMoney(info.incomeRate)}/s` : "—"],
+    ["Earned", formatMoney(info.revenueEarned ?? 0)]
+  ]
+    .map(([label, value]) => `<div class="object-detail"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`)
+    .join("");
+  explodeObjectButton.classList.toggle("hidden", !info.canExplode);
+}
+
+function titleCase(value) {
+  return String(value ?? "")
+    .split(" ")
+    .map((word) => word ? word[0].toUpperCase() + word.slice(1) : word)
+    .join(" ");
 }
 
 function compactStatus(status) {

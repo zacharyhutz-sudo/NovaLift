@@ -1,27 +1,19 @@
-# NovaLift v0.3.2 — World-Scale Rockets, Better Parts, Recovery Physics
+# NovaLift v0.4.0 — Economy, Recovery, and Orbital Debris
 
-NovaLift is a portrait/mobile-first 2D rocket sandbox prototype. This version focuses on fixing rocket scale, improving part readability, and making parachutes/landing legs actually useful for recovery.
+NovaLift is a portrait/mobile-first 2D rocket sandbox prototype. This version adds the first real economy systems and makes separated stages persist as physical objects instead of disappearing.
 
-## What is new in v0.3.2
+## What is new in v0.4.0
 
-- Rocket rendering is now world-scale instead of screen-locked.
-- Zooming in/out now scales the rocket, Earth, trajectory, pad, and hitboxes together.
-- Rebuilt rocket part visuals with clearer Canvas vector assets:
-  - nose cones
-  - command pods
-  - fuel tanks
-  - engines
-  - decouplers
-  - satellites/data centers
-  - parachutes
-  - landing legs
-- Added a local auto-camera framing pass so the rocket stays readable without breaking world scale.
-- Improved per-part hitboxes to line up with the visible rocket.
-- Added deployed landing-leg contact hitboxes near the lower vessel contact point.
-- Retuned body drag so launch does not feel overly sluggish.
-- Retuned parachute drag so a safe deployment slows a normal rocket to recovery speed.
-- Added parachute stabilization so the rocket tends to hang upright under canopy.
-- Added a `Safe` descent status when parachute + landing legs have slowed the vehicle enough.
+- Satellites and orbital data centers now generate revenue over time when deployed into stable orbit.
+- Company cash and income-per-second are shown in the HUD.
+- Rocket construction is still free/unlimited for prototyping, but part costs now matter for recovery value.
+- Successfully landing/recovering the active rocket refunds a portion of the remaining active part costs.
+- Separated stages become tracked debris objects instead of vanishing.
+- Debris continues on its course under gravity and atmosphere until it stays in orbit or crashes into the planet.
+- Persistent world objects now include payloads and debris, not only satellites/data centers.
+- Tap/click a deployed object in flight to inspect it.
+- Tap orbital debris and choose **Explode Debris** to remove it.
+- Persistent world objects and company cash save to `localStorage`.
 
 ## Controls
 
@@ -31,26 +23,31 @@ Keyboard:
 - A / Left Arrow: rotate left
 - D / Right Arrow: rotate right
 - X / Enter: activate next stage
-- R: reset flight
 - Space: pause
 - F: debug
+- R: debug reset
 
 Mobile:
 
-- Use the large on-screen buttons for thrust, rotation, staging, reset, pause, and debug.
+- Use the large on-screen buttons for thrust, rotation, staging, pause, and debug.
+- The Stage preview panel tells you what the Stage button will do next.
 - Drag the playfield to pan the camera.
 - Pinch the playfield to zoom.
 - Tap Center to return to rocket follow mode.
+- Tap orbital debris or deployed payloads in the playfield to inspect them.
 
 ## Testing notes
 
 Recommended quick tests:
 
-1. Pinch zoom in/out and confirm the rocket changes size with Earth rather than staying screen-fixed.
-2. Launch the starter rocket and confirm the part visuals remain aligned to the vessel.
-3. Stage the parachute and landing legs during descent below safe deploy speed.
-4. Confirm the parachute slows the rocket to a safe descent and landing legs can recover the vehicle.
-5. Deploy the parachute too fast and confirm it can still fail.
+1. Use the Starter button, launch, and stage once to create debris.
+2. Confirm the separated stage continues moving instead of disappearing.
+3. Tap the debris object and confirm the object inspector appears.
+4. Tap **Explode Debris** and confirm the debris is removed.
+5. Deploy a satellite/data center in stable orbit and confirm company income increases.
+6. Wait several seconds and confirm company cash increases over time.
+7. Recover a rocket with parachute/legs and confirm a refund appears in the flight summary.
+8. Refresh the page and confirm saved payloads/debris/company cash remain.
 
 ## Running locally
 

@@ -11,6 +11,7 @@ export const AVAILABLE_PARTS = [
     type: "payload",
     stageAction: "deployPayload",
     cost: 4000,
+    incomeRate: 18,
     dryMass: 2.2,
     fuelCapacity: 0,
     thrust: 0,
@@ -18,7 +19,7 @@ export const AVAILABLE_PARTS = [
     dragArea: 1.35,
     width: 1.35,
     color: "#a78bfa",
-    description: "A starter orbital payload. Stage it in orbit to detach it and start future data income."
+    description: "A starter orbital payload. Stage it in orbit to detach it and generate recurring data-center revenue."
   },
   {
     id: "satellite_basic",
@@ -27,6 +28,7 @@ export const AVAILABLE_PARTS = [
     type: "payload",
     stageAction: "deployPayload",
     cost: 2200,
+    incomeRate: 7,
     dryMass: 0.8,
     fuelCapacity: 0,
     thrust: 0,
@@ -34,7 +36,7 @@ export const AVAILABLE_PARTS = [
     dragArea: 0.85,
     width: 1.1,
     color: "#c4b5fd",
-    description: "A lighter detachable payload for testing orbital deployment."
+    description: "A lighter detachable payload. It earns modest recurring revenue when deployed into stable orbit."
   },
   {
     id: "nose_cone_basic",
