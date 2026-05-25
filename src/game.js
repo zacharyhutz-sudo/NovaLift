@@ -34,6 +34,7 @@ export class Game {
     this.fpsSmoothed = 60;
     this.stageMessage = "Stage system ready.";
     this.stageMessageTimer = 4;
+    this.flightStats = this.createFlightStats(this.rocket);
   }
 
   reset() {
@@ -41,6 +42,7 @@ export class Game {
     this.objects = [];
     this.stageMessage = this.rocket.lastStageMessage ?? "Stage system ready.";
     this.stageMessageTimer = 4;
+    this.flightStats = this.createFlightStats(this.rocket);
     this.accumulator = 0;
     this.renderer.recenterCamera?.(this.rocket);
   }
@@ -88,6 +90,19 @@ export class Game {
     this.stageMessageTimer = 6;
   }
 
+  createFlightStats(rocket = this.rocket) {
+    return {
+      hasLaunched: false,
+      ended: false,
+      outcome: "",
+      maxAltitude: Math.max(0, getAltitude(rocket, PLANET)),
+      maxSpeed: 0,
+      fuelStart: rocket.maxFuel ?? 0,
+      fuelUsed: 0,
+      tip: ""
+    };
+  }
+
   update(dt) {
     const turn = (this.input.isHeld("right") ? 1 : 0) - (this.input.isHeld("left") ? 1 : 0);
     if (turn !== 0) rotateRocket(this.rocket, turn, dt);
@@ -103,7 +118,43 @@ export class Game {
 
     this.objects.forEach((object) => stepDetachedObject(object, dt, PLANET));
     this.objects = this.objects.filter((object) => !object.crashed || object.kind === "payload").slice(-24);
+    this.updateFlightStats();
     this.stageMessageTimer = Math.max(0, this.stageMessageTimer - dt);
+  }
+
+  updateFlightStats() {
+    if (!this.flightStats) this.flightStats = this.createFlightStats(this.rocket);
+
+    const altitude = Math.max(0, getAltitude(this.rocket, PLANET));
+    const speed = getSpeed(this.rocket);
+    const inFlight = !this.rocket.landed || speed > 0.1 || this.flightStats.hasLaunched;
+
+    if (inFlight) {
+      this.flightStats.hasLaunched = true;
+      this.flightStats.maxAltitude = Math.max(this.flightStats.maxAltitude, altitude);
+      this.flightStats.maxSpeed = Math.max(this.flightStats.maxSpeed, speed);
+      this.flightStats.fuelUsed = Math.max(0, (this.flightStats.fuelStart ?? 0) - (this.rocket.fuel ?? 0));
+    }
+
+    if (this.flightStats.hasLaunched && !this.flightStats.ended && (this.rocket.crashed || this.rocket.landed)) {
+      this.flightStats.ended = true;
+      this.flightStats.outcome = this.rocket.crashed ? "Crashed" : "Recovered";
+      this.flightStats.tip = this.getFlightTip();
+    }
+  }
+
+  getFlightTip() {
+    const maxAltitude = this.flightStats?.maxAltitude ?? 0;
+    const tangential = getTangentialSpeed(this.rocket, PLANET);
+    const circular = getCircularOrbitSpeed(this.rocket, PLANET);
+
+    if (this.rocket.missionComplete || (this.rocket.payloadsOnline ?? 0) > 0) return "Great launch. Payload/orbit objective completed.";
+    if (this.rocket.landed && !this.rocket.crashed) return "Nice recovery. Try staging a payload once you are above the atmosphere.";
+    if (maxAltitude < PLANET.atmosphereHeight * 0.65) return "Add fuel/thrust or reduce drag to climb out of the lower atmosphere.";
+    if (tangential < circular * 0.68) return "You reached space, but need more sideways speed. Start tilting earlier.";
+    if (this.rocket.parachuteState === "failed") return "The parachute ripped off. Wait until speed drops before staging recovery.";
+    if (this.rocket.crashed && this.rocket.parachuteState !== "deployed") return "Use a parachute and landing legs before touchdown for recovery attempts.";
+    return "Raise the low point of your arc above the atmosphere before deploying payloads.";
   }
 
   getRenderState() {
@@ -143,7 +194,19 @@ export class Game {
       parachuteState: this.rocket.parachuteState,
       landingLegsDeployed: this.rocket.landingLegsDeployed,
       onlinePayloads,
+      flightSummary: this.getFlightSummary(),
       debugText: this.getDebugText()
+    };
+  }
+
+  getFlightSummary() {
+    if (!this.flightStats?.ended) return null;
+    return {
+      outcome: this.flightStats.outcome,
+      maxAltitude: this.flightStats.maxAltitude,
+      maxSpeed: this.flightStats.maxSpeed,
+      fuelUsed: this.flightStats.fuelUsed,
+      tip: this.flightStats.tip
     };
   }
 

@@ -19,10 +19,11 @@ export const PLANET = {
   name: "Homeworld",
   x: 0,
   y: 0,
-  radius: 2500,
-  atmosphereHeight: 740,
+  radius: 12500,
+  atmosphereHeight: 3700,
   surfaceDensity: 1,
-  mu: 90000000,
+  // Radius is 5x larger than v0.3.0. Mu is scaled by 25x to preserve familiar surface gravity.
+  mu: 2250000000,
   color: "#1d4ed8",
   landColor: "#22c55e",
   atmosphereColor: "rgba(125, 211, 252, 0.12)"
@@ -49,10 +50,11 @@ export const ROCKET = {
 };
 
 export const RENDER = {
-  minScale: 0.18,
+  minScale: 0.018,
   maxScale: 1.65,
-  manualMinScale: 0.045,
+  manualMinScale: 0.006,
   manualMaxScale: 2.8,
+  rocketScreenScale: 0.78,
   cameraDragDeadzonePx: 3,
   velocityVectorScale: 1.55,
   gravityVectorScale: 90,

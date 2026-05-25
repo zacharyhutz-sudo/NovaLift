@@ -1,5 +1,6 @@
 import { PLANET, RENDER } from "./config.js";
 import { getGravityVector, predictTrajectory } from "./physics.js";
+import { getDrawLength, ROCKET_BODY_HEIGHT } from "./dimensions.js";
 
 function makeStars(count) {
   let seed = 8128;
@@ -505,7 +506,7 @@ export class Renderer {
 
   drawRocket(ctx, rocket, thrusting) {
     const screen = this.worldToScreen(rocket.x, rocket.y);
-    const scale = Math.max(0.55, this.camera.scale);
+    const scale = RENDER.rocketScreenScale * this.dpr;
     const parts = Array.isArray(rocket.parts) && rocket.parts.length > 0 ? rocket.parts.filter((part) => part.active !== false) : null;
 
     ctx.save();
@@ -526,7 +527,7 @@ export class Renderer {
       ctx.beginPath();
       ctx.strokeStyle = "rgba(251, 113, 133, 0.9)";
       ctx.lineWidth = 3 * this.dpr;
-      ctx.arc(screen.x, screen.y, 28 * this.camera.scale, 0, Math.PI * 2);
+      ctx.arc(screen.x, screen.y, 28 * this.dpr, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
@@ -535,7 +536,7 @@ export class Renderer {
   drawStackedRocketBody(ctx, parts, thrusting, crashed, rocket = {}) {
     const lengths = parts.map((part) => getDrawLength(part.type));
     const totalLength = lengths.reduce((total, length) => total + length, 0);
-    const bodyHeight = 15;
+    const bodyHeight = ROCKET_BODY_HEIGHT;
     let cursor = totalLength / 2;
 
     if (rocket.parachuteState === "deployed") {
@@ -738,19 +739,6 @@ function getPinchInfo(first, second) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
-}
-
-function getDrawLength(type) {
-  return {
-    payload: 20,
-    command: 20,
-    aero: 15,
-    parachute: 12,
-    legs: 12,
-    decoupler: 8,
-    fuel: 18,
-    engine: 16
-  }[type] ?? 16;
 }
 
 function roundRect(ctx, x, y, width, height, radius) {

@@ -930,3 +930,43 @@ body {
     margin-top: 2px;
   }
 }
+
+/* v0.3.1 builder guide + selected part polish */
+.part-inspector {
+  border-color: rgba(125, 211, 252, 0.24);
+  background: linear-gradient(180deg, rgba(14, 116, 144, 0.2), rgba(8, 11, 20, 0.76));
+}
+
+.inspector-description,
+.inspector-usage {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.42;
+}
+
+.inspector-usage {
+  margin-top: 7px;
+  color: #dbeafe;
+  font-weight: 750;
+}
+
+.inspector-metrics {
+  margin-top: 9px;
+}
+
+.part-card,
+.stack-item {
+  cursor: pointer;
+}
+
+.part-card.selected,
+.stack-item.selected {
+  border-color: rgba(125, 211, 252, 0.56);
+  box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.18), 0 16px 28px rgba(14, 165, 233, 0.08);
+}
+
+.part-card.selected .part-swatch,
+.stack-item.selected .part-swatch {
+  box-shadow: 0 0 0 2px rgba(125, 211, 252, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}

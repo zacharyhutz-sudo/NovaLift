@@ -1,5 +1,6 @@
 import { PLANET, ROCKET } from "./config.js";
 import { AVAILABLE_PARTS, STAGE_MAX, STAGE_MIN, getPartById } from "./parts.js";
+import { getRocketHalfLength } from "./dimensions.js";
 
 export const MAX_STACK_PARTS = 18;
 
@@ -37,7 +38,8 @@ export function calculateStatsFromParts(parts) {
   const thrust = sum(activeParts.filter((part) => part.type === "engine"), "thrust");
   const fuelUse = sum(activeParts.filter((part) => part.type === "engine"), "fuelUse");
   const burnTime = fuelUse > 0 ? fuelCapacity / fuelUse : 0;
-  const surfaceGravity = PLANET.mu / Math.pow(PLANET.radius + ROCKET.collisionRadius, 2);
+  const collisionRadius = getRocketHalfLength(activeParts);
+  const surfaceGravity = PLANET.mu / Math.pow(PLANET.radius + collisionRadius, 2);
   const twr = launchMass > 0 ? thrust / (launchMass * surfaceGravity) : 0;
   const stageCount = activeParts.reduce((max, part) => Math.max(max, part.stage ?? 0), 0);
   const dragArea = calculateDragArea(activeParts);
@@ -58,6 +60,7 @@ export function calculateStatsFromParts(parts) {
     twr,
     dragArea,
     frontalArea,
+    collisionRadius,
     stageCount
   };
 }
@@ -117,6 +120,7 @@ export function buildRocketFromStack(stack) {
     validation,
     rocket: {
       ...ROCKET,
+      y: -(PLANET.radius + stats.collisionRadius),
       dryMass: stats.dryMass,
       fuel: stats.fuelCapacity,
       maxFuel: stats.fuelCapacity,
@@ -124,7 +128,7 @@ export function buildRocketFromStack(stack) {
       fuelUse: stats.fuelUse,
       dragArea: stats.dragArea,
       frontalArea: stats.frontalArea,
-      collisionRadius: Math.max(18, 10 + parts.length * 2),
+      collisionRadius: stats.collisionRadius,
       parts,
       nextStage: 1,
       maxStage: stats.stageCount,
@@ -139,6 +143,7 @@ export function buildRocketFromStack(stack) {
         twr: stats.twr,
         burnTime: stats.burnTime,
         dragArea: stats.dragArea,
+        collisionRadius: stats.collisionRadius,
         stageCount: stats.stageCount
       }
     }

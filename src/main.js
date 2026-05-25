@@ -45,9 +45,15 @@ const buildTwrEl = document.querySelector("#buildTwr");
 const buildBurnEl = document.querySelector("#buildBurn");
 const buildDragEl = document.querySelector("#buildDrag");
 const buildStagesEl = document.querySelector("#buildStages");
+const selectedPartTitleEl = document.querySelector("#selectedPartTitle");
+const selectedPartMetaEl = document.querySelector("#selectedPartMeta");
+const selectedPartDescriptionEl = document.querySelector("#selectedPartDescription");
+const selectedPartUsageEl = document.querySelector("#selectedPartUsage");
+const selectedPartMetricsEl = document.querySelector("#selectedPartMetrics");
 
 let builderStack = normalizeStack(STARTING_STACK);
 let screenMode = "builder";
+let selectedPartId = STARTING_STACK[0]?.id ?? AVAILABLE_PARTS[0]?.id ?? null;
 
 renderBuilder();
 
@@ -81,7 +87,21 @@ function bindBuilderEvents() {
   bindDelegatedActivation(partsCatalogEl, "[data-add-part]", (button) => {
     if (builderStack.length >= MAX_STACK_PARTS) return;
     const part = AVAILABLE_PARTS.find((candidate) => candidate.id === button.dataset.addPart);
+    selectedPartId = button.dataset.addPart;
     builderStack.push({ id: button.dataset.addPart, stage: getDefaultStageForPart(part) });
+    renderBuilder();
+  });
+
+  bindDelegatedActivation(partsCatalogEl, "[data-select-part]", (card, event) => {
+    if (event.target.closest("button")) return;
+    selectedPartId = card.dataset.selectPart;
+    renderBuilder();
+  });
+
+  bindDelegatedActivation(stackListEl, "[data-select-stack-part]", (item, event) => {
+    if (event.target.closest("button")) return;
+    const index = Number(item.dataset.index);
+    selectedPartId = builderStack[index]?.id ?? selectedPartId;
     renderBuilder();
   });
 
@@ -186,6 +206,7 @@ function renderBuilder(highlightErrors = false) {
 
   renderStackList(stats.parts);
   renderPartsCatalog();
+  renderSelectedPart();
   renderValidation(validation, highlightErrors);
 
   launchBuiltRocketButton.disabled = !validation.valid;
@@ -202,7 +223,7 @@ function renderStackList(parts) {
   stackListEl.innerHTML = parts
     .map(
       (part, index) => `
-        <article class="stack-item" style="--part-color: ${escapeHtml(part.color)}">
+        <article class="stack-item ${part.id === selectedPartId ? "selected" : ""}" data-select-stack-part="${escapeHtml(part.id)}" data-index="${index}" style="--part-color: ${escapeHtml(part.color)}">
           <div class="stack-index">${index === 0 ? "Top" : index + 1}</div>
           <div class="part-swatch" aria-hidden="true"></div>
           <div class="stack-info">
@@ -228,7 +249,7 @@ function renderStackList(parts) {
 function renderPartsCatalog() {
   partsCatalogEl.innerHTML = AVAILABLE_PARTS.map(
     (part) => `
-      <article class="part-card" style="--part-color: ${escapeHtml(part.color)}">
+      <article class="part-card ${part.id === selectedPartId ? "selected" : ""}" data-select-part="${escapeHtml(part.id)}" style="--part-color: ${escapeHtml(part.color)}">
         <div class="part-card-top">
           <div class="part-swatch" aria-hidden="true"></div>
           <div>
@@ -248,6 +269,40 @@ function renderPartsCatalog() {
       </article>
     `
   ).join("");
+}
+
+function renderSelectedPart() {
+  const part = AVAILABLE_PARTS.find((candidate) => candidate.id === selectedPartId) ?? AVAILABLE_PARTS[0];
+  if (!part) return;
+
+  selectedPartTitleEl.textContent = part.name;
+  selectedPartMetaEl.textContent = `${getPartTypeLabel(part.type)} · ${formatMoney(part.cost)}`;
+  selectedPartDescriptionEl.textContent = part.description;
+  selectedPartUsageEl.textContent = getPartUsageTip(part);
+  selectedPartMetricsEl.innerHTML = [
+    `Mass ${formatStatNumber(part.dryMass)}t`,
+    part.fuelCapacity ? `Fuel ${Math.round(part.fuelCapacity)}` : "",
+    part.thrust ? `Thrust ${Math.round(part.thrust)}` : "",
+    `Drag ${formatStatNumber(part.dragArea ?? 0, 1)}`,
+    part.stageAction ? `Default ${getStageLabel(getDefaultStageForPart(part))}` : "Flight part"
+  ]
+    .filter(Boolean)
+    .map((item) => `<span>${escapeHtml(item)}</span>`)
+    .join("");
+}
+
+function getPartUsageTip(part) {
+  const tips = {
+    payload: "Use it near the top of the rocket. Give it a numbered stage so it can detach after you reach a stable orbit.",
+    aero: "Place this at the very top. It lowers drag while climbing through the atmosphere.",
+    command: "Keep one command pod in the stack. It represents control and should usually sit below payloads and nose cones.",
+    parachute: "Assign it to a late stage. Deploy only inside atmosphere and only after slowing below its safe speed.",
+    legs: "Assign to a late stage. Deploy before touchdown so the rocket can survive a slower, upright landing.",
+    fuel: "Place tanks above the engine they feed. More fuel increases burn time, but also adds mass.",
+    decoupler: "Put it between an upper craft and lower booster. When staged, it drops itself and every part below it.",
+    engine: "Place a launch engine at the bottom. More thrust improves lift, but burns fuel faster."
+  };
+  return tips[part.type] ?? "Add it to the stack, then use stage controls if it has an action.";
 }
 
 function renderValidation(validation, highlightErrors) {
@@ -285,6 +340,9 @@ function updateHud(data) {
   } else if (data.stageMessage) {
     missionResultEl.textContent = data.stageMessage;
     missionResultEl.classList.remove("success");
+  } else if (data.flightSummary) {
+    missionResultEl.textContent = `${data.flightSummary.outcome}: max ${formatDistance(data.flightSummary.maxAltitude)}, ${data.flightSummary.maxSpeed.toFixed(0)} m/s. ${data.flightSummary.tip}`;
+    missionResultEl.classList.toggle("success", data.flightSummary.outcome === "Recovered");
   } else {
     missionResultEl.textContent = `Stage ${data.nextStage}/${Math.max(data.maxStage, data.nextStage - 1)} · Orbit hold ${data.orbitHoldTime.toFixed(1)}s/${PHYSICS.orbitRequiredHoldSeconds.toFixed(0)}s · ATM ${data.atmospherePercent.toFixed(0)}%`;
     missionResultEl.classList.remove("success");

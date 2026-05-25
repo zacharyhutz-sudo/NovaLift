@@ -1,5 +1,6 @@
 import { PLANET, PHYSICS } from "./config.js";
 import { calculateStatsFromParts } from "./builder.js";
+import { getRocketSurfaceContact } from "./dimensions.js";
 
 export function cloneRocket(template) {
   return {
@@ -30,6 +31,9 @@ export function getDistanceToPlanet(rocket, planet = PLANET) {
 }
 
 export function getAltitude(rocket, planet = PLANET) {
+  if (Array.isArray(rocket?.parts) && rocket.parts.some((part) => part.active !== false)) {
+    return getRocketSurfaceContact(rocket, planet).clearance;
+  }
   return getDistanceToPlanet(rocket, planet) - planet.radius - (rocket.collisionRadius ?? 0);
 }
 
@@ -209,15 +213,18 @@ function resolveSurfaceContact(rocket, planet) {
   if (altitude > 0) return;
 
   const speed = getSpeed(rocket);
-  const distance = getDistanceToPlanet(rocket, planet);
-  const nx = (rocket.x - planet.x) / Math.max(distance, 1);
-  const ny = (rocket.y - planet.y) / Math.max(distance, 1);
+  const contact = getRocketSurfaceContact(rocket, planet);
+  const nx = contact.normalX;
+  const ny = contact.normalY;
   const safeTouchdownSpeed = rocket.landingLegsDeployed ? PHYSICS.landingSafeSpeedLegs : PHYSICS.landingSafeSpeedBare;
   const upright = getUprightAngleError(rocket, planet) <= PHYSICS.landingUprightAngle;
   const safeTouchdown = speed < safeTouchdownSpeed && upright && !rocket.missionComplete;
 
-  rocket.x = planet.x + nx * (planet.radius + rocket.collisionRadius);
-  rocket.y = planet.y + ny * (planet.radius + rocket.collisionRadius);
+  // Push the active rocket out of the planet by the exact hitbox penetration amount.
+  // This lets each part, rather than one large invisible circle, interact with the ground.
+  const penetration = Math.max(0, -contact.clearance);
+  rocket.x += nx * penetration;
+  rocket.y += ny * penetration;
 
   if (safeTouchdown) {
     rocket.landed = true;
@@ -385,7 +392,7 @@ export function recalculateRocketStats(rocket) {
   rocket.fuelUse = stats.fuelUse;
   rocket.dragArea = stats.dragArea;
   rocket.frontalArea = stats.frontalArea;
-  rocket.collisionRadius = Math.max(14, 10 + stats.count * 1.8);
+  rocket.collisionRadius = stats.collisionRadius;
   rocket.maxStage = Math.max(rocket.maxStage ?? 0, stats.stageCount);
 }
 

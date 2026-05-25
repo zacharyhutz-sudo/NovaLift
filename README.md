@@ -1,21 +1,16 @@
-# NovaLift v0.3.0 — Staging, Atmosphere, Recovery
+# NovaLift v0.3.1 — Builder Guidance, Hitboxes, Larger Homeworld
 
 NovaLift is a vertical mobile-first 2D space-company rocket prototype that runs on GitHub Pages with no build step.
 
-## What is new in v0.3.0
+## What is new in v0.3.1
 
-- Staging system with a dedicated **Stage** button
-- Builder stage assignment for each part
-- Decouplers that drop lower rocket sections
-- Detachable satellites and orbital data centers
-- Basic atmosphere and drag model
-- Drag stat in the builder
-- Nose cone part for lowering drag
-- Parachutes that deploy only inside atmosphere and can fail if deployed too fast
-- Landing legs that improve touchdown tolerance
-- Detached payload/debris rendering
-- Stage event messages during flight
-- Debug readout for drag, atmosphere, active parts, stages, and payloads
+- Added a selected-part explanation panel in the builder.
+- Tapping a part in the catalog or current stack now explains what it does and how to use it.
+- Added post-flight summaries with max altitude, max speed, outcome, and a short improvement tip.
+- Rocket rendering is now a fixed readable screen size while panning/zooming the camera.
+- Added per-part hitboxes for surface contact instead of using one simple circular rocket radius.
+- Increased Homeworld radius by 5x and scaled atmosphere with it.
+- Scaled planetary gravity to preserve familiar surface-gravity feel after the planet size increase.
 
 The budget is still infinite for this prototype, but parts have costs for future economy balancing.
 
@@ -47,6 +42,7 @@ The budget is still infinite for this prototype, but parts have costs for future
 ## Builder notes
 
 - Parts are stacked from top to bottom.
+- Tap any catalog or stack part to see an explanation and usage tip.
 - **F** means the part stays active during flight and does not trigger from the Stage button.
 - Numbered stages fire in order: Stage 1, Stage 2, Stage 3, etc.
 - Decouplers remove themselves and every part below them.
@@ -69,9 +65,11 @@ http://localhost:8000
 
 ## Recommended quick test
 
-1. Use the Starter rocket.
-2. Launch and climb out of the atmosphere.
-3. Tilt sideways to build orbital speed.
-4. Press **Stage** once to drop the lower booster.
-5. Press **Stage** again in orbit to deploy the data center.
-6. Reenter and press **Stage** again inside the atmosphere to deploy parachute and legs.
+1. Tap several parts in the builder and confirm the explanation panel changes.
+2. Use the Starter rocket.
+3. Launch and test camera zoom. The rocket should stay readable instead of shrinking/growing with zoom.
+4. Tip sideways to build orbital speed.
+5. Press **Stage** once to drop the lower booster.
+6. Press **Stage** again in orbit to deploy the data center.
+7. Reenter and press **Stage** again inside the atmosphere to deploy parachute and legs.
+8. Crash or recover and confirm the mission area gives a short flight summary.
