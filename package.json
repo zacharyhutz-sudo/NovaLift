@@ -1,7 +1,7 @@
 {
   "name": "novalift",
-  "version": "0.5.1",
-  "description": "Vertical mobile-first 2D rocket prototype with career missions, launch costs, payload income, recovery refunds, persistent orbital objects, debris cleanup, visual polish, and balance tuning.",
+  "version": "0.5.2",
+  "description": "Vertical mobile-first 2D rocket company prototype with improved payload activation, flight results cash-in, builder templates, auto-stage, part categories, and career economy.",
   "type": "module",
   "private": true,
   "scripts": {

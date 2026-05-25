@@ -117,6 +117,65 @@ export function getEscapeSpeed(rocket, planet = PLANET) {
   return Math.sqrt((2 * planet.mu) / distance);
 }
 
+export function getOrbitAnalysis(object, planet = PLANET) {
+  const rx = object.x - planet.x;
+  const ry = object.y - planet.y;
+  const r = Math.max(Math.sqrt(rx * rx + ry * ry), 1);
+  const vx = object.vx ?? 0;
+  const vy = object.vy ?? 0;
+  const v2 = vx * vx + vy * vy;
+  const h = rx * vy - ry * vx;
+  const mu = planet.mu;
+  const energy = v2 / 2 - mu / r;
+  const altitude = r - planet.radius - (object.collisionRadius ?? 0);
+  const tangentialSpeed = Math.abs(h) / r;
+  const circularSpeed = Math.sqrt(mu / r);
+
+  if (!Number.isFinite(energy) || !Number.isFinite(h) || Math.abs(h) < 0.001) {
+    return {
+      altitude,
+      bound: false,
+      escaping: false,
+      periapsisAltitude: -Infinity,
+      apoapsisAltitude: Infinity,
+      tangentialSpeed,
+      circularSpeed,
+      reason: "trajectory is too vertical"
+    };
+  }
+
+  if (energy >= 0) {
+    return {
+      altitude,
+      bound: false,
+      escaping: true,
+      periapsisAltitude: (h * h / mu) / (1 + Math.sqrt(Math.max(0, 1 + (2 * energy * h * h) / (mu * mu)))) - planet.radius,
+      apoapsisAltitude: Infinity,
+      tangentialSpeed,
+      circularSpeed,
+      reason: "escape trajectory"
+    };
+  }
+
+  const a = -mu / (2 * energy);
+  const eccentricity = Math.sqrt(Math.max(0, 1 + (2 * energy * h * h) / (mu * mu)));
+  const periapsisAltitude = a * (1 - eccentricity) - planet.radius;
+  const apoapsisAltitude = a * (1 + eccentricity) - planet.radius;
+
+  return {
+    altitude,
+    bound: true,
+    escaping: false,
+    semiMajorAxis: a,
+    eccentricity,
+    periapsisAltitude,
+    apoapsisAltitude,
+    tangentialSpeed,
+    circularSpeed,
+    reason: "bound orbit"
+  };
+}
+
 export function rotateRocket(rocket, direction, dt) {
   if (rocket.crashed) return;
   rocket.angle += direction * rocket.rotateSpeed * dt;
@@ -390,20 +449,18 @@ export function activateNextStage(rocket, planet = PLANET) {
     .forEach((part) => {
       part.active = false;
       part.deployed = true;
-      const stable = isStableEnoughForPayload(rocket, planet);
       const object = makeDetachedObject("payload", [part], rocket, planet, part.shortName ?? part.name);
       object.kind = "payload";
       object.payloadType = getPayloadTypeFromParts([part]);
       object.incomeRate = part.incomeRate ?? object.incomeRate ?? 0;
-      object.online = stable;
-      object.status = stable ? "online" : "drifting";
+      updateDetachedObjectStatus(object, planet);
       objects.push(object);
-      if (stable) {
+      if (object.online) {
         rocket.payloadsOnline = (rocket.payloadsOnline ?? 0) + 1;
         rocket.missionComplete = true;
         messages.push(`Stage ${stageNumber}: ${part.shortName ?? part.name} deployed and online.`);
       } else {
-        messages.push(`Stage ${stageNumber}: ${part.shortName ?? part.name} deployed, but orbit is not stable yet.`);
+        messages.push(`Stage ${stageNumber}: ${part.shortName ?? part.name} deployed, but ${object.offlineReason ?? "orbit is not stable yet"}.`);
       }
     });
 
@@ -596,30 +653,49 @@ export function updateDetachedObjectStatus(object, planet = PLANET) {
   if (object.crashed) {
     object.online = false;
     object.status = "crashed";
+    object.offlineReason = "crashed on Homeworld";
     return object.status;
   }
 
-  const stable = isStableEnoughForPayload(object, planet);
+  const evaluation = evaluatePayloadOrbit(object, planet);
   if (object.kind === "payload") {
-    object.online = stable;
-    object.status = stable ? "online" : "drifting";
+    object.online = evaluation.online;
+    object.offlineReason = evaluation.online ? "" : evaluation.reason;
+    object.status = evaluation.online ? "online" : `offline: ${evaluation.reason}`;
   } else if (object.kind === "vessel") {
     object.online = false;
-    object.status = stable ? "command pod in orbit" : "command pod falling";
+    object.offlineReason = evaluation.reason;
+    object.status = evaluation.online ? "command pod in orbit" : evaluation.falling ? "command pod falling" : "command pod drifting";
   } else {
     object.online = false;
-    object.status = stable ? "orbital debris" : "falling";
+    object.offlineReason = evaluation.reason;
+    object.status = evaluation.online ? "orbital debris" : evaluation.falling ? "falling" : "drifting";
   }
 
   return object.status;
 }
 
+export function evaluatePayloadOrbit(object, planet = PLANET) {
+  const altitude = getAltitude(object, planet);
+  const analysis = getOrbitAnalysis(object, planet);
+  const atmosphereClearance = planet.atmosphereHeight * 0.82;
+
+  if (altitude <= 0) return { online: false, falling: true, reason: "impact with Homeworld", analysis };
+  if (altitude < planet.atmosphereHeight * 0.72) return { online: false, falling: true, reason: "too low in atmosphere", analysis };
+  if (analysis.escaping) return { online: false, falling: false, reason: "escape trajectory", analysis };
+  if (!analysis.bound) return { online: false, falling: true, reason: analysis.reason ?? "unstable trajectory", analysis };
+  if (analysis.periapsisAltitude < atmosphereClearance) {
+    return { online: false, falling: true, reason: "orbit dips into atmosphere", analysis };
+  }
+  if (analysis.tangentialSpeed < analysis.circularSpeed * 0.55) {
+    return { online: false, falling: true, reason: "not enough sideways speed", analysis };
+  }
+
+  return { online: true, falling: false, reason: "stable orbit", analysis };
+}
+
 export function isStableEnoughForPayload(rocket, planet) {
-  const altitude = getAltitude(rocket, planet);
-  const radialVelocity = Math.abs(getRadialVelocity(rocket, planet));
-  const tangentialSpeed = getTangentialSpeed(rocket, planet);
-  const circularSpeed = getCircularOrbitSpeed(rocket, planet);
-  return altitude > planet.atmosphereHeight && tangentialSpeed > circularSpeed * 0.82 && radialVelocity < 35;
+  return evaluatePayloadOrbit(rocket, planet).online;
 }
 
 function stabilizeUnderParachute(rocket, planet, dt) {

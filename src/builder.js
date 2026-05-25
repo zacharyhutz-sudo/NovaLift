@@ -105,6 +105,44 @@ export function validateBuild(stack) {
   };
 }
 
+export function autoStageStack(stack) {
+  const normalized = normalizeStack(stack);
+  const staged = normalized.map((entry) => ({ ...entry, stage: 0 }));
+  let nextStage = 1;
+
+  // Drop lower boosters first. With a vertical stack, bottom parts have larger indexes.
+  const decouplerIndexes = staged
+    .map((entry, index) => ({ entry, index, part: getPartById(entry.id) }))
+    .filter(({ part }) => part.stageAction === "decoupleBelow")
+    .sort((a, b) => b.index - a.index);
+
+  decouplerIndexes.forEach(({ index }) => {
+    staged[index].stage = clampStage(nextStage++);
+  });
+
+  const payloadIndexes = staged
+    .map((entry, index) => ({ entry, index, part: getPartById(entry.id) }))
+    .filter(({ part }) => part.stageAction === "deployPayload");
+  if (payloadIndexes.length) {
+    const payloadStage = clampStage(nextStage++);
+    payloadIndexes.forEach(({ index }) => {
+      staged[index].stage = payloadStage;
+    });
+  }
+
+  const recoveryIndexes = staged
+    .map((entry, index) => ({ entry, index, part: getPartById(entry.id) }))
+    .filter(({ part }) => part.stageAction === "deployParachute" || part.stageAction === "deployLegs");
+  if (recoveryIndexes.length) {
+    const recoveryStage = clampStage(nextStage);
+    recoveryIndexes.forEach(({ index }) => {
+      staged[index].stage = recoveryStage;
+    });
+  }
+
+  return staged;
+}
+
 export function buildRocketFromStack(stack) {
   const normalized = normalizeStack(stack);
   const validation = validateBuild(normalized);

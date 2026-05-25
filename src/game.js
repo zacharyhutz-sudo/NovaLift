@@ -175,7 +175,9 @@ export class Game {
       fuelStart: rocket.maxFuel ?? 0,
       fuelUsed: 0,
       recoveryRefund: 0,
-      recoveryAwarded: false,
+      recoveryAvailable: 0,
+      recoveryCashedIn: false,
+      recoveredParts: [],
       missionRewards: 0,
       tip: ""
     };
@@ -286,31 +288,44 @@ export class Game {
       this.flightStats.ended = true;
       this.flightStats.outcome = this.rocket.crashed ? "Crashed" : "Recovered";
       if (!this.rocket.crashed) {
-        this.flightStats.recoveryRefund = this.awardRecoveryRefund();
+        const recovery = this.prepareRecoveryRefund();
+        this.flightStats.recoveryRefund = recovery.refund;
+        this.flightStats.recoveryAvailable = recovery.refund;
+        this.flightStats.recoveredParts = recovery.parts;
       }
       this.flightStats.tip = this.getFlightTip();
     }
   }
 
-  awardRecoveryRefund() {
-    if (this.flightStats.recoveryAwarded) return this.flightStats.recoveryRefund ?? 0;
+  prepareRecoveryRefund() {
     const activeParts = Array.isArray(this.rocket.parts)
       ? this.rocket.parts.filter((part) => part.active !== false)
       : [];
-    const activeCost = activeParts.reduce((total, part) => total + (part.cost ?? 0), 0);
-    const refund = Math.round(activeCost * RECOVERY_REFUND_RATE);
+    const parts = activeParts.map((part) => ({
+      name: part.shortName ?? part.name ?? "Recovered Part",
+      type: part.type ?? "part",
+      cost: Number(part.cost ?? 0),
+      refund: Math.round(Number(part.cost ?? 0) * RECOVERY_REFUND_RATE)
+    }));
+    const refund = parts.reduce((total, part) => total + part.refund, 0);
+    return { refund, parts };
+  }
 
-    if (refund > 0) {
-      this.company.money += refund;
-      this.company.totalRecovery += refund;
-      this.company.lastRecoveryRefund = refund;
-      this.stageMessage = `Rocket recovered. Parts refund: ${formatMoney(refund)}.`;
+  cashInRecovery() {
+    if (!this.flightStats?.ended || this.flightStats.outcome !== "Recovered") return 0;
+    if (this.flightStats.recoveryCashedIn) return 0;
+    const amount = Math.max(0, Math.round(this.flightStats.recoveryAvailable ?? this.flightStats.recoveryRefund ?? 0));
+    if (amount > 0) {
+      this.company.money += amount;
+      this.company.totalRecovery += amount;
+      this.company.lastRecoveryRefund = amount;
+      this.stageMessage = `Recovered parts cashed in: ${formatMoney(amount)}.`;
       this.stageMessageTimer = 8;
       this.saveCompany();
     }
-
-    this.flightStats.recoveryAwarded = true;
-    return refund;
+    this.flightStats.recoveryCashedIn = true;
+    this.flightStats.recoveryAvailable = 0;
+    return amount;
   }
 
   getFlightTip() {
@@ -319,7 +334,7 @@ export class Game {
     const circular = getCircularOrbitSpeed(this.rocket, PLANET);
 
     if (this.rocket.missionComplete || (this.rocket.payloadsOnline ?? 0) > 0) return "Great launch. Payload/orbit objective completed.";
-    if (this.rocket.landed && !this.rocket.crashed) return "Nice recovery. Recovered parts refunded a portion of their cost.";
+    if (this.rocket.landed && !this.rocket.crashed) return "Nice recovery. Cash in the recovered parts from the flight results popup.";
     if (maxAltitude < PLANET.atmosphereHeight * 0.65) return "Add fuel/thrust or reduce drag to climb out of the lower atmosphere.";
     if (tangential < circular * 0.68) return "You reached space, but need more sideways speed. Start tilting earlier.";
     if (this.rocket.parachuteState === "failed") return "The parachute ripped off. Wait until speed drops before staging recovery.";
@@ -546,9 +561,12 @@ export class Game {
       maxSpeed: this.flightStats.maxSpeed,
       fuelUsed: this.flightStats.fuelUsed,
       recoveryRefund: this.flightStats.recoveryRefund ?? 0,
+      recoveryAvailable: this.flightStats.recoveryAvailable ?? 0,
+      recoveryCashedIn: Boolean(this.flightStats.recoveryCashedIn),
+      recoveredParts: this.flightStats.recoveredParts ?? [],
       launchCost: this.company.lastLaunchCost ?? 0,
       missionReward: this.flightStats.missionRewards ?? 0,
-      net: (this.flightStats.missionRewards ?? 0) + (this.flightStats.recoveryRefund ?? 0) - (this.company.mode === "sandbox" ? 0 : (this.company.lastLaunchCost ?? 0)),
+      net: (this.flightStats.missionRewards ?? 0) + (this.flightStats.recoveryCashedIn ? (this.flightStats.recoveryRefund ?? 0) : 0) - (this.company.mode === "sandbox" ? 0 : (this.company.lastLaunchCost ?? 0)),
       tip: this.flightStats.tip
     };
   }
@@ -636,7 +654,8 @@ function normalizeStoredObject(object) {
     crashed: Boolean(object.crashed),
     landed: Boolean(object.landed),
     exploded: Boolean(object.exploded),
-    status: object.status ?? "drifting"
+    status: object.status ?? "drifting",
+    offlineReason: object.offlineReason ?? ""
   };
 
   normalized.payloadType = inferPayloadType(normalized);
@@ -668,6 +687,7 @@ function serializeObject(object) {
     color: object.color,
     parts: Array.isArray(object.parts) ? object.parts.map((part) => ({ ...part })) : [],
     status: object.status,
+    offlineReason: object.offlineReason ?? "",
     cost: object.cost ?? 0,
     recoveryValue: object.recoveryValue ?? 0,
     incomeRate: object.incomeRate ?? 0,
@@ -735,6 +755,7 @@ function objectToInfo(object) {
     payloadType,
     category: kind === "payload" ? payloadType : kind === "vessel" ? "command" : "debris",
     status: object.status ?? "unknown",
+    offlineReason: object.offlineReason ?? "",
     altitude: getAltitude(object, PLANET),
     speed: getSpeed(object),
     incomeRate: kind === "payload" && object.online ? Number(object.incomeRate ?? 0) : 0,

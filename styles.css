@@ -1694,3 +1694,229 @@ body {
 .budget-chip strong {
   font-size: clamp(18px, 4.7vw, 27px);
 }
+
+/* v0.5.2 payload activation, results, and builder QoL */
+.template-deck {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.template-card {
+  text-align: left;
+  min-height: 58px;
+  border-radius: 17px;
+  padding: 10px 12px;
+  border: 1px solid rgba(103, 232, 249, 0.18);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(15, 23, 42, 0.68));
+  color: var(--text);
+  font: inherit;
+  touch-action: manipulation;
+}
+
+.template-card strong,
+.template-card span {
+  display: block;
+}
+
+.template-card strong {
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.template-card span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.part-category-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 0 0 7px;
+  margin-bottom: 7px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.category-tab {
+  flex: 0 0 auto;
+  min-height: 32px;
+  border-radius: 999px;
+  padding: 0 11px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.category-tab.active {
+  color: #cffafe;
+  border-color: rgba(103, 232, 249, 0.45);
+  background: rgba(34, 211, 238, 0.13);
+}
+
+.recommended-parts {
+  margin: 0 0 9px;
+  color: #bae6fd;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.part-card.recommended {
+  border-color: rgba(134, 239, 172, 0.38);
+  box-shadow: inset 0 0 0 1px rgba(134, 239, 172, 0.09);
+}
+
+.part-card-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 7px;
+}
+
+.part-card-actions button:last-child {
+  min-width: 54px;
+}
+
+.stack-buttons {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.stack-buttons button {
+  width: 28px;
+  height: 28px;
+}
+
+.flight-summary-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: calc(12px + var(--safe-top)) 12px calc(12px + var(--safe-bottom));
+  background: rgba(2, 6, 23, 0.48);
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+}
+
+.flight-summary-modal.hidden {
+  display: none;
+}
+
+.flight-summary-card {
+  width: min(560px, 100%);
+  max-height: min(86vh, 760px);
+  overflow: auto;
+  border-radius: 26px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: linear-gradient(180deg, rgba(8, 13, 31, 0.96), rgba(3, 7, 18, 0.96));
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.52), inset 0 1px 0 rgba(255,255,255,0.06);
+  padding: 16px;
+}
+
+.flight-summary-top,
+.flight-summary-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.flight-summary-top h2 {
+  margin: 2px 0 0;
+  font-size: 21px;
+}
+
+.flight-summary-body h3 {
+  margin: 14px 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.result-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.result-grid > div,
+.result-parts > div,
+.result-note,
+.result-tip {
+  border-radius: 15px;
+  padding: 9px 10px;
+  background: rgba(255, 255, 255, 0.065);
+}
+
+.result-grid span,
+.result-parts span {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.result-grid strong,
+.result-parts strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
+}
+
+.result-parts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.result-note,
+.result-tip {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.flight-summary-actions {
+  align-items: center;
+  margin-top: 14px;
+}
+
+.cash-button {
+  flex: 1 1 auto;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(134, 239, 172, 0.45);
+  background: rgba(34, 197, 94, 0.14);
+  color: #bbf7d0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cash-button:disabled {
+  opacity: 0.48;
+}
+
+@media (min-width: 520px) {
+  .template-deck {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

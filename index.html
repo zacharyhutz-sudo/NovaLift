@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050816" />
-    <title>NovaLift v0.5.1</title>
+    <title>NovaLift v0.5.2</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -15,7 +15,7 @@
         <section id="hud" class="compact-hud" aria-label="Flight status">
           <div class="brand-chip">
             <strong>NovaLift</strong>
-            <span>v0.5.1</span>
+            <span>v0.5.2</span>
           </div>
           <div class="hud-stats">
             <div class="hud-stat"><span>Alt</span><strong id="altitude">0 m</strong></div>
@@ -60,6 +60,14 @@
           <div id="missionBoard" class="mission-board"></div>
         </section>
 
+        <section class="builder-card template-card-wrap" aria-label="Quick rocket templates">
+          <div class="builder-section-title">
+            <h2>Quick Builds</h2>
+            <span>Start fast, then customize</span>
+          </div>
+          <div id="templateDeck" class="template-deck"></div>
+        </section>
+
         <section class="builder-card builder-preview-card" aria-label="Live rocket preview">
           <div class="builder-section-title">
             <h2>Live Rocket Preview</h2>
@@ -98,6 +106,7 @@
             <h2>Current Stack</h2>
             <div class="stack-actions">
               <button id="starterBuild" type="button" class="mini-button">Starter</button>
+              <button id="autoStageBuild" type="button" class="mini-button">Auto-Stage</button>
               <button id="clearBuild" type="button" class="mini-button">Clear</button>
             </div>
           </div>
@@ -110,6 +119,8 @@
             <h2>Parts Catalog</h2>
             <span id="partCountLabel">0 parts</span>
           </div>
+          <div id="partCategoryTabs" class="part-category-tabs" aria-label="Part categories"></div>
+          <p id="recommendedParts" class="recommended-parts">Pick a mission above to see helpful part recommendations.</p>
           <div id="partsCatalog" class="parts-catalog"></div>
         </section>
 
@@ -177,6 +188,23 @@
         </div>
         <div id="objectDetails" class="object-details"></div>
         <button id="explodeObject" class="danger-button" type="button">Explode Debris</button>
+      </section>
+
+      <section id="flightSummaryModal" class="flight-summary-modal hidden" aria-live="polite" aria-label="Flight result summary">
+        <div class="flight-summary-card">
+          <div class="flight-summary-top">
+            <div>
+              <div class="object-label">Flight Results</div>
+              <h2 id="flightSummaryTitle">Flight Complete</h2>
+            </div>
+            <button id="flightSummaryClose" class="mini-button" type="button">Close</button>
+          </div>
+          <div id="flightSummaryBody" class="flight-summary-body"></div>
+          <div class="flight-summary-actions">
+            <button id="cashInRecovery" type="button" class="cash-button">Cash In Recovered Parts</button>
+            <button id="flightSummaryBuild" type="button" class="mini-button">Build Next Rocket</button>
+          </div>
+        </div>
       </section>
 
       <section id="debugPanel" class="panel debug-panel hidden">

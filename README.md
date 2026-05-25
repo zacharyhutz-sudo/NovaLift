@@ -1,35 +1,55 @@
-# NovaLift v0.5.1 — Engine/Fuel Tuning + Gravity-Aligned Parachutes
+# NovaLift v0.5.2 — Payload Activation + Flight Results + Builder QoL
 
-NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version turns the polished flight sandbox into a more game-like progression loop with starter missions, launch costs, rewards, and the existing payload-income economy.
+NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version focuses on fixing payload activation clarity, making flights end with a real results/cash-in loop, and making rocket construction much faster.
 
-## What is new in v0.5.1
+## What is new in v0.5.2
 
-### Balance/physics patch
+### Payload activation fix
 
-- Reduced all engine thrust values by 25%.
-- Reduced fuel tank capacities by 50%.
-- Parachute canopies now render opposite the local gravity vector, so they deploy away from the planet instead of simply pointing screen-up or rocket-up.
+- Satellites and data centers now use a better orbit evaluation based on projected orbital shape instead of only momentary radial velocity.
+- Payload tracker statuses now explain why a payload is offline, such as:
+  - orbit dips into atmosphere
+  - too low in atmosphere
+  - not enough sideways speed
+  - escape trajectory
+- Older saved payload objects are still normalized and rechecked when loaded.
+- Online satellites/data centers continue generating company revenue over time.
 
+### Flight results and recovery cash-in
 
-- Added a **Mission Board** to the builder.
-- Added starter progression missions:
-  - First Launch
-  - Reach the Sky
-  - Touch Space
-  - First Orbit
-  - Deploy Satellite
-  - Deploy Data Center
-  - Recover Rocket
-  - Clean Orbit
-- Added mission rewards that pay company cash when completed.
-- Added **Career Mode** with a $25,000 starting budget.
-- Added a **Sandbox Mode** toggle that keeps unlimited launches for testing.
-- Rocket launches now subtract the rocket's part cost in Career Mode.
-- The launch button now shows the career launch cost.
-- Builder validation warns when the company cannot afford the current rocket.
-- Flight messages now call out completed missions and rewards.
-- Flight summaries include launch cost, mission reward, recovery refund, and net result.
-- Existing local saves migrate to the new company format with career cash available.
+- Landing or crashing the active command rocket now opens a **Flight Results** popup.
+- The popup shows:
+  - max altitude
+  - max speed
+  - launch cost
+  - mission rewards
+  - recovery value
+  - net result
+  - recovered parts
+  - a flight improvement tip
+- Successful recoveries now create a pending recovery value.
+- Tap **Cash In** to collect the recovered part value.
+- Recovery payouts can only be cashed in once.
+
+### Builder quality-of-life improvements
+
+- Added **Quick Build** templates:
+  - Starter Orbit
+  - Satellite Launcher
+  - Data Center Rig
+  - Recovery Test
+- Added an **Auto-Stage** button.
+- Added part category tabs:
+  - All
+  - Core
+  - Fuel
+  - Engines
+  - Payloads
+  - Recovery
+  - Aero
+- Added mission-based recommended parts.
+- Added **+3** buttons for repeated fuel/engine additions when there is room.
+- Added duplicate controls for parts already in the current stack.
 
 ## Existing features retained
 
@@ -39,9 +59,8 @@ NovaLift is a portrait/mobile-first 2D rocket company game prototype. This versi
 - Stage preview text in flight.
 - Staging, decouplers, satellites, data centers, parachutes, and landing legs.
 - Basic atmosphere, drag, parachute recovery, and per-part hitboxes.
-- Satellites and orbital data centers generate revenue over time when deployed into stable orbit.
+- Mission Board, Career Mode, Sandbox Mode, launch costs, mission rewards, and recurring payload income.
 - The **Track** button toggles an orbit tracker panel for command pods, satellites, data centers, and debris.
-- Successfully landing/recovering the active rocket refunds a portion of remaining active part costs.
 - Separated stages become tracked debris objects instead of vanishing.
 - Debris continues under gravity and atmosphere until it stays in orbit or crashes into the planet.
 - Tap/click a deployed object in flight to inspect it.
@@ -75,15 +94,15 @@ Mobile:
 
 Recommended quick tests:
 
-1. Open the builder and confirm the Mission Board shows starter missions.
-2. Confirm Career Mode starts with $25,000 and launch button shows the rocket cost.
-3. Toggle Sandbox Mode and confirm the cash display shows infinite/unlimited budget behavior.
-4. Build a valid rocket, launch, and confirm the launch cost is deducted in Career Mode.
-5. Lift off and confirm **First Launch** pays its reward.
-6. Reach altitude milestones and confirm mission rewards appear in the flight message.
-7. Deploy an online satellite/data center and confirm recurring income plus mission reward behavior.
-8. Recover a rocket and confirm both part refund and recovery mission reward behavior.
-9. Explode orbital debris and confirm the Clean Orbit mission can complete.
+1. Open the builder and confirm the rocket starts empty.
+2. Tap a Quick Build template and confirm the rocket stack, live preview, and stages update.
+3. Tap **Auto-Stage** after editing and confirm staged parts receive sensible stage numbers.
+4. Use part category tabs and recommended parts to add/duplicate parts quickly.
+5. Launch a satellite or data center template and deploy the payload in a stable orbit.
+6. Confirm the tracker shows the payload as online and generating income, or explains why it is offline.
+7. Land a command rocket and confirm the Flight Results popup appears.
+8. Tap **Cash In** and confirm the recovery value is added once.
+9. Crash a rocket and confirm the Flight Results popup still appears with no recovery value.
 10. Refresh the page and confirm company cash, completed missions, and orbital objects persist.
 
 ## Running locally

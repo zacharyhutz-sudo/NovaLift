@@ -6,6 +6,7 @@ import { BuilderPreview } from "./preview.js";
 import {
   AVAILABLE_PARTS,
   MAX_STACK_PARTS,
+  autoStageStack,
   buildRocketFromStack,
   calculateBuildStats,
   clampStage,
@@ -37,6 +38,7 @@ const buildValidationEl = document.querySelector("#buildValidation");
 const launchBuiltRocketButton = document.querySelector("#launchBuiltRocket");
 const starterBuildButton = document.querySelector("#starterBuild");
 const clearBuildButton = document.querySelector("#clearBuild");
+const autoStageButton = document.querySelector("#autoStageBuild");
 const rebuildRocketButton = document.querySelector("#rebuildRocket");
 const partCountLabelEl = document.querySelector("#partCountLabel");
 const buildCostEl = document.querySelector("#buildCost");
@@ -61,6 +63,15 @@ const builderModeLabelEl = document.querySelector("#builderModeLabel");
 const toggleEconomyModeButton = document.querySelector("#toggleEconomyMode");
 const missionBoardEl = document.querySelector("#missionBoard");
 const missionBoardSummaryEl = document.querySelector("#missionBoardSummary");
+const templateDeckEl = document.querySelector("#templateDeck");
+const partCategoryTabsEl = document.querySelector("#partCategoryTabs");
+const recommendedPartsEl = document.querySelector("#recommendedParts");
+const flightSummaryModalEl = document.querySelector("#flightSummaryModal");
+const flightSummaryTitleEl = document.querySelector("#flightSummaryTitle");
+const flightSummaryBodyEl = document.querySelector("#flightSummaryBody");
+const cashInRecoveryButton = document.querySelector("#cashInRecovery");
+const flightSummaryBuildButton = document.querySelector("#flightSummaryBuild");
+const flightSummaryCloseButton = document.querySelector("#flightSummaryClose");
 const objectInspectorEl = document.querySelector("#objectInspector");
 const trackerPanelEl = document.querySelector("#orbitTracker");
 const trackerListEl = document.querySelector("#trackerList");
@@ -76,6 +87,44 @@ let builderStack = [];
 let screenMode = "builder";
 let trackerOpen = false;
 let selectedPartId = AVAILABLE_PARTS[0]?.id ?? null;
+let activePartCategory = "all";
+let lastShownFlightSummaryKey = "";
+const PART_CATEGORIES = [
+  { id: "all", label: "All" },
+  { id: "core", label: "Core", types: ["command", "decoupler"] },
+  { id: "fuel", label: "Fuel", types: ["fuel"] },
+  { id: "engine", label: "Engines", types: ["engine"] },
+  { id: "payload", label: "Payloads", types: ["payload"] },
+  { id: "recovery", label: "Recovery", types: ["parachute", "legs"] },
+  { id: "aero", label: "Aero", types: ["aero"] }
+];
+
+const ROCKET_TEMPLATES = [
+  {
+    id: "orbit_starter",
+    name: "Starter Orbit",
+    description: "A forgiving first orbit build with recovery parts.",
+    stack: ["nose_cone_basic", "command_pod_basic", "parachute_basic", "landing_legs_basic", "fuel_tank_small", "fuel_tank_small", "decoupler_basic", "fuel_tank_medium", "engine_basic"]
+  },
+  {
+    id: "sat_launcher",
+    name: "Satellite Launcher",
+    description: "Payload, upper engine, lower booster, and recovery hardware.",
+    stack: ["nose_cone_basic", "satellite_basic", "command_pod_basic", "parachute_basic", "landing_legs_basic", "fuel_tank_small", "engine_vacuum", "decoupler_basic", "fuel_tank_medium", "fuel_tank_medium", "engine_basic"]
+  },
+  {
+    id: "data_center",
+    name: "Data Center Rig",
+    description: "Heavier payload launcher for orbital revenue attempts.",
+    stack: ["nose_cone_basic", "data_center_basic", "command_pod_basic", "parachute_basic", "landing_legs_basic", "fuel_tank_small", "engine_vacuum", "decoupler_basic", "fuel_tank_medium", "fuel_tank_medium", "engine_heavy"]
+  },
+  {
+    id: "recovery_test",
+    name: "Recovery Test",
+    description: "Small vehicle for practicing parachute and landing-leg cash-ins.",
+    stack: ["nose_cone_basic", "command_pod_basic", "parachute_basic", "landing_legs_basic", "fuel_tank_small", "engine_basic"]
+  }
+];
 const builderPreview = new BuilderPreview(builderPreviewCanvas, builderPreviewEmptyEl);
 
 const input = new Input();
@@ -109,6 +158,21 @@ function bindBuilderEvents() {
     builderStack = [];
     renderBuilder();
   });
+  bindActivation(autoStageButton, () => {
+    builderStack = autoStageStack(builderStack);
+    renderBuilder();
+  });
+  bindDelegatedActivation(templateDeckEl, "[data-template]", (button) => {
+    const template = ROCKET_TEMPLATES.find((candidate) => candidate.id === button.dataset.template);
+    if (!template) return;
+    builderStack = autoStageStack(template.stack.map((id) => ({ id, stage: 0 })));
+    selectedPartId = builderStack[0]?.id ?? selectedPartId;
+    renderBuilder();
+  });
+  bindDelegatedActivation(partCategoryTabsEl, "[data-part-category]", (button) => {
+    activePartCategory = button.dataset.partCategory || "all";
+    renderBuilder();
+  });
   bindActivation(toggleEconomyModeButton, () => {
     game.toggleEconomyMode();
     renderBuilder();
@@ -130,12 +194,26 @@ function bindBuilderEvents() {
     game.explodeObject();
     updateObjectInspector(null);
   });
+  bindActivation(cashInRecoveryButton, () => {
+    game.cashInRecovery();
+    updateFlightSummaryModal(game.getHudData().flightSummary, true);
+  });
+  bindActivation(flightSummaryBuildButton, () => {
+    hideFlightSummaryModal();
+    showBuilder();
+  });
+  bindActivation(flightSummaryCloseButton, () => {
+    hideFlightSummaryModal();
+  });
 
   bindDelegatedActivation(partsCatalogEl, "[data-add-part]", (button) => {
     if (builderStack.length >= MAX_STACK_PARTS) return;
     const part = AVAILABLE_PARTS.find((candidate) => candidate.id === button.dataset.addPart);
+    const count = Math.max(1, Number(button.dataset.addCount ?? 1));
     selectedPartId = button.dataset.addPart;
-    builderStack.push({ id: button.dataset.addPart, stage: getDefaultStageForPart(part) });
+    for (let i = 0; i < count && builderStack.length < MAX_STACK_PARTS; i++) {
+      builderStack.push({ id: button.dataset.addPart, stage: getDefaultStageForPart(part) });
+    }
     renderBuilder();
   });
 
@@ -158,6 +236,10 @@ function bindBuilderEvents() {
 
     if (action === "remove") {
       builderStack.splice(index, 1);
+    }
+
+    if (action === "duplicate" && builderStack[index] && builderStack.length < MAX_STACK_PARTS) {
+      builderStack.splice(index + 1, 0, { ...builderStack[index] });
     }
 
     if (action === "up" && index > 0) {
@@ -228,6 +310,7 @@ function bindDelegatedActivation(container, selector, handler) {
 }
 
 function showBuilder() {
+  hideFlightSummaryModal();
   game.persistActiveCommandVessel?.("builder opened");
   screenMode = "builder";
   trackerOpen = false;
@@ -259,6 +342,8 @@ function launchBuiltRocket() {
     return;
   }
   game.setRocketTemplate(rocket);
+  lastShownFlightSummaryKey = "";
+  hideFlightSummaryModal();
   game.paused = false;
   hideBuilder();
 }
@@ -281,7 +366,10 @@ function renderBuilder(highlightErrors = false) {
 
   renderStackList(stats.parts);
   builderPreview.render(stats.parts);
-  renderPartsCatalog();
+  renderTemplateDeck();
+  renderPartCategoryTabs();
+  renderRecommendedParts(game.getHudData().nextMission);
+  renderPartsCatalog(game.getHudData().nextMission);
   renderSelectedPart();
   renderMissionBoard(game.getHudData());
   renderValidation(validation, highlightErrors, canAfford, stats.cost);
@@ -315,6 +403,7 @@ function renderStackList(parts) {
           <div class="stack-buttons">
             <button type="button" data-stack-action="up" data-index="${index}" ${index === 0 ? "disabled" : ""}>↑</button>
             <button type="button" data-stack-action="down" data-index="${index}" ${index === parts.length - 1 ? "disabled" : ""}>↓</button>
+            <button type="button" data-stack-action="duplicate" data-index="${index}" ${builderStack.length >= MAX_STACK_PARTS ? "disabled" : ""}>⧉</button>
             <button type="button" data-stack-action="remove" data-index="${index}">×</button>
           </div>
         </article>
@@ -323,15 +412,53 @@ function renderStackList(parts) {
     .join("");
 }
 
-function renderPartsCatalog() {
-  partsCatalogEl.innerHTML = AVAILABLE_PARTS.map(
-    (part) => `
-      <article class="part-card ${part.id === selectedPartId ? "selected" : ""}" data-select-part="${escapeHtml(part.id)}" style="--part-color: ${escapeHtml(part.color)}">
+function renderTemplateDeck() {
+  if (!templateDeckEl) return;
+  templateDeckEl.innerHTML = ROCKET_TEMPLATES.map((template) => `
+    <button type="button" class="template-card" data-template="${escapeHtml(template.id)}">
+      <strong>${escapeHtml(template.name)}</strong>
+      <span>${escapeHtml(template.description)}</span>
+    </button>
+  `).join("");
+}
+
+function renderPartCategoryTabs() {
+  if (!partCategoryTabsEl) return;
+  partCategoryTabsEl.innerHTML = PART_CATEGORIES.map((category) => `
+    <button type="button" class="category-tab ${category.id === activePartCategory ? "active" : ""}" data-part-category="${escapeHtml(category.id)}">${escapeHtml(category.label)}</button>
+  `).join("");
+}
+
+function renderRecommendedParts(nextMission) {
+  if (!recommendedPartsEl) return;
+  const ids = getRecommendedPartIds(nextMission);
+  if (!ids.length) {
+    recommendedPartsEl.textContent = "Pick a mission above to see helpful part recommendations.";
+    return;
+  }
+  const names = ids
+    .map((id) => AVAILABLE_PARTS.find((part) => part.id === id)?.shortName)
+    .filter(Boolean)
+    .join(", ");
+  recommendedPartsEl.textContent = `Recommended for ${nextMission.title}: ${names}`;
+}
+
+function renderPartsCatalog(nextMission = null) {
+  const category = PART_CATEGORIES.find((candidate) => candidate.id === activePartCategory) ?? PART_CATEGORIES[0];
+  const recommended = new Set(getRecommendedPartIds(nextMission));
+  const visibleParts = AVAILABLE_PARTS.filter((part) => !category.types || category.types.includes(part.type));
+  partsCatalogEl.innerHTML = visibleParts.map(
+    (part) => {
+      const isRecommended = recommended.has(part.id);
+      const canAdd = builderStack.length < MAX_STACK_PARTS;
+      const canAddThree = canAdd && builderStack.length <= MAX_STACK_PARTS - 3 && ["fuel", "engine"].includes(part.type);
+      return `
+      <article class="part-card ${part.id === selectedPartId ? "selected" : ""} ${isRecommended ? "recommended" : ""}" data-select-part="${escapeHtml(part.id)}" style="--part-color: ${escapeHtml(part.color)}">
         <div class="part-card-top">
           <div class="part-icon ${getPartIconClass(part)}" aria-hidden="true"><span></span></div>
           <div>
             <h3>${escapeHtml(part.name)}</h3>
-            <p>${getPartTypeLabel(part.type)} · ${formatMoney(part.cost)}</p>
+            <p>${getPartTypeLabel(part.type)} · ${formatMoney(part.cost)}${isRecommended ? " · Recommended" : ""}</p>
           </div>
         </div>
         <p class="part-description">${escapeHtml(part.description)}</p>
@@ -343,11 +470,16 @@ function renderPartsCatalog() {
           <span>Drag ${formatStatNumber(part.dragArea ?? 0, 1)}</span>
           ${part.stageAction ? `<span>Staged</span>` : ""}
         </div>
-        <button type="button" data-add-part="${escapeHtml(part.id)}" ${builderStack.length >= MAX_STACK_PARTS ? "disabled" : ""}>Add</button>
+        <div class="part-card-actions">
+          <button type="button" data-add-part="${escapeHtml(part.id)}" data-add-count="1" ${!canAdd ? "disabled" : ""}>Add</button>
+          ${canAddThree ? `<button type="button" data-add-part="${escapeHtml(part.id)}" data-add-count="3">+3</button>` : ""}
+        </div>
       </article>
-    `
+    `;
+    }
   ).join("");
 }
+
 
 function renderSelectedPart() {
   const part = AVAILABLE_PARTS.find((candidate) => candidate.id === selectedPartId) ?? AVAILABLE_PARTS[0];
@@ -439,6 +571,7 @@ function updateHud(data) {
   if (nextStageActionEl) nextStageActionEl.textContent = screenMode === "builder" ? "Build a rocket first" : data.nextStageDescription;
   updateObjectInspector(data.selectedObject);
   updateTrackerPanel(data.trackedObjects ?? []);
+  updateFlightSummaryModal(data.flightSummary);
 
   if (screenMode === "builder") {
     const next = data.nextMission;
@@ -519,6 +652,44 @@ function getTrackedTypeLabel(info) {
   return "Debris";
 }
 
+function updateFlightSummaryModal(summary, force = false) {
+  if (!flightSummaryModalEl || !flightSummaryTitleEl || !flightSummaryBodyEl || !cashInRecoveryButton) return;
+  if (!summary || screenMode === "builder") return;
+
+  const key = `${summary.outcome}-${Math.round(summary.maxAltitude)}-${Math.round(summary.maxSpeed)}-${summary.recoveryCashedIn}`;
+  if (!force && lastShownFlightSummaryKey === key && !flightSummaryModalEl.classList.contains("hidden")) return;
+  if (!force && lastShownFlightSummaryKey === key) return;
+
+  lastShownFlightSummaryKey = key;
+  const recoveredParts = summary.recoveredParts ?? [];
+  const canCashIn = summary.outcome === "Recovered" && !summary.recoveryCashedIn && (summary.recoveryAvailable ?? 0) > 0;
+  flightSummaryTitleEl.textContent = summary.outcome === "Recovered" ? "Successful Recovery" : summary.outcome === "Crashed" ? "Vehicle Lost" : "Flight Complete";
+  const partsHtml = recoveredParts.length
+    ? `<div class="result-parts">${recoveredParts.slice(0, 8).map((part) => `<div><span>${escapeHtml(part.name)}</span><strong>${formatMoney(part.refund)}</strong></div>`).join("")}</div>`
+    : `<p class="result-note">No recoverable parts.</p>`;
+
+  flightSummaryBodyEl.innerHTML = `
+    <div class="result-grid">
+      <div><span>Max Altitude</span><strong>${formatDistance(summary.maxAltitude)}</strong></div>
+      <div><span>Max Speed</span><strong>${summary.maxSpeed.toFixed(0)} m/s</strong></div>
+      <div><span>Mission Rewards</span><strong>${formatMoney(summary.missionReward)}</strong></div>
+      <div><span>Launch Cost</span><strong>${summary.launchCost ? formatMoney(summary.launchCost) : "Sandbox"}</strong></div>
+      <div><span>Recovery</span><strong>${summary.recoveryCashedIn ? "Cashed in" : formatMoney(summary.recoveryAvailable ?? summary.recoveryRefund ?? 0)}</strong></div>
+      <div><span>Net</span><strong>${formatMoney(summary.net)}</strong></div>
+    </div>
+    <h3>Recovered Parts</h3>
+    ${partsHtml}
+    <p class="result-tip">${escapeHtml(summary.tip ?? "Review the launch and build the next rocket.")}</p>
+  `;
+  cashInRecoveryButton.disabled = !canCashIn;
+  cashInRecoveryButton.textContent = summary.recoveryCashedIn ? "Recovery Cashed In" : canCashIn ? `Cash In ${formatMoney(summary.recoveryAvailable)}` : "No Recovery Value";
+  flightSummaryModalEl.classList.remove("hidden");
+}
+
+function hideFlightSummaryModal() {
+  if (flightSummaryModalEl) flightSummaryModalEl.classList.add("hidden");
+}
+
 function updateObjectInspector(info) {
   if (!objectInspectorEl || !objectNameEl || !objectDetailsEl || !explodeObjectButton) return;
   if (!info || screenMode === "builder") {
@@ -571,6 +742,15 @@ function compactStatus(status) {
   return labels.get(status) ?? status;
 }
 
+
+function getRecommendedPartIds(nextMission) {
+  const id = nextMission?.id ?? "";
+  if (id === "deploy_satellite") return ["satellite_basic", "decoupler_basic", "fuel_tank_small", "engine_vacuum", "engine_basic"];
+  if (id === "deploy_datacenter") return ["data_center_basic", "decoupler_basic", "fuel_tank_medium", "engine_vacuum", "engine_heavy"];
+  if (id === "recover_rocket") return ["command_pod_basic", "parachute_basic", "landing_legs_basic", "fuel_tank_small", "engine_basic"];
+  if (id === "first_orbit" || id === "touch_space") return ["nose_cone_basic", "command_pod_basic", "fuel_tank_medium", "decoupler_basic", "engine_basic"];
+  return ["command_pod_basic", "fuel_tank_small", "engine_basic"];
+}
 
 function getPartIconClass(part) {
   const subtype = part.id?.includes("satellite") ? " satellite" : part.id?.includes("data_center") ? " data-center" : "";
