@@ -1,7 +1,15 @@
-# NovaLift v0.6.0 — Research Lab + Progression Foundation
+# NovaLift v0.6.1 — Research Lab + Camera Tracking Fix
 
-NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version adds the first long-term progression spine: Research earned from missions and orbital infrastructure, research-gated advanced parts, and the first exploration satellite hook for future planet discovery.
+NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version adds the first long-term progression spine: Research earned from missions and orbital infrastructure, research-gated advanced parts, and the first exploration satellite hook for future planet discovery. It also fixes camera tracking so new launches do not stay locked onto previously tracked satellites, data centers, or vessels.
 
+
+## What is fixed in v0.6.1
+
+- Launching a new rocket now explicitly clears any old tracked-object camera target.
+- The **Current Command Pod** tracker row now forces the camera back to the active rocket instead of re-centering on the last selected object.
+- Opening the builder clears object-follow state so the next launch starts focused on the new rocket.
+- Closing or destroying a tracked object releases object-follow mode and returns the camera to the active rocket.
+- Added renderer helpers for `followRocket()` and `clearObjectTracking()` so future world-view features can deliberately choose between rocket-follow and object-follow modes.
 
 ## What is new in v0.6.0
 
