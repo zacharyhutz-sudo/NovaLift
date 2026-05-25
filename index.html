@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050816" />
-    <title>NovaLift v0.6.1</title>
+    <title>NovaLift v0.6.2</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -15,7 +15,7 @@
         <section id="hud" class="compact-hud" aria-label="Flight status">
           <div class="brand-chip">
             <strong>NovaLift</strong>
-            <span>v0.6.1</span>
+            <span>v0.6.2</span>
           </div>
           <div class="hud-stats">
             <div class="hud-stat"><span>Alt</span><strong id="altitude">0 m</strong></div>
@@ -71,14 +71,18 @@
           <div id="missionBoard" class="mission-board"></div>
         </section>
 
-        <section class="builder-card research-card" id="builderResearchSection" aria-label="Research lab">
+        <section class="builder-card research-teaser-card" id="builderResearchSection" aria-label="Research overview">
           <div class="builder-section-title">
-            <h2>Research Lab</h2>
-            <span>Unlock better parts and exploration</span>
+            <h2>Research</h2>
+            <span id="builderResearchMiniStatus">0R · 0R/sec</span>
           </div>
-          <p class="research-intro">Complete missions to earn Research. Once Orbital Telemetry is researched, online payloads also generate Research over time.</p>
-          <div id="researchSummary" class="research-summary" aria-label="Research summary"></div>
-          <div id="researchTree" class="research-tree"></div>
+          <div class="research-teaser-grid">
+            <div class="research-teaser-copy">
+              <strong>Earn R by completing missions.</strong>
+              <p>Mission cards show their R rewards. After you research Orbital Telemetry, online satellites and data centers also generate R/sec.</p>
+            </div>
+            <button id="openResearchLab" type="button" class="research-open-button">Open Research Lab</button>
+          </div>
         </section>
 
         <section class="builder-card template-card-wrap" aria-label="Quick rocket templates">
@@ -148,6 +152,20 @@
         <button id="launchBuiltRocket" type="button" class="launch-button">Launch Rocket</button>
       </section>
 
+      <section id="researchScreen" class="research-screen hidden" aria-label="Research lab">
+        <div class="research-screen-header">
+          <button id="closeResearchLab" type="button" class="mini-button research-back-button">← Builder</button>
+          <div>
+            <p class="eyebrow">Research Lab</p>
+            <h1>Upgrade your space program</h1>
+            <p>Spend R to unlock stronger rockets, better orbital infrastructure, and the exploration satellite path.</p>
+          </div>
+        </div>
+        <div id="researchGuide" class="research-guide" aria-label="How to earn Research"></div>
+        <div id="researchSummary" class="research-summary" aria-label="Research summary"></div>
+        <div id="researchTree" class="research-tree"></div>
+      </section>
+
       <section id="mission" class="panel mission-panel">
         <div class="mission-label">Mission</div>
         <h1>Complete missions, earn cash, research</h1>
@@ -185,7 +203,6 @@
           </button>
         </div>
 
-        <div class="keyboard-hint">Keyboard: W thrust · A/D rotate · X/Enter stage · Space pause · F debug · R debug reset</div>
       </section>
 
 

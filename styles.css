@@ -2329,3 +2329,402 @@ body {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* v0.6.2 compact launch HUD + dedicated research screen */
+.keyboard-hint {
+  display: none !important;
+}
+
+.top-layer {
+  top: calc(8px + var(--safe-top));
+  left: 8px;
+  right: 8px;
+  gap: 6px;
+}
+
+.compact-hud {
+  padding: 7px 8px 8px;
+  border-radius: 16px;
+}
+
+.brand-chip {
+  margin-bottom: 5px;
+}
+
+.brand-chip strong {
+  font-size: 17px;
+}
+
+.brand-chip span {
+  font-size: 9px;
+}
+
+.hud-stats {
+  gap: 5px;
+}
+
+.hud-stat span {
+  font-size: 8px;
+}
+
+.hud-stat strong {
+  font-size: 11px;
+}
+
+.economy-strip {
+  gap: 5px;
+  margin-top: 6px;
+  padding-top: 6px;
+  font-size: 9px;
+}
+
+.economy-strip strong {
+  font-size: 10px;
+}
+
+.icon-button {
+  min-width: 46px;
+  min-height: 34px;
+  font-size: 10px;
+}
+
+.camera-button {
+  min-width: 72px;
+  min-height: 34px;
+  font-size: 10px;
+}
+
+.touch-controls {
+  left: 8px;
+  right: 8px;
+  bottom: calc(6px + var(--safe-bottom));
+  gap: 6px;
+}
+
+.touch-actions {
+  gap: 6px;
+}
+
+.small-control {
+  min-width: 60px;
+  min-height: 34px;
+  font-size: 11px;
+}
+
+.stage-preview {
+  width: min(100%, 360px);
+  gap: 2px;
+  padding: 7px 10px;
+  border-radius: 14px;
+}
+
+.stage-preview span {
+  font-size: 8px;
+}
+
+.stage-preview strong {
+  font-size: 11px;
+  line-height: 1.15;
+}
+
+.stage-fuel-panel {
+  width: min(100%, 360px);
+  margin: 2px auto 0;
+  padding: 6px;
+  gap: 4px;
+  border-radius: 13px;
+}
+
+.stage-fuel-row {
+  grid-template-columns: minmax(64px, 0.65fr) 1.5fr;
+  gap: 6px;
+  font-size: 0.65rem;
+}
+
+.stage-fuel-meta strong {
+  font-size: 0.66rem;
+}
+
+.stage-fuel-meta span {
+  font-size: 0.56rem;
+}
+
+.stage-fuel-track {
+  height: 7px;
+}
+
+.flight-controls {
+  gap: 7px;
+}
+
+.control-button {
+  min-height: 62px;
+  border-radius: 18px;
+  gap: 2px;
+}
+
+.control-button span {
+  font-size: 23px;
+}
+
+.control-button small {
+  font-size: 9px;
+  letter-spacing: 0.07em;
+}
+
+.thrust-button {
+  min-height: 72px;
+}
+
+.debug-panel {
+  bottom: calc(184px + var(--safe-bottom));
+}
+
+.research-teaser-card {
+  border-color: rgba(167, 139, 250, 0.26);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(167, 139, 250, 0.12), transparent 38%),
+    rgba(8, 11, 20, 0.76);
+}
+
+.research-teaser-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.research-teaser-copy strong {
+  display: block;
+  color: #f8fafc;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.research-teaser-copy p {
+  margin: 5px 0 0;
+  color: rgba(226, 232, 240, 0.78);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.research-open-button {
+  min-height: 42px;
+  border: 1px solid rgba(167, 139, 250, 0.4);
+  border-radius: 999px;
+  padding: 0 14px;
+  color: #ede9fe;
+  background: linear-gradient(180deg, rgba(109, 40, 217, 0.62), rgba(15, 23, 42, 0.9));
+  font: inherit;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.research-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 26;
+  overflow-y: auto;
+  padding: calc(14px + var(--safe-top)) 12px calc(20px + var(--safe-bottom));
+  background:
+    radial-gradient(circle at 20% 0%, rgba(167, 139, 250, 0.18), transparent 36%),
+    radial-gradient(circle at 84% 8%, rgba(34, 211, 238, 0.12), transparent 30%),
+    linear-gradient(180deg, rgba(2, 6, 23, 0.98), rgba(8, 11, 20, 0.97));
+  backdrop-filter: blur(16px);
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.research-screen.hidden {
+  display: none;
+}
+
+.research-screen-header {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.research-back-button {
+  justify-self: start;
+  min-width: 112px;
+}
+
+.research-screen-header h1 {
+  margin: 0;
+  max-width: 12ch;
+  font-size: clamp(32px, 9vw, 48px);
+  line-height: 0.94;
+  letter-spacing: -0.06em;
+}
+
+.research-screen-header p:not(.eyebrow) {
+  margin: 8px 0 0;
+  max-width: 34rem;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.research-guide {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.research-guide-card {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 18px;
+  padding: 11px;
+  background: rgba(15, 23, 42, 0.64);
+}
+
+.research-guide-card.primary {
+  border-color: rgba(125, 211, 252, 0.32);
+  background:
+    linear-gradient(135deg, rgba(14, 116, 144, 0.22), transparent 72%),
+    rgba(15, 23, 42, 0.68);
+}
+
+.research-guide-card span {
+  display: block;
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.research-guide-card strong {
+  display: block;
+  margin-top: 4px;
+  color: #f8fafc;
+  font-size: 15px;
+  line-height: 1.15;
+}
+
+.research-guide-card p {
+  margin: 6px 0 0;
+  color: rgba(226, 232, 240, 0.8);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.research-screen .research-summary {
+  margin-bottom: 12px;
+}
+
+.research-screen .research-category h3 {
+  margin-top: 14px;
+}
+
+.research-node-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: center;
+}
+
+.research-node-actions small {
+  min-width: 0;
+}
+
+.research-node-actions button {
+  min-width: 104px;
+  padding: 0 12px;
+}
+
+@media (max-width: 520px) {
+  .mission-panel {
+    display: none;
+  }
+}
+
+@media (max-width: 430px) {
+  .top-layer {
+    left: 7px;
+    right: 7px;
+  }
+
+  .compact-hud {
+    padding: 6px 7px 7px;
+  }
+
+  .brand-chip strong {
+    font-size: 16px;
+  }
+
+  .hud-stats {
+    gap: 4px;
+  }
+
+  .economy-strip {
+    font-size: 8px;
+  }
+
+  .economy-strip strong {
+    font-size: 9px;
+  }
+
+  .small-control {
+    min-width: 58px;
+    min-height: 32px;
+    font-size: 10px;
+  }
+
+  .control-button {
+    min-height: 58px;
+  }
+
+  .thrust-button {
+    min-height: 68px;
+  }
+
+  .research-teaser-grid,
+  .research-node-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .research-open-button,
+  .research-node-actions button {
+    width: 100%;
+  }
+}
+
+@media (max-height: 700px) {
+  .control-button {
+    min-height: 54px;
+  }
+
+  .thrust-button {
+    min-height: 62px;
+  }
+
+  .stage-preview {
+    padding: 6px 9px;
+  }
+
+  .debug-panel {
+    bottom: calc(164px + var(--safe-bottom));
+  }
+}
+
+@media (min-width: 620px) {
+  .research-guide {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 760px) {
+  .control-button {
+    min-height: 76px;
+  }
+
+  .thrust-button {
+    min-height: 84px;
+  }
+}

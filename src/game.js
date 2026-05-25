@@ -156,6 +156,8 @@ export class Game {
         this.update(PHYSICS.fixedDt);
         this.accumulator -= PHYSICS.fixedDt;
       }
+    } else {
+      this.updatePassiveCompanySystems(frameTime);
     }
 
     this.renderer.render(this.getRenderState());
@@ -233,6 +235,17 @@ export class Game {
 
     if (this.selectedObjectId && !this.objects.some((object) => object.id === this.selectedObjectId)) {
       this.selectedObjectId = null;
+    }
+  }
+
+  updatePassiveCompanySystems(dt) {
+    if (!Number.isFinite(dt) || dt <= 0) return;
+    this.updateEconomy(dt);
+    this.saveTimer += dt;
+    if (this.saveTimer >= WORLD_OBJECT_SAVE_INTERVAL) {
+      this.saveWorldObjects();
+      this.saveCompany();
+      this.saveTimer = 0;
     }
   }
 
@@ -609,7 +622,7 @@ export class Game {
 
     for (const object of this.objects) {
       if (!object || object.exploded) continue;
-      const info = objectToInfo(object);
+      const info = objectToInfo(object, this.company);
       tracked.push(info);
     }
 
@@ -622,7 +635,7 @@ export class Game {
   getSelectedObjectInfo() {
     const object = this.getSelectedObject();
     if (!object) return null;
-    return objectToInfo(object);
+    return objectToInfo(object, this.company);
   }
 
   getFlightSummary() {
@@ -854,9 +867,12 @@ function inferResearchRate(object) {
   return 0.1;
 }
 
-function objectToInfo(object) {
+function objectToInfo(object, company = {}) {
   const kind = normalizeObjectKind(object);
   const payloadType = inferPayloadType(object);
+  const onlinePayload = kind === "payload" && object.online;
+  const telemetryOnline = company.mode === "sandbox" || isResearchComplete(company, "orbital_telemetry");
+  const baseResearchRate = onlinePayload ? Number(object.researchRate ?? 0) : 0;
   return {
     id: object.id,
     name: object.name ?? defaultObjectName(kind, payloadType),
@@ -867,8 +883,10 @@ function objectToInfo(object) {
     offlineReason: object.offlineReason ?? "",
     altitude: getAltitude(object, PLANET),
     speed: getSpeed(object),
-    incomeRate: kind === "payload" && object.online ? Number(object.incomeRate ?? 0) : 0,
-    researchRate: kind === "payload" && object.online ? Number(object.researchRate ?? 0) : 0,
+    incomeRate: onlinePayload ? Number(object.incomeRate ?? 0) : 0,
+    researchRate: telemetryOnline ? baseResearchRate : 0,
+    baseResearchRate,
+    researchUnlocked: telemetryOnline,
     revenueEarned: Number(object.revenueEarned ?? 0),
     researchEarned: Number(object.researchEarned ?? 0),
     cost: Number(object.cost ?? 0),

@@ -1,9 +1,23 @@
-# NovaLift v0.6.1 — Research Lab + Camera Tracking Fix
+# NovaLift v0.6.2 — Compact Flight UI + Dedicated Research Lab
 
-NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version adds the first long-term progression spine: Research earned from missions and orbital infrastructure, research-gated advanced parts, and the first exploration satellite hook for future planet discovery. It also fixes camera tracking so new launches do not stay locked onto previously tracked satellites, data centers, or vessels.
+NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version improves the mobile launch viewport, moves Research into a dedicated page, and makes it much clearer how players earn and spend Research.
 
 
-## What is fixed in v0.6.1
+## What is new in v0.6.2
+
+- Reduced launch-view congestion on mobile by shrinking bottom flight controls, stage preview, fuel bars, and the top HUD.
+- Removed the keyboard help text from the bottom of the flight view to free up more viewport space.
+- Hid the mission description panel on phone-sized flight screens so the rocket/world view stays cleaner.
+- Replaced the long inline Research section with a compact builder card and a dedicated **Research Lab** page.
+- Added a Research guide that explains how to earn R:
+  - Complete missions for direct R rewards.
+  - Research **Orbital Telemetry** so online satellites and data centers generate R/sec.
+- Added a recommended research card so the next useful unlock is easier to identify.
+- Research-producing parts now say **Research after Orbital Telemetry** until that upgrade is complete.
+- Tracker/object inspector research rates now reflect whether Orbital Telemetry is actually unlocked.
+- Passive income and Research/sec now continue while the player is in the builder or Research Lab.
+
+## What was fixed in v0.6.1
 
 - Launching a new rocket now explicitly clears any old tracked-object camera target.
 - The **Current Command Pod** tracker row now forces the camera back to the active rocket instead of re-centering on the last selected object.

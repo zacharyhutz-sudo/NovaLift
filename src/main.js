@@ -97,6 +97,11 @@ const builderRocketSectionEl = document.querySelector("#builderRocketSection");
 const builderPartsSectionEl = document.querySelector("#builderPartsSection");
 const builderMissionsSectionEl = document.querySelector("#builderMissionsSection");
 const builderResearchSectionEl = document.querySelector("#builderResearchSection");
+const builderResearchMiniStatusEl = document.querySelector("#builderResearchMiniStatus");
+const openResearchLabButton = document.querySelector("#openResearchLab");
+const closeResearchLabButton = document.querySelector("#closeResearchLab");
+const researchScreenEl = document.querySelector("#researchScreen");
+const researchGuideEl = document.querySelector("#researchGuide");
 
 let builderStack = [];
 let screenMode = "builder";
@@ -105,6 +110,7 @@ let selectedPartId = AVAILABLE_PARTS[0]?.id ?? null;
 let activePartCategory = "all";
 let missionsExpanded = false;
 let lastShownFlightSummaryKey = "";
+let lastResearchLiveRenderAt = 0;
 const PART_CATEGORIES = [
   { id: "all", label: "All" },
   { id: "core", label: "Core", types: ["command", "decoupler"] },
@@ -206,7 +212,9 @@ function bindBuilderEvents() {
   bindActivation(builderJumpToPreviewButton, () => scrollBuilderSection(builderRocketSectionEl));
   bindActivation(builderJumpToPartsButton, () => scrollBuilderSection(builderPartsSectionEl));
   bindActivation(builderJumpToMissionsButton, () => scrollBuilderSection(builderMissionsSectionEl));
-  bindActivation(builderJumpToResearchButton, () => scrollBuilderSection(builderResearchSectionEl));
+  bindActivation(builderJumpToResearchButton, showResearchLab);
+  bindActivation(openResearchLabButton, showResearchLab);
+  bindActivation(closeResearchLabButton, hideResearchLab);
   bindActivation(toggleMissionBoardViewButton, () => {
     missionsExpanded = !missionsExpanded;
     renderBuilder();
@@ -357,6 +365,7 @@ function bindDelegatedActivation(container, selector, handler) {
 
 function showBuilder() {
   hideFlightSummaryModal();
+  hideResearchLab();
   game.persistActiveCommandVessel?.("builder opened");
   screenMode = "builder";
   trackerOpen = false;
@@ -371,6 +380,7 @@ function showBuilder() {
 }
 
 function hideBuilder() {
+  hideResearchLab();
   screenMode = "flight";
   builderScreenEl.classList.add("hidden");
   gameShellEl.classList.remove("builder-open");
@@ -379,6 +389,7 @@ function hideBuilder() {
 
 function showWorldView() {
   hideFlightSummaryModal();
+  hideResearchLab();
   screenMode = "world";
   trackerOpen = true;
   game.paused = false;
@@ -391,6 +402,25 @@ function showWorldView() {
     renderer.recenterCamera?.(game.rocket, { forceRocket: true });
   }
   updateTrackerPanel(game.getHudData().trackedObjects);
+}
+
+function showResearchLab() {
+  hideFlightSummaryModal();
+  screenMode = "builder";
+  trackerOpen = false;
+  game.paused = true;
+  game.clearSelectedObject();
+  renderer.clearObjectTracking?.();
+  updateObjectInspector(null);
+  builderScreenEl.classList.remove("hidden");
+  gameShellEl.classList.add("builder-open");
+  gameShellEl.classList.remove("world-view");
+  researchScreenEl?.classList.remove("hidden");
+  renderBuilder();
+}
+
+function hideResearchLab() {
+  researchScreenEl?.classList.add("hidden");
 }
 
 function scrollBuilderSection(section) {
@@ -554,7 +584,7 @@ function renderPartsCatalog(nextMission = null) {
           ${part.fuelCapacity ? `<span>Fuel ${Math.round(part.fuelCapacity)}</span>` : ""}
           ${part.thrust ? `<span>Thrust ${Math.round(part.thrust)}</span>` : ""}
           ${part.incomeRate ? `<span>Income ${formatMoney(part.incomeRate)}/s</span>` : ""}
-          ${part.researchRate ? `<span>Research ${formatStatNumber(part.researchRate, 2)}/s</span>` : ""}
+          ${part.researchRate ? `<span>${escapeHtml(getPartResearchMetric(part))}</span>` : ""}
           <span>Drag ${formatStatNumber(part.dragArea ?? 0, 1)}</span>
           ${part.stageAction ? `<span>Staged</span>` : ""}
         </div>
@@ -583,7 +613,7 @@ function renderSelectedPart() {
     part.fuelCapacity ? `Fuel ${Math.round(part.fuelCapacity)}` : "",
     part.thrust ? `Thrust ${Math.round(part.thrust)}` : "",
     part.incomeRate ? `Income ${formatMoney(part.incomeRate)}/s` : "",
-    part.researchRate ? `Research ${formatStatNumber(part.researchRate, 2)}/s` : "",
+    part.researchRate ? getPartResearchMetric(part) : "",
     `Drag ${formatStatNumber(part.dragArea ?? 0, 1)}`,
     part.stageAction ? `Default ${getStageLabel(getDefaultStageForPart(part))}` : "Flight part"
   ]
@@ -655,17 +685,50 @@ function renderMissionBoard(data) {
 }
 
 function renderResearchLab(data) {
-  if (!researchSummaryEl || !researchTreeEl) return;
   const company = data.company ?? game.company;
   const researchPoints = company.researchPoints ?? 0;
   const researchRate = company.researchPerSecond ?? 0;
   const completed = data.research?.filter((node) => node.complete).length ?? 0;
   const total = data.research?.length ?? 0;
+  const miniText = `${formatResearch(researchPoints, researchPoints < 10 ? 1 : 0)}R · ${formatResearch(researchRate, 2)}R/sec`;
+  if (builderResearchMiniStatusEl) builderResearchMiniStatusEl.textContent = miniText;
+
+  if (!researchSummaryEl || !researchTreeEl) return;
+
   researchSummaryEl.innerHTML = `
-    <div><span>Research</span><strong>${formatResearch(researchPoints, researchPoints < 10 ? 1 : 0)}</strong></div>
-    <div><span>Data/sec</span><strong>${formatResearch(researchRate, 2)}</strong></div>
+    <div><span>Available R</span><strong>${formatResearch(researchPoints, researchPoints < 10 ? 1 : 0)}</strong></div>
+    <div><span>R/sec</span><strong>${formatResearch(researchRate, 2)}</strong></div>
     <div><span>Completed</span><strong>${completed}/${total}</strong></div>
   `;
+
+  if (researchGuideEl) {
+    const nextMission = data.nextMission;
+    const nextNode = getRecommendedResearchNode(data.research ?? []);
+    const telemetryComplete = Boolean(company.completedResearch?.includes("orbital_telemetry"));
+    const missionReward = nextMission?.researchReward ?? 0;
+    const autoResearchText = telemetryComplete
+      ? researchRate > 0
+        ? `Your online payloads are producing ${formatResearch(researchRate, 2)}R/sec.`
+        : "Orbital Telemetry is researched. Deploy an online satellite or data center to start passive R/sec."
+      : "Buy Orbital Telemetry, then online satellites and data centers start producing R/sec.";
+    researchGuideEl.innerHTML = `
+      <article class="research-guide-card primary">
+        <span>How to earn R</span>
+        <strong>Complete missions</strong>
+        <p>${nextMission ? `Next up: ${escapeHtml(nextMission.title)} pays +${formatResearch(missionReward)}R.` : "Starter missions are complete. Keep building orbital infrastructure for passive R/sec."}</p>
+      </article>
+      <article class="research-guide-card">
+        <span>Passive R/sec</span>
+        <strong>${telemetryComplete ? "Telemetry online" : "Unlock Orbital Telemetry"}</strong>
+        <p>${escapeHtml(autoResearchText)}</p>
+      </article>
+      <article class="research-guide-card">
+        <span>Recommended</span>
+        <strong>${escapeHtml(nextNode?.name ?? "All research complete")}</strong>
+        <p>${escapeHtml(getResearchRecommendationText(nextNode, researchPoints))}</p>
+      </article>
+    `;
+  }
 
   const byCategory = new Map();
   (data.research ?? []).forEach((node) => {
@@ -684,8 +747,15 @@ function renderResearchLab(data) {
             : node.locked
               ? `Requires ${node.missingPrerequisiteNames.join(", ")}`
               : node.waitingForPoints
-                ? `Need ${formatResearch(Math.max(0, node.cost - researchPoints))} more`
-                : "Ready";
+                ? `${formatResearch(Math.max(0, node.cost - researchPoints))}R short`
+                : "Ready to buy";
+          const buttonText = node.complete
+            ? "Complete"
+            : node.available
+              ? `Buy for ${formatResearch(node.cost)}R`
+              : node.locked
+                ? "Locked"
+                : "Earn more R";
           return `
             <article class="research-node ${statusClass}">
               <div class="research-node-top">
@@ -696,14 +766,39 @@ function renderResearchLab(data) {
                 <b>${node.complete ? "✓" : `${formatResearch(node.cost)}R`}</b>
               </div>
               <p>${escapeHtml(node.description)}</p>
-              <small>${escapeHtml(node.unlockText ?? "Company capability upgrade.")}</small>
-              <button type="button" data-buy-research="${escapeHtml(node.id)}" ${node.available ? "" : "disabled"}>${node.complete ? "Researched" : "Research"}</button>
+              <div class="research-node-actions">
+                <small>${escapeHtml(node.unlockText ?? "Company capability upgrade.")}</small>
+                <button type="button" data-buy-research="${escapeHtml(node.id)}" ${node.available ? "" : "disabled"}>${escapeHtml(buttonText)}</button>
+              </div>
             </article>
           `;
         }).join("")}
       </div>
     </section>
   `).join("");
+}
+
+function getRecommendedResearchNode(nodes = []) {
+  return nodes.find((node) => node.available)
+    ?? nodes.find((node) => node.waitingForPoints && !node.locked)
+    ?? nodes.find((node) => !node.complete)
+    ?? null;
+}
+
+function getResearchRecommendationText(node, researchPoints = 0) {
+  if (!node) return "You have finished the current research tree.";
+  if (node.complete) return "Already complete.";
+  if (node.locked) return `Requires ${node.missingPrerequisiteNames.join(", ")}.`;
+  if (node.available) return "You can buy this upgrade now.";
+  return `Complete missions or generate passive data until you have ${formatResearch(node.cost)}R. You need ${formatResearch(Math.max(0, node.cost - researchPoints))}R more.`;
+}
+
+function getPartResearchMetric(part) {
+  const telemetryComplete = game.company.mode === "sandbox" || game.company.completedResearch?.includes("orbital_telemetry");
+  if (!part.researchRate) return "";
+  return telemetryComplete
+    ? `Research ${formatStatNumber(part.researchRate, 2)}/s`
+    : "Research after Orbital Telemetry";
 }
 
 function updateHud(data) {
@@ -716,6 +811,10 @@ function updateHud(data) {
   if (companyCashHudEl) companyCashHudEl.textContent = data.company?.mode === "sandbox" ? "∞" : formatMoney(data.company?.money ?? 0);
   if (companyIncomeHudEl) companyIncomeHudEl.textContent = `${formatMoney(data.company?.incomePerSecond ?? 0)}/s`;
   if (companyResearchHudEl) companyResearchHudEl.textContent = `${formatResearch(data.company?.researchPoints ?? 0, 0)}R`;
+  if (screenMode === "builder" && researchScreenEl && !researchScreenEl.classList.contains("hidden") && performance.now() - lastResearchLiveRenderAt > 500) {
+    lastResearchLiveRenderAt = performance.now();
+    renderResearchLab(data);
+  }
   gameShellEl.classList.toggle("income-active", (data.company?.incomePerSecond ?? 0) > 0);
   if (builderCashEl) builderCashEl.textContent = data.company?.mode === "sandbox" ? "∞" : formatMoney(data.company?.money ?? 0);
   if (builderModeLabelEl) builderModeLabelEl.textContent = data.company?.mode === "sandbox" ? "Sandbox Mode" : "Career Mode";
@@ -810,7 +909,11 @@ function updateTrackerPanel(objects = []) {
     const onlineClass = object.online ? " online" : "";
     const selectedClass = game.selectedObjectId === object.id ? " selected" : "";
     const income = object.incomeRate > 0 ? `${formatMoney(object.incomeRate)}/s` : "—";
-    const research = object.researchRate > 0 ? `${formatResearch(object.researchRate, 2)}R/s` : "—";
+    const research = object.researchRate > 0
+      ? `${formatResearch(object.researchRate, 2)}R/s`
+      : object.baseResearchRate > 0 && !object.researchUnlocked
+        ? "Telemetry locked"
+        : "—";
     const actionText = object.isCurrentRocket ? "Center" : "Select";
     return `
       <article class="tracker-item ${escapeHtml(object.kind)}${onlineClass}${selectedClass}">
@@ -893,7 +996,7 @@ function updateObjectInspector(info) {
     ["Altitude", formatDistance(info.altitude)],
     ["Speed", `${info.speed.toFixed(1)} m/s`],
     ["Income", info.incomeRate > 0 ? `${formatMoney(info.incomeRate)}/s` : "—"],
-    ["Research", info.researchRate > 0 ? `${formatResearch(info.researchRate, 2)}R/s` : "—"],
+    ["Research", info.researchRate > 0 ? `${formatResearch(info.researchRate, 2)}R/s` : info.baseResearchRate > 0 && !info.researchUnlocked ? "Needs Orbital Telemetry" : "—"],
     ["Earned", formatMoney(info.revenueEarned ?? 0)],
     ["Data", `${formatResearch(info.researchEarned ?? 0, 1)}R`]
   ]
