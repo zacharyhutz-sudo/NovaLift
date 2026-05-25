@@ -283,6 +283,16 @@ export class Renderer {
     this.setManualCamera(false);
   }
 
+  centerOnWorldObject(object) {
+    if (!object) return;
+    const center = this.getDefaultScreenCenter();
+    this.camera.x = object.x;
+    this.camera.y = object.y;
+    this.camera.centerX = center.x;
+    this.camera.centerY = center.y;
+    this.setManualCamera(true);
+  }
+
   render(state) {
     const { rocket, debug, objects = [], selectedObjectId = null } = state;
     const ctx = this.ctx;
@@ -515,6 +525,8 @@ export class Renderer {
 
       if (object.kind === "payload") {
         this.drawDetachedPayload(ctx, object);
+      } else if (object.kind === "vessel") {
+        this.drawDetachedCommandPod(ctx, object);
       } else {
         ctx.fillStyle = object.crashed ? "#fb7185" : "rgba(148, 163, 184, 0.9)";
         ctx.strokeStyle = "rgba(15, 23, 42, 0.85)";
@@ -554,6 +566,26 @@ export class Renderer {
     ctx.arc(0, 0, Math.max(74, (object.collisionRadius ?? 12) * 1.6), 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
+  }
+
+  drawDetachedCommandPod(ctx, object) {
+    const crashed = object.crashed;
+    ctx.strokeStyle = "rgba(15, 23, 42, 0.85)";
+    ctx.fillStyle = crashed ? "#fb7185" : "rgba(125, 211, 252, 0.92)";
+    ctx.beginPath();
+    ctx.moveTo(54, 0);
+    ctx.bezierCurveTo(30, -38, -38, -42, -68, -8);
+    ctx.lineTo(-68, 8);
+    ctx.bezierCurveTo(-38, 42, 30, 38, 54, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = crashed ? "rgba(15,23,42,0.25)" : "rgba(219, 234, 254, 0.95)";
+    ctx.beginPath();
+    ctx.arc(4, -4, 14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
   }
 
   drawDetachedPayload(ctx, object) {

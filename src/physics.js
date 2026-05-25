@@ -379,7 +379,9 @@ export function activateNextStage(rocket, planet = PLANET) {
     });
     const object = makeDetachedObject("debris", detached, rocket, planet, `Stage ${stageNumber} debris`);
     objects.push(object);
-    messages.push(`Stage ${stageNumber}: lower stage separated and now tracked as debris.`);
+    messages.push(object.kind === "vessel"
+      ? `Stage ${stageNumber}: command stage separated and remains tracked.`
+      : `Stage ${stageNumber}: lower stage separated and now tracked as debris.`);
   });
 
   // Refresh after possible decoupling.
@@ -391,7 +393,8 @@ export function activateNextStage(rocket, planet = PLANET) {
       const stable = isStableEnoughForPayload(rocket, planet);
       const object = makeDetachedObject("payload", [part], rocket, planet, part.shortName ?? part.name);
       object.kind = "payload";
-      object.payloadType = part.id?.includes("data_center") ? "data_center" : "satellite";
+      object.payloadType = getPayloadTypeFromParts([part]);
+      object.incomeRate = part.incomeRate ?? object.incomeRate ?? 0;
       object.online = stable;
       object.status = stable ? "online" : "drifting";
       objects.push(object);
@@ -517,20 +520,25 @@ export function predictTrajectory(rocket, planet = PLANET) {
 
 export function makeDetachedObject(kind, parts, rocket, planet, name) {
   const stats = calculateStatsFromParts(parts.map((part) => ({ ...part, active: true })));
+  const hasPayload = parts.some((part) => part.type === "payload" || part.stageAction === "deployPayload");
+  const hasCommandPod = parts.some((part) => part.type === "command");
+  const payloadType = getPayloadTypeFromParts(parts);
+  const actualKind = kind === "payload" || hasPayload ? "payload" : hasCommandPod ? "vessel" : "debris";
   const distance = getDistanceToPlanet(rocket, planet);
   const nx = (rocket.x - planet.x) / Math.max(distance, 1);
   const ny = (rocket.y - planet.y) / Math.max(distance, 1);
   const sideX = -ny;
   const sideY = nx;
-  const isDebris = kind === "debris" || kind === "booster";
+  const isDebris = actualKind === "debris";
   const separation = isDebris ? -18 : 18;
   const partCost = parts.reduce((total, part) => total + (part.cost ?? 0), 0);
   const incomeRate = parts.reduce((total, part) => total + (part.incomeRate ?? 0), 0);
 
   return {
-    id: `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    name,
-    kind,
+    id: `${actualKind}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: name ?? defaultDetachedName(actualKind, payloadType),
+    kind: actualKind,
+    payloadType,
     x: rocket.x + sideX * separation,
     y: rocket.y + sideY * separation,
     vx: rocket.vx + sideX * (isDebris ? -2 : 2),
@@ -545,7 +553,7 @@ export function makeDetachedObject(kind, parts, rocket, planet, name) {
     collisionRadius: isDebris ? Math.max(14, stats.collisionRadius ?? 14) : 8,
     color: parts[0]?.color ?? "#aab4ca",
     parts: parts.map((part) => ({ ...part, active: part.active !== false })),
-    status: isDebris ? "falling" : "drifting",
+    status: actualKind === "debris" ? "falling" : actualKind === "vessel" ? "command pod drifting" : "drifting",
     cost: partCost,
     recoveryValue: partCost * 0.45,
     incomeRate,
@@ -555,6 +563,32 @@ export function makeDetachedObject(kind, parts, rocket, planet, name) {
     landed: false,
     exploded: false
   };
+}
+
+export function makeCommandVesselObject(parts, rocket, name = "Command Pod") {
+  const object = makeDetachedObject("vessel", parts, rocket, PLANET, name);
+  object.kind = "vessel";
+  object.payloadType = "";
+  object.online = false;
+  object.status = "command pod drifting";
+  updateDetachedObjectStatus(object, PLANET);
+  return object;
+}
+
+function getPayloadTypeFromParts(parts) {
+  if (!Array.isArray(parts)) return "";
+  if (parts.some((part) => part.id?.includes("data_center") || /data/i.test(part.name ?? ""))) return "data_center";
+  if (parts.some((part) => part.id?.includes("satellite") || /satellite/i.test(part.name ?? ""))) return "satellite";
+  if (parts.some((part) => part.type === "payload")) return "payload";
+  return "";
+}
+
+function defaultDetachedName(kind, payloadType) {
+  if (kind === "payload" && payloadType === "data_center") return "Orbital Data Center";
+  if (kind === "payload" && payloadType === "satellite") return "Small Satellite";
+  if (kind === "payload") return "Payload";
+  if (kind === "vessel") return "Command Pod";
+  return "Orbital Debris";
 }
 
 export function updateDetachedObjectStatus(object, planet = PLANET) {
@@ -569,6 +603,9 @@ export function updateDetachedObjectStatus(object, planet = PLANET) {
   if (object.kind === "payload") {
     object.online = stable;
     object.status = stable ? "online" : "drifting";
+  } else if (object.kind === "vessel") {
+    object.online = false;
+    object.status = stable ? "command pod in orbit" : "command pod falling";
   } else {
     object.online = false;
     object.status = stable ? "orbital debris" : "falling";

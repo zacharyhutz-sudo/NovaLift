@@ -15,6 +15,7 @@ import {
   getRocketMass,
   getSpeed,
   getTangentialSpeed,
+  makeCommandVesselObject,
   rotateRocket,
   stepDetachedObject,
   stepRocket,
@@ -62,9 +63,30 @@ export class Game {
   }
 
   setRocketTemplate(rocketTemplate) {
+    this.persistActiveCommandVessel("new launch");
     this.rocketTemplate = rocketTemplate;
     this.paused = false;
     this.reset();
+  }
+
+  persistActiveCommandVessel(reason = "left flight") {
+    if (!this.rocket || this.rocket.archived || this.rocket.crashed || this.rocket.landed) return false;
+    if (!this.flightStats?.hasLaunched && getSpeed(this.rocket) < 1) return false;
+    const activeParts = Array.isArray(this.rocket.parts)
+      ? this.rocket.parts.filter((part) => part.active !== false)
+      : [];
+    const hasCommandPod = activeParts.some((part) => part.type === "command");
+    if (!hasCommandPod) return false;
+
+    const object = makeCommandVesselObject(activeParts, this.rocket, `Command Pod ${this.objects.filter((candidate) => candidate.kind === "vessel").length + 1}`);
+    object.statusReason = reason;
+    this.objects.push(object);
+    this.rocket.archived = true;
+    this.trimObjects();
+    this.saveWorldObjects();
+    this.stageMessage = "Previous command pod is now tracked in orbit space.";
+    this.stageMessageTimer = 6;
+    return true;
   }
 
   frame(timestamp) {
@@ -364,7 +386,7 @@ export class Game {
     const density = getAtmosphereDensity(this.rocket, PLANET);
     const drag = getDragVector(this.rocket, PLANET);
     const onlinePayloads = this.objects.filter((object) => object.kind === "payload" && object.online && !object.crashed).length + (this.rocket.payloadsOnline ?? 0);
-    const debrisCount = this.objects.filter((object) => object.kind !== "payload" && !object.exploded).length;
+    const debrisCount = this.objects.filter((object) => object.kind === "debris" && !object.exploded).length;
 
     return {
       altitude,
@@ -389,8 +411,44 @@ export class Game {
       company: { ...this.company },
       flightSummary: this.getFlightSummary(),
       selectedObject: this.getSelectedObjectInfo(),
+      trackedObjects: this.getTrackedObjects(),
       debugText: this.getDebugText()
     };
+  }
+
+  getTrackedObjects() {
+    const tracked = [];
+
+    if (this.rocket && !this.rocket.crashed && !this.rocket.landed && Array.isArray(this.rocket.parts)) {
+      const hasCommandPod = this.rocket.parts.some((part) => part.active !== false && part.type === "command");
+      if (hasCommandPod && (this.flightStats?.hasLaunched || getSpeed(this.rocket) > 1)) {
+        tracked.push({
+          id: "current-rocket",
+          name: "Current Command Pod",
+          kind: "vessel",
+          category: "command",
+          status: getOrbitStatus(this.rocket, PLANET),
+          altitude: getAltitude(this.rocket, PLANET),
+          speed: getSpeed(this.rocket),
+          incomeRate: 0,
+          revenueEarned: 0,
+          online: false,
+          canExplode: false,
+          isCurrentRocket: true
+        });
+      }
+    }
+
+    for (const object of this.objects) {
+      if (!object || object.exploded) continue;
+      const info = objectToInfo(object);
+      tracked.push(info);
+    }
+
+    return tracked.sort((a, b) => {
+      const order = { payload: 0, vessel: 1, debris: 2 };
+      return (order[a.kind] ?? 9) - (order[b.kind] ?? 9) || String(a.name).localeCompare(String(b.name));
+    });
   }
 
   getSelectedObjectInfo() {
@@ -438,7 +496,7 @@ export class Game {
       `Parachute:     ${this.rocket.parachuteState ?? "none"}`,
       `Landing legs:  ${this.rocket.landingLegsDeployed ? "deployed" : "stowed"}`,
       `Payloads:      ${this.objects.filter((object) => object.kind === "payload" && object.online).length}`,
-      `Debris:        ${this.objects.filter((object) => object.kind !== "payload").length}`,
+      `Debris:        ${this.objects.filter((object) => object.kind === "debris").length}`,
       `Income:        ${formatMoney(this.company.incomePerSecond)}/sec`,
       `Cash:          ${formatMoney(this.company.money)}`,
       `World objects: ${this.objects.length}`,
@@ -463,7 +521,7 @@ function createDefaultCompany() {
 function normalizeStoredObject(object) {
   const normalized = {
     ...object,
-    kind: object.kind === "booster" ? "debris" : (object.kind ?? "debris"),
+    kind: normalizeObjectKind(object),
     x: Number(object.x ?? 0),
     y: Number(object.y ?? 0),
     vx: Number(object.vx ?? 0),
@@ -488,6 +546,10 @@ function normalizeStoredObject(object) {
     status: object.status ?? "drifting"
   };
 
+  normalized.payloadType = inferPayloadType(normalized);
+  if (normalized.kind === "payload" && (!normalized.incomeRate || normalized.incomeRate <= 0)) {
+    normalized.incomeRate = inferIncomeRate(normalized);
+  }
   if (!normalized.crashed) updateDetachedObjectStatus(normalized, PLANET);
   return normalized;
 }
@@ -524,26 +586,69 @@ function serializeObject(object) {
   };
 }
 
+function normalizeObjectKind(object) {
+  const rawKind = String(object?.kind ?? "").toLowerCase();
+  const payloadType = inferPayloadType(object);
+
+  // Payload evidence wins over legacy debris labels. Earlier builds could save a
+  // deployed data center as debris, so we normalize those back into revenue objects.
+  if (["payload", "satellite", "data_center", "datacenter", "data center"].includes(rawKind) || payloadType) return "payload";
+  if (["vessel", "command", "command_pod", "command pod"].includes(rawKind)) return "vessel";
+  if (objectContainsPartType(object, "command")) return "vessel";
+  return "debris";
+}
+
+function inferPayloadType(object) {
+  const existing = String(object?.payloadType ?? "").toLowerCase();
+  if (existing.includes("data")) return "data_center";
+  if (existing.includes("satellite")) return "satellite";
+
+  const text = `${object?.name ?? ""} ${object?.id ?? ""}`.toLowerCase();
+  const parts = Array.isArray(object?.parts) ? object.parts : [];
+  if (text.includes("data") || parts.some((part) => part.id?.includes("data_center") || /data/i.test(part.name ?? ""))) return "data_center";
+  if (text.includes("satellite") || parts.some((part) => part.id?.includes("satellite") || /satellite/i.test(part.name ?? ""))) return "satellite";
+  if (parts.some((part) => part.type === "payload")) return "payload";
+  return "";
+}
+
+function objectContainsPartType(object, type) {
+  return Array.isArray(object?.parts) && object.parts.some((part) => part.type === type);
+}
+
+function defaultObjectName(kind, payloadType) {
+  if (kind === "payload" && payloadType === "data_center") return "Orbital Data Center";
+  if (kind === "payload" && payloadType === "satellite") return "Small Satellite";
+  if (kind === "payload") return "Payload";
+  if (kind === "vessel") return "Command Pod";
+  return "Orbital Debris";
+}
+
 function inferIncomeRate(object) {
-  if (object.kind !== "payload") return 0;
+  if (normalizeObjectKind(object) !== "payload") return 0;
+  const payloadType = inferPayloadType(object);
   const name = `${object.name ?? ""} ${object.payloadType ?? ""}`.toLowerCase();
-  if (name.includes("data")) return 18;
-  if (name.includes("satellite")) return 7;
+  if (payloadType === "data_center" || name.includes("data")) return 18;
+  if (payloadType === "satellite" || name.includes("satellite")) return 7;
   return 5;
 }
 
 function objectToInfo(object) {
+  const kind = normalizeObjectKind(object);
+  const payloadType = inferPayloadType(object);
   return {
     id: object.id,
-    name: object.name ?? (object.kind === "payload" ? "Payload" : "Orbital Debris"),
-    kind: object.kind,
+    name: object.name ?? defaultObjectName(kind, payloadType),
+    kind,
+    payloadType,
+    category: kind === "payload" ? payloadType : kind === "vessel" ? "command" : "debris",
     status: object.status ?? "unknown",
     altitude: getAltitude(object, PLANET),
     speed: getSpeed(object),
-    incomeRate: object.kind === "payload" && object.online ? Number(object.incomeRate ?? 0) : 0,
+    incomeRate: kind === "payload" && object.online ? Number(object.incomeRate ?? 0) : 0,
     revenueEarned: Number(object.revenueEarned ?? 0),
     cost: Number(object.cost ?? 0),
-    canExplode: object.kind !== "payload" && !object.crashed && !object.exploded
+    online: Boolean(object.online),
+    canExplode: kind === "debris" && !object.crashed && !object.exploded
   };
 }
 

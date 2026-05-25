@@ -58,6 +58,11 @@ const companyCashHudEl = document.querySelector("#companyCashHud");
 const companyIncomeHudEl = document.querySelector("#companyIncomeHud");
 const builderCashEl = document.querySelector("#builderCash");
 const objectInspectorEl = document.querySelector("#objectInspector");
+const trackerPanelEl = document.querySelector("#orbitTracker");
+const trackerListEl = document.querySelector("#trackerList");
+const trackerSummaryEl = document.querySelector("#trackerSummary");
+const toggleTrackerButton = document.querySelector("#toggleTracker");
+const closeTrackerButton = document.querySelector("#closeTracker");
 const objectNameEl = document.querySelector("#objectName");
 const objectDetailsEl = document.querySelector("#objectDetails");
 const explodeObjectButton = document.querySelector("#explodeObject");
@@ -65,6 +70,7 @@ const closeObjectInspectorButton = document.querySelector("#closeObjectInspector
 
 let builderStack = [];
 let screenMode = "builder";
+let trackerOpen = false;
 let selectedPartId = AVAILABLE_PARTS[0]?.id ?? null;
 const builderPreview = new BuilderPreview(builderPreviewCanvas, builderPreviewEmptyEl);
 
@@ -100,6 +106,14 @@ function bindBuilderEvents() {
     renderBuilder();
   });
   bindActivation(rebuildRocketButton, showBuilder);
+  bindActivation(toggleTrackerButton, () => {
+    trackerOpen = !trackerOpen;
+    updateTrackerPanel(game.getHudData().trackedObjects);
+  });
+  bindActivation(closeTrackerButton, () => {
+    trackerOpen = false;
+    updateTrackerPanel(game.getHudData().trackedObjects);
+  });
   bindActivation(closeObjectInspectorButton, () => {
     game.clearSelectedObject();
     updateObjectInspector(null);
@@ -158,6 +172,22 @@ function bindBuilderEvents() {
   });
 }
 
+
+if (trackerListEl) {
+  bindDelegatedActivation(trackerListEl, "[data-track-object]", (button) => {
+    const id = button.dataset.trackObject;
+    if (id === "current-rocket") {
+      game.clearSelectedObject();
+      renderer.recenterCamera?.(game.rocket);
+      updateObjectInspector(null);
+      return;
+    }
+    const object = game.selectObject(id);
+    if (object) renderer.centerOnWorldObject?.(object);
+    updateObjectInspector(game.getHudData().selectedObject);
+  });
+}
+
 function bindActivation(element, handler) {
   let lastPointerActivation = 0;
   const activate = (event) => {
@@ -190,7 +220,9 @@ function bindDelegatedActivation(container, selector, handler) {
 }
 
 function showBuilder() {
+  game.persistActiveCommandVessel?.("builder opened");
   screenMode = "builder";
+  trackerOpen = false;
   game.paused = true;
   game.clearSelectedObject();
   updateObjectInspector(null);
@@ -366,6 +398,7 @@ function updateHud(data) {
   if (builderCashEl) builderCashEl.textContent = formatMoney(data.company?.money ?? 0);
   if (nextStageActionEl) nextStageActionEl.textContent = screenMode === "builder" ? "Build a rocket first" : data.nextStageDescription;
   updateObjectInspector(data.selectedObject);
+  updateTrackerPanel(data.trackedObjects ?? []);
 
   if (screenMode === "builder") {
     missionResultEl.textContent = "Build a staged rocket from scratch, then launch.";
@@ -391,6 +424,58 @@ function updateHud(data) {
   if (debugVisible) debugTextEl.textContent = data.debugText;
 }
 
+function updateTrackerPanel(objects = []) {
+  if (!trackerPanelEl || !trackerListEl || !trackerSummaryEl || !toggleTrackerButton) return;
+
+  const visible = trackerOpen && screenMode !== "builder";
+  trackerPanelEl.classList.toggle("hidden", !visible);
+  toggleTrackerButton.setAttribute("aria-expanded", String(visible));
+  toggleTrackerButton.classList.toggle("is-active", visible);
+
+  if (!visible) return;
+
+  const payloads = objects.filter((object) => object.kind === "payload");
+  const vessels = objects.filter((object) => object.kind === "vessel");
+  const debris = objects.filter((object) => object.kind === "debris");
+  const income = payloads.reduce((total, object) => total + (object.incomeRate ?? 0), 0);
+
+  trackerSummaryEl.textContent = `${payloads.length} payloads · ${vessels.length} command pods · ${debris.length} debris · ${formatMoney(income)}/s`;
+
+  if (!objects.length) {
+    trackerListEl.innerHTML = `<div class="tracker-empty">No orbital objects yet. Deploy a satellite or data center to start earning income.</div>`;
+    return;
+  }
+
+  trackerListEl.innerHTML = objects.map((object) => {
+    const onlineClass = object.online ? " online" : "";
+    const selectedClass = game.selectedObjectId === object.id ? " selected" : "";
+    const income = object.incomeRate > 0 ? `${formatMoney(object.incomeRate)}/s` : "—";
+    const actionText = object.isCurrentRocket ? "Center" : "Select";
+    return `
+      <article class="tracker-item ${escapeHtml(object.kind)}${onlineClass}${selectedClass}">
+        <div class="tracker-main">
+          <strong>${escapeHtml(object.name)}</strong>
+          <span>${escapeHtml(getTrackedTypeLabel(object))} · ${escapeHtml(titleCase(object.status))}</span>
+        </div>
+        <div class="tracker-metrics">
+          <span>${formatDistance(object.altitude)}</span>
+          <span>${object.speed.toFixed(0)} m/s</span>
+          <span>${income}</span>
+        </div>
+        <button type="button" class="mini-button" data-track-object="${escapeHtml(object.id)}">${actionText}</button>
+      </article>
+    `;
+  }).join("");
+}
+
+function getTrackedTypeLabel(info) {
+  if (info.kind === "payload" && info.payloadType === "data_center") return "Data Center";
+  if (info.kind === "payload" && info.payloadType === "satellite") return "Satellite";
+  if (info.kind === "payload") return "Payload";
+  if (info.kind === "vessel") return "Command Pod";
+  return "Debris";
+}
+
 function updateObjectInspector(info) {
   if (!objectInspectorEl || !objectNameEl || !objectDetailsEl || !explodeObjectButton) return;
   if (!info || screenMode === "builder") {
@@ -401,7 +486,7 @@ function updateObjectInspector(info) {
   objectInspectorEl.classList.remove("hidden");
   objectNameEl.textContent = info.name;
   objectDetailsEl.innerHTML = [
-    ["Type", info.kind === "payload" ? "Payload" : "Debris"],
+    ["Type", getTrackedTypeLabel(info)],
     ["Status", titleCase(info.status)],
     ["Altitude", formatDistance(info.altitude)],
     ["Speed", `${info.speed.toFixed(1)} m/s`],

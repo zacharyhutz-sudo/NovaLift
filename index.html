@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050816" />
-    <title>NovaLift v0.4.0</title>
+    <title>NovaLift v0.4.1</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -15,7 +15,7 @@
         <section id="hud" class="compact-hud" aria-label="Flight status">
           <div class="brand-chip">
             <strong>NovaLift</strong>
-            <span>v0.4.0</span>
+            <span>v0.4.1</span>
           </div>
           <div class="hud-stats">
             <div class="hud-stat"><span>Alt</span><strong id="altitude">0 m</strong></div>
@@ -117,6 +117,7 @@
         <div class="touch-actions">
           <button id="rebuildRocket" class="small-control" type="button">Build</button>
           <button class="small-control stage-control" type="button" data-press-action="stage">Stage</button>
+          <button id="toggleTracker" class="small-control" type="button" aria-expanded="false">Track</button>
           <button class="small-control" type="button" data-press-action="pause">Pause</button>
         </div>
 
@@ -141,6 +142,19 @@
         </div>
 
         <div class="keyboard-hint">Keyboard: W thrust · A/D rotate · X/Enter stage · Space pause · F debug · R debug reset</div>
+      </section>
+
+
+      <section id="orbitTracker" class="panel tracker-panel hidden" aria-live="polite" aria-label="Orbital object tracker">
+        <div class="tracker-panel-top">
+          <div>
+            <div class="object-label">Orbit Tracker</div>
+            <h2>Active Objects</h2>
+          </div>
+          <button id="closeTracker" class="mini-button" type="button">Close</button>
+        </div>
+        <div id="trackerSummary" class="tracker-summary">No tracked objects yet.</div>
+        <div id="trackerList" class="tracker-list"></div>
       </section>
 
       <section id="objectInspector" class="panel object-panel hidden" aria-live="polite" aria-label="Selected orbital object">
