@@ -1,4 +1,4 @@
-# NovaLift v0.1.2 — Vertical Flight Sandbox
+# NovaLift v0.1.4 — Vertical Flight Sandbox
 
 A portrait-first 2D browser prototype for a simplified Kerbal-style space company game.
 
@@ -26,7 +26,10 @@ http://localhost:8000
 - Hold **Left** or **Right** to rotate. Rotation is intentionally gentle for mobile control.
 - Tap **Reset** to restart the launch.
 - Tap **Pause** to pause/resume.
-- Tap **DBG** to show debug data, vectors, and predicted trajectory.
+- Tap **DBG** to show debug data and vectors. The dotted trajectory is visible during flight.
+- Drag directly on the playfield to pan the camera.
+- Pinch on the playfield to zoom in/out.
+- Tap **Center** when it appears to snap the camera back to the rocket.
 
 ## Keyboard controls
 
@@ -36,6 +39,21 @@ http://localhost:8000
 - `R`: reset launch
 - `Space`: pause
 - `F`: toggle debug overlay
+
+## v0.1.4 patch notes
+
+- Added one-finger camera dragging on the playfield.
+- Added two-finger pinch zoom for the camera.
+- Added a floating **Center** button that appears after the user manually moves the camera.
+- Tapping **Center** snaps the camera back to the rocket and returns to auto-follow.
+- Reset also recenters the camera on the rocket.
+
+## v0.1.3 patch notes
+
+- Changed the dotted trajectory to a coast-only prediction based on the rocket's current position and velocity.
+- Removed the old behavior where the arc assumed the thrust button would stay held forever.
+- Increased the prediction horizon so stable orbits draw a much fuller loop.
+- Added full-orbit detection so the prediction can stop after roughly one completed orbit instead of drawing repeated loops.
 
 ## v0.1.2 patch notes
 
@@ -50,7 +68,7 @@ http://localhost:8000
 - Prevented mobile text selection/callout behavior on the touch controls.
 - Reduced engine thrust for a slower, less jumpy launch.
 - Greatly reduced left/right rotation power for more precise mobile steering.
-- Added a live dotted trajectory arc that stays visible during flight and previews continued thrust while the thrust button is held.
+- Added a live dotted trajectory arc that stays visible during flight.
 
 ## What changed in this mobile version
 
@@ -73,7 +91,8 @@ http://localhost:8000
 - Crash detection
 - Basic orbit status detection
 - Debug overlay
-- Live dotted trajectory prediction, visible during flight and updated by current thrust input
+- Live dotted trajectory prediction, visible during flight and based on current position/velocity
+- Manual drag/pinch camera controls with snap-back recenter button
 
 ## What is intentionally not included yet
 
@@ -94,4 +113,7 @@ http://localhost:8000
 4. Hit the planet at high speed. The rocket should crash.
 5. Tap **Reset**. The rocket should reset to the launchpad.
 6. Tap **DBG**. The debug panel, velocity vector, and gravity vector should appear. The dotted trajectory is now visible outside debug mode too.
-7. Hold **Thrust** and watch the dotted trajectory update as the rocket gains acceleration.
+7. Hold **Thrust** and watch the dotted trajectory update smoothly as the rocket gains actual velocity. When thrust is released, the arc should not snap to a totally different path unless the rocket's velocity changed significantly during the burn.
+8. Drag the playfield. The camera should pan and the **Center** button should appear near the top right.
+9. Pinch the playfield. The camera should zoom around your fingers without changing flight controls.
+10. Tap **Center**. The camera should snap back to the rocket and hide the button.

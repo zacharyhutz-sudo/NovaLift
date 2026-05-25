@@ -1,7 +1,7 @@
 {
   "name": "novalift-v0.1",
-  "version": "0.1.2",
-  "description": "Portrait-first 2D space flight sandbox prototype for NovaLift.",
+  "version": "0.1.4",
+  "description": "Portrait-first 2D space flight sandbox prototype for NovaLift with manual camera controls.",
   "type": "module",
   "scripts": {
     "start": "python3 -m http.server 8000",

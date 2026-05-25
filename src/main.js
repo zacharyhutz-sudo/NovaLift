@@ -4,6 +4,7 @@ import { Renderer } from "./renderer.js";
 import { PHYSICS } from "./config.js";
 
 const canvas = document.querySelector("#gameCanvas");
+const recenterCameraButton = document.querySelector("#recenterCamera");
 const altitudeEl = document.querySelector("#altitude");
 const speedEl = document.querySelector("#speed");
 const fuelEl = document.querySelector("#fuel");
@@ -14,7 +15,7 @@ const debugPanelEl = document.querySelector("#debugPanel");
 const debugTextEl = document.querySelector("#debugText");
 
 const input = new Input();
-const renderer = new Renderer(canvas);
+const renderer = new Renderer(canvas, recenterCameraButton);
 const game = new Game(input, renderer);
 
 function loop(timestamp) {

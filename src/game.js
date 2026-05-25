@@ -31,6 +31,7 @@ export class Game {
   reset() {
     this.rocket = cloneRocket(ROCKET);
     this.accumulator = 0;
+    this.renderer.recenterCamera?.(this.rocket);
   }
 
   frame(timestamp) {

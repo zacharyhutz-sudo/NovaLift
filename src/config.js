@@ -2,8 +2,12 @@ export const PHYSICS = {
   fixedDt: 1 / 60,
   maxFrameTime: 0.25,
   orbitRequiredHoldSeconds: 6,
-  trajectorySteps: 320,
-  trajectoryDt: 0.48
+  // Longer coast-only prediction so stable orbits draw a full loop on mobile.
+  trajectorySteps: 1200,
+  trajectoryDt: 0.42,
+  trajectoryPointEvery: 2,
+  trajectoryFullOrbitRadians: Math.PI * 2.02,
+  trajectoryMaxDistanceMultiplier: 28
 };
 
 export const PLANET = {
@@ -39,6 +43,9 @@ export const ROCKET = {
 export const RENDER = {
   minScale: 0.18,
   maxScale: 1.65,
+  manualMinScale: 0.045,
+  manualMaxScale: 2.8,
+  cameraDragDeadzonePx: 3,
   velocityVectorScale: 1.55,
   gravityVectorScale: 90,
   starCount: 180

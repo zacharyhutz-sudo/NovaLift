@@ -173,8 +173,11 @@ function updateOrbitMission(rocket, dt, planet) {
   }
 }
 
-export function predictTrajectory(rocket, planet = PLANET, options = {}) {
+export function predictTrajectory(rocket, planet = PLANET) {
   if (rocket.crashed) return [];
+
+  const speed = getSpeed(rocket);
+  if (rocket.landed && speed < 0.1) return [];
 
   const ghost = {
     ...rocket,
@@ -182,32 +185,48 @@ export function predictTrajectory(rocket, planet = PLANET, options = {}) {
     landed: false,
     missionComplete: false
   };
-  const points = [];
-  const shouldPreviewThrust = Boolean(options.thrusting) && ghost.fuel > 0;
+  const points = [{ x: ghost.x, y: ghost.y }];
+  const maxDistance = (planet.radius + planet.atmosphereHeight) * PHYSICS.trajectoryMaxDistanceMultiplier;
 
-  if (rocket.landed && !shouldPreviewThrust) return [];
+  let previousAngle = Math.atan2(ghost.y - planet.y, ghost.x - planet.x);
+  let angularTravel = 0;
 
   for (let i = 0; i < PHYSICS.trajectorySteps; i++) {
     const gravity = getGravityVector(ghost, planet);
+
+    // Predict the natural coast path from the rocket's current velocity only.
+    // Live thrust changes the real velocity first; the trajectory then updates
+    // from that new state instead of assuming the player will hold thrust forever.
     ghost.vx += gravity.x * PHYSICS.trajectoryDt;
     ghost.vy += gravity.y * PHYSICS.trajectoryDt;
-
-    if (shouldPreviewThrust && ghost.fuel > 0) {
-      const mass = getRocketMass(ghost);
-      const thrustAcceleration = ghost.thrust / mass;
-      const fuelBurn = Math.min(ghost.fuel, ghost.fuelUse * PHYSICS.trajectoryDt);
-
-      ghost.vx += Math.cos(ghost.angle) * thrustAcceleration * PHYSICS.trajectoryDt;
-      ghost.vy += Math.sin(ghost.angle) * thrustAcceleration * PHYSICS.trajectoryDt;
-      ghost.fuel -= fuelBurn;
-    }
-
     ghost.x += ghost.vx * PHYSICS.trajectoryDt;
     ghost.y += ghost.vy * PHYSICS.trajectoryDt;
 
-    if (i % 3 === 0) points.push({ x: ghost.x, y: ghost.y });
-    if (getAltitude(ghost, planet) <= 0) break;
+    const altitude = getAltitude(ghost, planet);
+    if (i % PHYSICS.trajectoryPointEvery === 0) points.push({ x: ghost.x, y: ghost.y });
+    if (altitude <= 0) {
+      points.push({ x: ghost.x, y: ghost.y });
+      break;
+    }
+
+    const distance = getDistanceToPlanet(ghost, planet);
+    if (distance > maxDistance) break;
+
+    const angle = Math.atan2(ghost.y - planet.y, ghost.x - planet.x);
+    angularTravel += Math.abs(normalizeAngle(angle - previousAngle));
+    previousAngle = angle;
+
+    if (angularTravel >= PHYSICS.trajectoryFullOrbitRadians) {
+      points.push({ x: ghost.x, y: ghost.y });
+      break;
+    }
   }
 
   return points;
+}
+
+function normalizeAngle(angle) {
+  while (angle > Math.PI) angle -= Math.PI * 2;
+  while (angle < -Math.PI) angle += Math.PI * 2;
+  return angle;
 }

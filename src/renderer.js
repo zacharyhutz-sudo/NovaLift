@@ -1,5 +1,5 @@
 import { PLANET, RENDER } from "./config.js";
-import { getAltitude, getGravityVector, getSpeed, predictTrajectory } from "./physics.js";
+import { getGravityVector, predictTrajectory } from "./physics.js";
 
 function makeStars(count) {
   let seed = 8128;
@@ -17,16 +17,22 @@ function makeStars(count) {
 }
 
 export class Renderer {
-  constructor(canvas) {
+  constructor(canvas, recenterButton = null) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
+    this.recenterButton = recenterButton;
     this.width = 0;
     this.height = 0;
     this.dpr = 1;
-    this.camera = { x: 0, y: 0, scale: 1, centerX: 0, centerY: 0 };
+    this.camera = { x: 0, y: 0, scale: 1, centerX: 0, centerY: 0, manual: false };
+    this.pointers = new Map();
+    this.gesture = null;
+    this.lastRocket = null;
     this.stars = makeStars(RENDER.starCount);
 
     this.resize();
+    this.bindCameraControls();
+    this.updateRecenterButton();
     window.addEventListener("resize", () => this.resize());
   }
 
@@ -36,16 +42,203 @@ export class Renderer {
     this.height = Math.floor(this.canvas.clientHeight * this.dpr);
     this.canvas.width = this.width;
     this.canvas.height = this.height;
-    if (!this.camera.centerX || !this.camera.centerY) {
-      this.camera.centerX = this.width / 2;
-      this.camera.centerY = this.height >= this.width ? this.height * 0.62 : this.height / 2;
+
+    const target = this.getDefaultScreenCenter();
+    this.camera.centerX = target.x;
+    this.camera.centerY = target.y;
+  }
+
+  bindCameraControls() {
+    this.canvas.addEventListener("pointerdown", (event) => this.handlePointerDown(event));
+    this.canvas.addEventListener("pointermove", (event) => this.handlePointerMove(event));
+    this.canvas.addEventListener("pointerup", (event) => this.handlePointerUp(event));
+    this.canvas.addEventListener("pointercancel", (event) => this.handlePointerUp(event));
+    this.canvas.addEventListener("lostpointercapture", (event) => this.handlePointerUp(event));
+
+    this.canvas.addEventListener(
+      "wheel",
+      (event) => {
+        event.preventDefault();
+        const point = this.getCanvasPoint(event);
+        const zoomFactor = event.deltaY < 0 ? 1.08 : 0.92;
+        this.zoomCameraAt(point.x, point.y, zoomFactor);
+        this.setManualCamera(true);
+      },
+      { passive: false }
+    );
+
+    if (this.recenterButton) {
+      this.recenterButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        this.recenterCamera();
+      });
     }
+  }
+
+  handlePointerDown(event) {
+    event.preventDefault();
+    this.canvas.setPointerCapture?.(event.pointerId);
+    const point = this.getCanvasPoint(event);
+    this.pointers.set(event.pointerId, point);
+    this.resetGesture();
+  }
+
+  handlePointerMove(event) {
+    if (!this.pointers.has(event.pointerId)) return;
+    event.preventDefault();
+    this.pointers.set(event.pointerId, this.getCanvasPoint(event));
+
+    const points = Array.from(this.pointers.values());
+    if (points.length === 1) {
+      this.handleDragGesture(points[0]);
+      return;
+    }
+
+    if (points.length >= 2) {
+      this.handlePinchGesture(points[0], points[1]);
+    }
+  }
+
+  handlePointerUp(event) {
+    if (!this.pointers.has(event.pointerId)) return;
+    event.preventDefault();
+    this.pointers.delete(event.pointerId);
+    if (this.canvas.hasPointerCapture?.(event.pointerId)) {
+      this.canvas.releasePointerCapture(event.pointerId);
+    }
+    this.resetGesture();
+  }
+
+  resetGesture() {
+    const points = Array.from(this.pointers.values());
+
+    if (points.length === 1) {
+      this.gesture = {
+        type: "drag",
+        lastX: points[0].x,
+        lastY: points[0].y,
+        hasMoved: false
+      };
+      return;
+    }
+
+    if (points.length >= 2) {
+      const pinch = getPinchInfo(points[0], points[1]);
+      this.gesture = {
+        type: "pinch",
+        lastDistance: pinch.distance,
+        lastMidX: pinch.midX,
+        lastMidY: pinch.midY,
+        hasMoved: false
+      };
+      return;
+    }
+
+    this.gesture = null;
+  }
+
+  handleDragGesture(point) {
+    if (!this.gesture || this.gesture.type !== "drag") this.resetGesture();
+    if (!this.gesture) return;
+
+    const dx = point.x - this.gesture.lastX;
+    const dy = point.y - this.gesture.lastY;
+    const distance = Math.hypot(dx, dy);
+
+    if (distance >= RENDER.cameraDragDeadzonePx || this.gesture.hasMoved) {
+      this.panCameraByScreenDelta(dx, dy);
+      this.setManualCamera(true);
+      this.gesture.hasMoved = true;
+    }
+
+    this.gesture.lastX = point.x;
+    this.gesture.lastY = point.y;
+  }
+
+  handlePinchGesture(first, second) {
+    const pinch = getPinchInfo(first, second);
+    if (!this.gesture || this.gesture.type !== "pinch") this.resetGesture();
+    if (!this.gesture || this.gesture.type !== "pinch") return;
+
+    const midpointDx = pinch.midX - this.gesture.lastMidX;
+    const midpointDy = pinch.midY - this.gesture.lastMidY;
+    const distanceDelta = Math.abs(pinch.distance - this.gesture.lastDistance);
+
+    if (distanceDelta >= 0.5) {
+      const zoomFactor = pinch.distance / Math.max(this.gesture.lastDistance, 1);
+      this.zoomCameraAt(pinch.midX, pinch.midY, zoomFactor);
+      this.setManualCamera(true);
+      this.gesture.hasMoved = true;
+    }
+
+    if (Math.hypot(midpointDx, midpointDy) >= 0.5) {
+      this.panCameraByScreenDelta(midpointDx, midpointDy);
+      this.setManualCamera(true);
+      this.gesture.hasMoved = true;
+    }
+
+    this.gesture.lastDistance = pinch.distance;
+    this.gesture.lastMidX = pinch.midX;
+    this.gesture.lastMidY = pinch.midY;
+  }
+
+  getCanvasPoint(event) {
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      x: (event.clientX - rect.left) * this.dpr,
+      y: (event.clientY - rect.top) * this.dpr
+    };
+  }
+
+  screenToWorld(x, y) {
+    return {
+      x: (x - this.camera.centerX) / this.camera.scale + this.camera.x,
+      y: (y - this.camera.centerY) / this.camera.scale + this.camera.y
+    };
+  }
+
+  panCameraByScreenDelta(dx, dy) {
+    this.camera.x -= dx / this.camera.scale;
+    this.camera.y -= dy / this.camera.scale;
+  }
+
+  zoomCameraAt(screenX, screenY, factor) {
+    const worldBefore = this.screenToWorld(screenX, screenY);
+    const nextScale = clamp(this.camera.scale * factor, RENDER.manualMinScale, RENDER.manualMaxScale);
+
+    this.camera.scale = nextScale;
+    this.camera.x = worldBefore.x - (screenX - this.camera.centerX) / this.camera.scale;
+    this.camera.y = worldBefore.y - (screenY - this.camera.centerY) / this.camera.scale;
+  }
+
+  setManualCamera(isManual) {
+    this.camera.manual = isManual;
+    this.updateRecenterButton();
+  }
+
+  updateRecenterButton() {
+    if (!this.recenterButton) return;
+    this.recenterButton.classList.toggle("hidden", !this.camera.manual);
+  }
+
+  recenterCamera(rocket = this.lastRocket) {
+    if (rocket) {
+      const target = this.getAutoCameraTarget(rocket);
+      this.camera.x = target.x;
+      this.camera.y = target.y;
+      this.camera.scale = target.scale;
+      this.camera.centerX = target.centerX;
+      this.camera.centerY = target.centerY;
+    }
+
+    this.setManualCamera(false);
   }
 
   render(state) {
     const { rocket, debug } = state;
     const ctx = this.ctx;
 
+    this.lastRocket = rocket;
     this.updateCamera(rocket);
     ctx.clearRect(0, 0, this.width, this.height);
 
@@ -53,7 +246,7 @@ export class Renderer {
     this.drawPlanet(ctx, PLANET);
     this.drawLaunchPad(ctx, PLANET);
 
-    this.drawTrajectory(ctx, predictTrajectory(rocket, PLANET, { thrusting: state.input.thrusting }));
+    this.drawTrajectory(ctx, predictTrajectory(rocket, PLANET));
 
     if (debug) {
       this.drawDebugVectors(ctx, rocket);
@@ -63,27 +256,44 @@ export class Renderer {
   }
 
   updateCamera(rocket) {
+    if (this.camera.manual) return;
+
+    const target = this.getAutoCameraTarget(rocket);
+    const smoothing = 0.075;
+
+    this.camera.x += (target.x - this.camera.x) * smoothing;
+    this.camera.y += (target.y - this.camera.y) * smoothing;
+    this.camera.scale += (target.scale - this.camera.scale) * smoothing;
+    this.camera.centerX += (target.centerX - this.camera.centerX) * smoothing;
+    this.camera.centerY += (target.centerY - this.camera.centerY) * smoothing;
+  }
+
+  getAutoCameraTarget(rocket) {
     const distanceFromPlanet = Math.hypot(rocket.x - PLANET.x, rocket.y - PLANET.y);
     const isPortrait = this.height >= this.width;
     const usableWidth = this.width;
     const usableHeight = this.height * (isPortrait ? 0.74 : 1);
-    const desiredScale = clamp(
+    const scale = clamp(
       Math.min(usableWidth, usableHeight) / Math.max(PLANET.radius * 2.9, distanceFromPlanet * 2.1),
       RENDER.minScale,
       RENDER.maxScale
     );
+    const center = this.getDefaultScreenCenter();
 
-    const desiredX = rocket.x * (isPortrait ? 0.42 : 0.36);
-    const desiredY = rocket.y * (isPortrait ? 0.54 : 0.36);
-    const desiredCenterX = this.width / 2;
-    const desiredCenterY = isPortrait ? this.height * 0.62 : this.height / 2;
-    const smoothing = 0.075;
+    return {
+      x: rocket.x * (isPortrait ? 0.42 : 0.36),
+      y: rocket.y * (isPortrait ? 0.54 : 0.36),
+      scale,
+      centerX: center.x,
+      centerY: center.y
+    };
+  }
 
-    this.camera.x += (desiredX - this.camera.x) * smoothing;
-    this.camera.y += (desiredY - this.camera.y) * smoothing;
-    this.camera.scale += (desiredScale - this.camera.scale) * smoothing;
-    this.camera.centerX += (desiredCenterX - this.camera.centerX) * smoothing;
-    this.camera.centerY += (desiredCenterY - this.camera.centerY) * smoothing;
+  getDefaultScreenCenter() {
+    return {
+      x: this.width / 2,
+      y: this.height >= this.width ? this.height * 0.62 : this.height / 2
+    };
   }
 
   worldToScreen(x, y) {
@@ -292,6 +502,17 @@ export class Renderer {
       ctx.restore();
     }
   }
+}
+
+function getPinchInfo(first, second) {
+  const dx = second.x - first.x;
+  const dy = second.y - first.y;
+
+  return {
+    distance: Math.hypot(dx, dy),
+    midX: (first.x + second.x) / 2,
+    midY: (first.y + second.y) / 2
+  };
 }
 
 function clamp(value, min, max) {

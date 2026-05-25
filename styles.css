@@ -359,3 +359,30 @@ body {
     font-size: 11px;
   }
 }
+
+.camera-button {
+  position: absolute;
+  top: calc(76px + var(--safe-top));
+  right: 14px;
+  z-index: 8;
+  min-width: 76px;
+  min-height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(125, 211, 252, 0.45);
+  background: rgba(8, 11, 20, 0.86);
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.camera-button:active {
+  transform: translateY(1px) scale(0.98);
+  border-color: rgba(125, 211, 252, 0.75);
+}
