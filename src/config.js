@@ -2,12 +2,17 @@ export const PHYSICS = {
   fixedDt: 1 / 60,
   maxFrameTime: 0.25,
   orbitRequiredHoldSeconds: 6,
-  // Longer coast-only prediction so stable orbits draw a full loop on mobile.
   trajectorySteps: 1200,
   trajectoryDt: 0.42,
   trajectoryPointEvery: 2,
   trajectoryFullOrbitRadians: Math.PI * 2.02,
-  trajectoryMaxDistanceMultiplier: 28
+  trajectoryMaxDistanceMultiplier: 28,
+  dragScale: 0.00006,
+  detachedDragScale: 0.00008,
+  parachuteSafeDeploySpeed: 185,
+  landingSafeSpeedBare: 8,
+  landingSafeSpeedLegs: 24,
+  landingUprightAngle: 0.62
 };
 
 export const PLANET = {
@@ -16,6 +21,7 @@ export const PLANET = {
   y: 0,
   radius: 2500,
   atmosphereHeight: 740,
+  surfaceDensity: 1,
   mu: 90000000,
   color: "#1d4ed8",
   landColor: "#22c55e",
@@ -36,6 +42,8 @@ export const ROCKET = {
   fuelUse: 9.2,
   rotateSpeed: 0.45,
   collisionRadius: 18,
+  dragArea: 1.4,
+  frontalArea: 1,
   landed: true,
   crashed: false
 };

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050816" />
-    <title>NovaLift v0.2.0</title>
+    <title>NovaLift v0.3.0</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -15,7 +15,7 @@
         <section id="hud" class="compact-hud" aria-label="Flight status">
           <div class="brand-chip">
             <strong>NovaLift</strong>
-            <span>v0.2.0</span>
+            <span>v0.3.0</span>
           </div>
           <div class="hud-stats">
             <div class="hud-stat"><span>Alt</span><strong id="altitude">0 m</strong></div>
@@ -37,7 +37,7 @@
           <div>
             <p class="eyebrow">Rocket Construction</p>
             <h1>Build your NovaLift rocket</h1>
-            <p class="builder-copy">Stack parts from top to bottom. Budget is infinite for now, but every part has a real cost for future economy balancing.</p>
+            <p class="builder-copy">Stack parts from top to bottom, then assign staged parts. Stage 0 stays with the active craft; stages 1–6 fire when you press Stage.</p>
           </div>
           <div class="budget-chip">
             <span>Budget</span>
@@ -51,6 +51,8 @@
           <div class="builder-stat"><span>Fuel</span><strong id="buildFuel">0</strong></div>
           <div class="builder-stat"><span>TWR</span><strong id="buildTwr">0.00</strong></div>
           <div class="builder-stat"><span>Burn</span><strong id="buildBurn">0s</strong></div>
+          <div class="builder-stat"><span>Drag</span><strong id="buildDrag">0.0</strong></div>
+          <div class="builder-stat"><span>Stages</span><strong id="buildStages">0</strong></div>
         </section>
 
         <section class="builder-card validation-card" aria-live="polite">
@@ -66,7 +68,7 @@
             </div>
           </div>
           <div id="stackList" class="stack-list"></div>
-          <p class="stack-note">Top of rocket is first. Engine works best at the bottom.</p>
+          <p class="stack-note">Top of rocket is first. Stage F means the part stays active; numbered stages fire with the Stage button.</p>
         </section>
 
         <section class="builder-card parts-card" aria-label="Available parts">
@@ -82,8 +84,8 @@
 
       <section id="mission" class="panel mission-panel">
         <div class="mission-label">Mission</div>
-        <h1>Reach stable orbit</h1>
-        <p>Launch, tilt sideways, and build horizontal speed.</p>
+        <h1>Reach orbit, stage, recover</h1>
+        <p>Launch, tilt sideways, deploy payloads in orbit, then test parachutes and landing legs.</p>
         <div id="missionResult" class="mission-result">Orbit hold: 0.0s / 6.0s</div>
       </section>
 
@@ -91,6 +93,7 @@
         <div class="touch-actions">
           <button id="rebuildRocket" class="small-control" type="button">Build</button>
           <button class="small-control" type="button" data-press-action="reset">Reset</button>
+          <button class="small-control stage-control" type="button" data-press-action="stage">Stage</button>
           <button class="small-control" type="button" data-press-action="pause">Pause</button>
         </div>
 
@@ -109,7 +112,7 @@
           </button>
         </div>
 
-        <div class="keyboard-hint">Keyboard: W thrust · A/D rotate · R reset · Space pause · F debug</div>
+        <div class="keyboard-hint">Keyboard: W thrust · A/D rotate · X/Enter stage · R reset · Space pause · F debug</div>
       </section>
 
       <section id="debugPanel" class="panel debug-panel hidden">

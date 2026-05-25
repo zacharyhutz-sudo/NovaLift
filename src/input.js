@@ -7,10 +7,12 @@ const ACTION_KEYS = new Map([
   ["ArrowRight", "right"],
   ["KeyR", "reset"],
   ["Space", "pause"],
-  ["KeyF", "debug"]
+  ["KeyF", "debug"],
+  ["KeyX", "stage"],
+  ["Enter", "stage"]
 ]);
 
-const BLOCKED_KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"]);
+const BLOCKED_KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space", "Enter"]);
 
 export class Input {
   constructor() {

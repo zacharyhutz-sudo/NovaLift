@@ -1,11 +1,10 @@
 {
-  "name": "novalift-v0.2",
-  "version": "0.2.0",
-  "description": "Portrait-first 2D space flight sandbox prototype for NovaLift with a mobile rocket builder and infinite-budget construction mode.",
+  "name": "novalift",
+  "version": "0.3.0",
+  "description": "Vertical mobile-first 2D rocket staging prototype for NovaLift.",
   "type": "module",
+  "private": true,
   "scripts": {
-    "start": "python3 -m http.server 8000",
-    "check": "node --check src/main.js && node --check src/game.js && node --check src/physics.js && node --check src/renderer.js && node --check src/input.js && node --check src/config.js && node --check src/parts.js && node --check src/builder.js"
-  },
-  "private": true
+    "check": "node --check src/*.js"
+  }
 }

@@ -7,9 +7,12 @@ import {
   MAX_STACK_PARTS,
   buildRocketFromStack,
   calculateBuildStats,
+  clampStage,
   formatMoney,
   formatStatNumber,
   getPartTypeLabel,
+  getStageLabel,
+  normalizeStack,
   validateBuild
 } from "./builder.js";
 import { STARTING_STACK } from "./parts.js";
@@ -40,8 +43,10 @@ const buildMassEl = document.querySelector("#buildMass");
 const buildFuelEl = document.querySelector("#buildFuel");
 const buildTwrEl = document.querySelector("#buildTwr");
 const buildBurnEl = document.querySelector("#buildBurn");
+const buildDragEl = document.querySelector("#buildDrag");
+const buildStagesEl = document.querySelector("#buildStages");
 
-let builderStack = [...STARTING_STACK];
+let builderStack = normalizeStack(STARTING_STACK);
 let screenMode = "builder";
 
 renderBuilder();
@@ -64,7 +69,7 @@ function loop(timestamp) {
 function bindBuilderEvents() {
   bindActivation(launchBuiltRocketButton, launchBuiltRocket);
   bindActivation(starterBuildButton, () => {
-    builderStack = [...STARTING_STACK];
+    builderStack = normalizeStack(STARTING_STACK);
     renderBuilder();
   });
   bindActivation(clearBuildButton, () => {
@@ -75,7 +80,8 @@ function bindBuilderEvents() {
 
   bindDelegatedActivation(partsCatalogEl, "[data-add-part]", (button) => {
     if (builderStack.length >= MAX_STACK_PARTS) return;
-    builderStack.push(button.dataset.addPart);
+    const part = AVAILABLE_PARTS.find((candidate) => candidate.id === button.dataset.addPart);
+    builderStack.push({ id: button.dataset.addPart, stage: getDefaultStageForPart(part) });
     renderBuilder();
   });
 
@@ -93,6 +99,14 @@ function bindBuilderEvents() {
 
     if (action === "down" && index < builderStack.length - 1) {
       [builderStack[index + 1], builderStack[index]] = [builderStack[index], builderStack[index + 1]];
+    }
+
+    if (action === "stageDown") {
+      builderStack[index].stage = clampStage((builderStack[index].stage ?? 0) - 1);
+    }
+
+    if (action === "stageUp") {
+      builderStack[index].stage = clampStage((builderStack[index].stage ?? 0) + 1);
     }
 
     renderBuilder();
@@ -158,6 +172,7 @@ function launchBuiltRocket() {
 }
 
 function renderBuilder(highlightErrors = false) {
+  builderStack = normalizeStack(builderStack);
   const validation = validateBuild(builderStack);
   const stats = validation.stats;
 
@@ -166,6 +181,8 @@ function renderBuilder(highlightErrors = false) {
   buildFuelEl.textContent = Math.round(stats.fuelCapacity).toLocaleString();
   buildTwrEl.textContent = formatStatNumber(stats.twr, 2);
   buildBurnEl.textContent = stats.burnTime > 0 ? `${formatStatNumber(stats.burnTime, 0)}s` : "0s";
+  buildDragEl.textContent = formatStatNumber(stats.dragArea, 1);
+  buildStagesEl.textContent = String(stats.stageCount);
 
   renderStackList(stats.parts);
   renderPartsCatalog();
@@ -190,7 +207,12 @@ function renderStackList(parts) {
           <div class="part-swatch" aria-hidden="true"></div>
           <div class="stack-info">
             <strong>${escapeHtml(part.shortName ?? part.name)}</strong>
-            <span>${getPartTypeLabel(part.type)} · ${formatMoney(part.cost)}</span>
+            <span>${getPartTypeLabel(part.type)} · ${formatMoney(part.cost)} · ${escapeHtml(getStageLabel(part.stage))}</span>
+          </div>
+          <div class="stage-buttons" aria-label="Stage controls">
+            <button type="button" data-stack-action="stageDown" data-index="${index}" ${part.stage <= 0 ? "disabled" : ""}>−</button>
+            <strong>${part.stage === 0 ? "F" : part.stage}</strong>
+            <button type="button" data-stack-action="stageUp" data-index="${index}" ${part.stage >= 6 ? "disabled" : ""}>+</button>
           </div>
           <div class="stack-buttons">
             <button type="button" data-stack-action="up" data-index="${index}" ${index === 0 ? "disabled" : ""}>↑</button>
@@ -219,6 +241,8 @@ function renderPartsCatalog() {
           <span>Mass ${formatStatNumber(part.dryMass)}t</span>
           ${part.fuelCapacity ? `<span>Fuel ${Math.round(part.fuelCapacity)}</span>` : ""}
           ${part.thrust ? `<span>Thrust ${Math.round(part.thrust)}</span>` : ""}
+          <span>Drag ${formatStatNumber(part.dragArea ?? 0, 1)}</span>
+          ${part.stageAction ? `<span>Staged</span>` : ""}
         </div>
         <button type="button" data-add-part="${escapeHtml(part.id)}" ${builderStack.length >= MAX_STACK_PARTS ? "disabled" : ""}>Add</button>
       </article>
@@ -252,11 +276,17 @@ function updateHud(data) {
   statusEl.title = data.status;
   fpsEl.textContent = `${Math.round(data.fps)}`;
 
-  if (data.missionComplete) {
-    missionResultEl.textContent = "Mission complete: stable orbit achieved.";
+  if (screenMode === "builder") {
+    missionResultEl.textContent = "Build a staged rocket, then launch.";
+    missionResultEl.classList.remove("success");
+  } else if (data.missionComplete) {
+    missionResultEl.textContent = data.onlinePayloads > 0 ? `Payload online: ${data.onlinePayloads} deployed.` : "Mission complete: stable orbit achieved.";
     missionResultEl.classList.add("success");
+  } else if (data.stageMessage) {
+    missionResultEl.textContent = data.stageMessage;
+    missionResultEl.classList.remove("success");
   } else {
-    missionResultEl.textContent = `Orbit hold: ${data.orbitHoldTime.toFixed(1)}s / ${PHYSICS.orbitRequiredHoldSeconds.toFixed(1)}s`;
+    missionResultEl.textContent = `Stage ${data.nextStage}/${Math.max(data.maxStage, data.nextStage - 1)} · Orbit hold ${data.orbitHoldTime.toFixed(1)}s/${PHYSICS.orbitRequiredHoldSeconds.toFixed(0)}s · ATM ${data.atmospherePercent.toFixed(0)}%`;
     missionResultEl.classList.remove("success");
   }
 
@@ -271,6 +301,7 @@ function compactStatus(status) {
 
   const labels = new Map([
     ["Orbit achieved", "Orbit"],
+    ["Payload online", "Online"],
     ["Stable orbit likely", "Stable"],
     ["Almost orbital", "Almost"],
     ["Climbing through atmosphere", "Climb"],
@@ -278,10 +309,20 @@ function compactStatus(status) {
     ["Ready on pad", "Ready"],
     ["Escaping", "Escape"],
     ["Crashed", "Crash"],
-    ["Impact", "Impact"]
+    ["Impact", "Impact"],
+    ["Descending", "Descent"],
+    ["Chute deployed", "Chute"],
+    ["Chute failed", "Chute fail"]
   ]);
 
   return labels.get(status) ?? status;
+}
+
+function getDefaultStageForPart(part) {
+  if (!part?.stageAction) return 0;
+  if (part.stageAction === "decoupleBelow") return 1;
+  if (part.stageAction === "deployPayload") return 2;
+  return 3;
 }
 
 function formatDistance(value) {

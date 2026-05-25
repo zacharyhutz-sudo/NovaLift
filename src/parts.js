@@ -1,18 +1,55 @@
 export const STARTING_BUDGET = Infinity;
 
+export const STAGE_MIN = 0;
+export const STAGE_MAX = 6;
+
 export const AVAILABLE_PARTS = [
   {
     id: "data_center_basic",
     name: "Orbital Data Center",
     shortName: "Data Center",
     type: "payload",
+    stageAction: "deployPayload",
     cost: 4000,
     dryMass: 2.2,
     fuelCapacity: 0,
     thrust: 0,
     fuelUse: 0,
+    dragArea: 1.35,
+    width: 1.35,
     color: "#a78bfa",
-    description: "A starter payload for future orbital income contracts. Heavy, but useful."
+    description: "A starter orbital payload. Stage it in orbit to detach it and start future data income."
+  },
+  {
+    id: "satellite_basic",
+    name: "Small Satellite",
+    shortName: "Satellite",
+    type: "payload",
+    stageAction: "deployPayload",
+    cost: 2200,
+    dryMass: 0.8,
+    fuelCapacity: 0,
+    thrust: 0,
+    fuelUse: 0,
+    dragArea: 0.85,
+    width: 1.1,
+    color: "#c4b5fd",
+    description: "A lighter detachable payload for testing orbital deployment."
+  },
+  {
+    id: "nose_cone_basic",
+    name: "Basic Nose Cone",
+    shortName: "Nose Cone",
+    type: "aero",
+    cost: 350,
+    dryMass: 0.18,
+    fuelCapacity: 0,
+    thrust: 0,
+    fuelUse: 0,
+    dragArea: -0.45,
+    width: 0.85,
+    color: "#e2e8f0",
+    description: "Reduces atmospheric drag when placed near the top of the rocket."
   },
   {
     id: "command_pod_basic",
@@ -24,8 +61,44 @@ export const AVAILABLE_PARTS = [
     fuelCapacity: 0,
     thrust: 0,
     fuelUse: 0,
+    dragArea: 0.7,
+    width: 1,
     color: "#e5e7eb",
-    description: "Required. Gives the rocket a controllable brain and a nose cone."
+    description: "Required. Gives the rocket a controllable brain."
+  },
+  {
+    id: "parachute_basic",
+    name: "Recovery Parachute",
+    shortName: "Parachute",
+    type: "parachute",
+    stageAction: "deployParachute",
+    cost: 700,
+    dryMass: 0.25,
+    fuelCapacity: 0,
+    thrust: 0,
+    fuelUse: 0,
+    dragArea: 0.45,
+    deployedDragArea: 70,
+    safeDeploySpeed: 185,
+    width: 1,
+    color: "#f9a8d4",
+    description: "Stage inside atmosphere to slow descent. Deploying too fast will rip it off."
+  },
+  {
+    id: "landing_legs_basic",
+    name: "Landing Legs",
+    shortName: "Landing Legs",
+    type: "legs",
+    stageAction: "deployLegs",
+    cost: 900,
+    dryMass: 0.45,
+    fuelCapacity: 0,
+    thrust: 0,
+    fuelUse: 0,
+    dragArea: 0.65,
+    width: 1.25,
+    color: "#94a3b8",
+    description: "Stage before touchdown to increase the safe landing speed."
   },
   {
     id: "fuel_tank_small",
@@ -37,8 +110,10 @@ export const AVAILABLE_PARTS = [
     fuelCapacity: 450,
     thrust: 0,
     fuelUse: 0,
+    dragArea: 0.65,
+    width: 1,
     color: "#38bdf8",
-    description: "Light tank. Good for small test flights and keeping mass low."
+    description: "Light tank. Good for upper stages and small orbital launches."
   },
   {
     id: "fuel_tank_medium",
@@ -50,8 +125,41 @@ export const AVAILABLE_PARTS = [
     fuelCapacity: 700,
     thrust: 0,
     fuelUse: 0,
+    dragArea: 0.85,
+    width: 1.1,
     color: "#0ea5e9",
-    description: "Balanced fuel storage. Two of these roughly matches the v0.1 sandbox fuel load."
+    description: "Balanced fuel storage for most early rockets."
+  },
+  {
+    id: "decoupler_basic",
+    name: "Basic Decoupler",
+    shortName: "Decoupler",
+    type: "decoupler",
+    stageAction: "decoupleBelow",
+    cost: 550,
+    dryMass: 0.22,
+    fuelCapacity: 0,
+    thrust: 0,
+    fuelUse: 0,
+    dragArea: 0.35,
+    width: 1.05,
+    color: "#facc15",
+    description: "Stage to drop this part and everything below it. Great for shedding empty tanks and engines."
+  },
+  {
+    id: "engine_vacuum",
+    name: "Vacuum Engine",
+    shortName: "Vac Engine",
+    type: "engine",
+    cost: 3100,
+    dryMass: 1.05,
+    fuelCapacity: 0,
+    thrust: 165,
+    fuelUse: 6.1,
+    dragArea: 0.7,
+    width: 1,
+    color: "#fdba74",
+    description: "Lower thrust, better fuel use. Best after the lower stage separates."
   },
   {
     id: "engine_basic",
@@ -63,6 +171,8 @@ export const AVAILABLE_PARTS = [
     fuelCapacity: 0,
     thrust: 220,
     fuelUse: 9.2,
+    dragArea: 0.8,
+    width: 1.05,
     color: "#f97316",
     description: "Reliable starter engine. Efficient enough for first orbit attempts."
   },
@@ -76,17 +186,26 @@ export const AVAILABLE_PARTS = [
     fuelCapacity: 0,
     thrust: 360,
     fuelUse: 15.4,
+    dragArea: 1.05,
+    width: 1.25,
     color: "#fb923c",
     description: "More thrust for heavy payloads, but burns fuel quickly."
   }
 ];
 
+// stage 0 = passive/active during flight. Stage 1+ is activated by the Stage button.
 export const STARTING_STACK = [
-  "data_center_basic",
-  "command_pod_basic",
-  "fuel_tank_medium",
-  "fuel_tank_medium",
-  "engine_basic"
+  { id: "nose_cone_basic", stage: 0 },
+  { id: "data_center_basic", stage: 2 },
+  { id: "command_pod_basic", stage: 0 },
+  { id: "parachute_basic", stage: 3 },
+  { id: "landing_legs_basic", stage: 3 },
+  { id: "fuel_tank_small", stage: 0 },
+  { id: "engine_vacuum", stage: 0 },
+  { id: "decoupler_basic", stage: 1 },
+  { id: "fuel_tank_medium", stage: 0 },
+  { id: "fuel_tank_medium", stage: 0 },
+  { id: "engine_basic", stage: 0 }
 ];
 
 export function getPartById(id) {

@@ -257,7 +257,7 @@ export class Renderer {
   }
 
   render(state) {
-    const { rocket, debug } = state;
+    const { rocket, debug, objects = [] } = state;
     const ctx = this.ctx;
 
     this.lastRocket = rocket;
@@ -269,6 +269,7 @@ export class Renderer {
     this.drawLaunchPad(ctx, PLANET);
 
     this.drawTrajectory(ctx, predictTrajectory(rocket, PLANET));
+    this.drawDetachedObjects(ctx, objects);
 
     if (debug) {
       this.drawDebugVectors(ctx, rocket);
@@ -466,10 +467,46 @@ export class Renderer {
     ctx.restore();
   }
 
+
+  drawDetachedObjects(ctx, objects) {
+    if (!objects?.length) return;
+
+    objects.forEach((object) => {
+      const screen = this.worldToScreen(object.x, object.y);
+      const scale = Math.max(0.42, this.camera.scale);
+      ctx.save();
+      ctx.translate(screen.x, screen.y);
+      ctx.rotate(object.angle ?? 0);
+      ctx.scale(scale, scale);
+
+      if (object.kind === "payload") {
+        ctx.fillStyle = object.online ? "#86efac" : object.color ?? "#a78bfa";
+        ctx.strokeStyle = "rgba(15, 23, 42, 0.85)";
+        ctx.lineWidth = 1.5;
+        roundRect(ctx, -8, -6, 16, 12, 4);
+        ctx.fill();
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(255,255,255,0.7)";
+        ctx.beginPath();
+        ctx.moveTo(-13, 0);
+        ctx.lineTo(-8, 0);
+        ctx.moveTo(8, 0);
+        ctx.lineTo(13, 0);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = object.crashed ? "#fb7185" : "rgba(148, 163, 184, 0.9)";
+        roundRect(ctx, -12, -5, 24, 10, 3);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    });
+  }
+
   drawRocket(ctx, rocket, thrusting) {
     const screen = this.worldToScreen(rocket.x, rocket.y);
     const scale = Math.max(0.55, this.camera.scale);
-    const parts = Array.isArray(rocket.parts) && rocket.parts.length > 0 ? rocket.parts : null;
+    const parts = Array.isArray(rocket.parts) && rocket.parts.length > 0 ? rocket.parts.filter((part) => part.active !== false) : null;
 
     ctx.save();
     ctx.translate(screen.x, screen.y);
@@ -477,7 +514,7 @@ export class Renderer {
     ctx.scale(scale, scale);
 
     if (parts) {
-      this.drawStackedRocketBody(ctx, parts, thrusting, rocket.crashed);
+      this.drawStackedRocketBody(ctx, parts, thrusting, rocket.crashed, rocket);
     } else {
       this.drawFallbackRocketBody(ctx, thrusting, rocket.crashed);
     }
@@ -495,11 +532,15 @@ export class Renderer {
     }
   }
 
-  drawStackedRocketBody(ctx, parts, thrusting, crashed) {
+  drawStackedRocketBody(ctx, parts, thrusting, crashed, rocket = {}) {
     const lengths = parts.map((part) => getDrawLength(part.type));
     const totalLength = lengths.reduce((total, length) => total + length, 0);
     const bodyHeight = 15;
     let cursor = totalLength / 2;
+
+    if (rocket.parachuteState === "deployed") {
+      this.drawParachute(ctx, totalLength / 2 + 42);
+    }
 
     if (thrusting) {
       this.drawEngineFlame(ctx, -totalLength / 2);
@@ -517,15 +558,27 @@ export class Renderer {
       ctx.strokeStyle = "rgba(15, 23, 42, 0.85)";
       ctx.lineWidth = 1.6;
 
-      if (isFirst && part.type === "command") {
+      if (part.type === "aero" || (isFirst && part.type === "command")) {
         ctx.beginPath();
         ctx.moveTo(centerX + length / 2, 0);
-        ctx.lineTo(centerX + length * 0.12, -bodyHeight / 2);
+        ctx.lineTo(centerX + length * 0.04, -bodyHeight / 2);
         ctx.lineTo(centerX - length / 2, -bodyHeight / 2);
         ctx.lineTo(centerX - length / 2, bodyHeight / 2);
-        ctx.lineTo(centerX + length * 0.12, bodyHeight / 2);
+        ctx.lineTo(centerX + length * 0.04, bodyHeight / 2);
         ctx.closePath();
         ctx.fill();
+        ctx.stroke();
+      } else if (part.type === "decoupler") {
+        ctx.fillStyle = crashed ? "#fb7185" : part.color ?? "#facc15";
+        roundRect(ctx, centerX - length / 2, -bodyHeight / 2, length, bodyHeight, 3);
+        ctx.fill();
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(15, 23, 42, 0.55)";
+        ctx.beginPath();
+        ctx.moveTo(centerX - length * 0.25, -bodyHeight / 2);
+        ctx.lineTo(centerX - length * 0.25, bodyHeight / 2);
+        ctx.moveTo(centerX + length * 0.25, -bodyHeight / 2);
+        ctx.lineTo(centerX + length * 0.25, bodyHeight / 2);
         ctx.stroke();
       } else {
         roundRect(ctx, centerX - length / 2, -bodyHeight / 2, length, bodyHeight, part.type === "engine" ? 3 : 5);
@@ -548,6 +601,23 @@ export class Renderer {
       if (part.type === "fuel") {
         ctx.fillStyle = "rgba(255,255,255,0.2)";
         ctx.fillRect(centerX - 1, -bodyHeight / 2 + 2, 2, bodyHeight - 4);
+      }
+
+      if (part.type === "parachute") {
+        ctx.strokeStyle = "rgba(255,255,255,0.55)";
+        ctx.beginPath();
+        ctx.arc(centerX, 0, 4.2, Math.PI, 0);
+        ctx.stroke();
+      }
+
+      if (part.type === "legs") {
+        ctx.strokeStyle = "rgba(255,255,255,0.65)";
+        ctx.beginPath();
+        ctx.moveTo(centerX - 4, bodyHeight / 2 - 1);
+        ctx.lineTo(centerX - 9, bodyHeight / 2 + 6);
+        ctx.moveTo(centerX - 4, -bodyHeight / 2 + 1);
+        ctx.lineTo(centerX - 9, -bodyHeight / 2 - 6);
+        ctx.stroke();
       }
 
       if (part.type === "engine" || isLast) {
@@ -573,6 +643,41 @@ export class Renderer {
     ctx.lineTo(tailX - 2, bodyHeight / 2 + 7);
     ctx.closePath();
     ctx.fill();
+
+    if (rocket.landingLegsDeployed) {
+      ctx.strokeStyle = "rgba(226, 232, 240, 0.9)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(tailX + 2, -bodyHeight / 2 + 2);
+      ctx.lineTo(tailX - 10, -bodyHeight / 2 - 12);
+      ctx.lineTo(tailX - 18, -bodyHeight / 2 - 12);
+      ctx.moveTo(tailX + 2, bodyHeight / 2 - 2);
+      ctx.lineTo(tailX - 10, bodyHeight / 2 + 12);
+      ctx.lineTo(tailX - 18, bodyHeight / 2 + 12);
+      ctx.stroke();
+    }
+  }
+
+  drawParachute(ctx, noseX) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.72)";
+    ctx.fillStyle = "rgba(249, 168, 212, 0.72)";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.arc(noseX, 0, 22, Math.PI, Math.PI * 2);
+    ctx.lineTo(noseX - 22, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(noseX - 16, 0);
+    ctx.lineTo(noseX - 34, -5);
+    ctx.moveTo(noseX, 0);
+    ctx.lineTo(noseX - 34, 0);
+    ctx.moveTo(noseX + 16, 0);
+    ctx.lineTo(noseX - 34, 5);
+    ctx.stroke();
+    ctx.restore();
   }
 
   drawFallbackRocketBody(ctx, thrusting, crashed) {
@@ -637,8 +742,12 @@ function clamp(value, min, max) {
 
 function getDrawLength(type) {
   return {
-    payload: 19,
+    payload: 20,
     command: 20,
+    aero: 15,
+    parachute: 12,
+    legs: 12,
+    decoupler: 8,
     fuel: 18,
     engine: 16
   }[type] ?? 16;

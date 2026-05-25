@@ -1,14 +1,61 @@
-# NovaLift v0.2.0 — Rocket Builder Prototype
+# NovaLift v0.3.0 — Staging, Atmosphere, Recovery
 
-A portrait-first 2D browser prototype for a simplified Kerbal-style space company game.
+NovaLift is a vertical mobile-first 2D space-company rocket prototype that runs on GitHub Pages with no build step.
 
-The current game loop is now: build a simple rocket from parts, launch it, turn sideways, build horizontal speed, and try to hold a stable orbit.
+## What is new in v0.3.0
 
-## How to run
+- Staging system with a dedicated **Stage** button
+- Builder stage assignment for each part
+- Decouplers that drop lower rocket sections
+- Detachable satellites and orbital data centers
+- Basic atmosphere and drag model
+- Drag stat in the builder
+- Nose cone part for lowering drag
+- Parachutes that deploy only inside atmosphere and can fail if deployed too fast
+- Landing legs that improve touchdown tolerance
+- Detached payload/debris rendering
+- Stage event messages during flight
+- Debug readout for drag, atmosphere, active parts, stages, and payloads
 
-Open `index.html` through a local web server, or upload the folder to GitHub Pages/Netlify.
+The budget is still infinite for this prototype, but parts have costs for future economy balancing.
 
-Because this uses JavaScript modules, some browsers may block it when opened directly from the file system. If that happens, run a tiny local server from the project folder:
+## Controls
+
+### Mobile
+
+- **Left** — rotate left
+- **Thrust** — hold to burn engines
+- **Right** — rotate right
+- **Stage** — activate the next assigned stage
+- **Build** — return to rocket construction
+- **Reset** — reset the current launch
+- **Pause** — pause flight
+- Drag the playfield to pan the camera
+- Pinch the playfield to zoom
+- Tap **Center** to snap back to the rocket after moving the camera
+
+### Keyboard
+
+- **W / Up Arrow** — thrust
+- **A / Left Arrow** — rotate left
+- **D / Right Arrow** — rotate right
+- **X / Enter** — stage
+- **R** — reset launch
+- **Space** — pause
+- **F** — debug overlay
+
+## Builder notes
+
+- Parts are stacked from top to bottom.
+- **F** means the part stays active during flight and does not trigger from the Stage button.
+- Numbered stages fire in order: Stage 1, Stage 2, Stage 3, etc.
+- Decouplers remove themselves and every part below them.
+- Payloads detach when their stage fires.
+- Parachutes and landing legs deploy when their stage fires.
+
+## How to test locally
+
+Open `index.html` in a browser, or run a tiny local server:
 
 ```bash
 python3 -m http.server 8000
@@ -20,58 +67,11 @@ Then open:
 http://localhost:8000
 ```
 
-## v0.2.0 patch notes
+## Recommended quick test
 
-- Added the first rocket construction screen.
-- Added an infinite prototype budget while still showing part costs.
-- Added a mobile-friendly vertical stack builder.
-- Added part cards for payloads, command pod, fuel tanks, and engines.
-- Added stack controls to move parts up/down or remove them.
-- Added live build stats: cost, mass, fuel, thrust-to-weight ratio, and burn time.
-- Added validation so invalid rockets cannot launch.
-- Added a **Build** button to return from flight to construction.
-- Flight physics now uses the constructed rocket's mass, fuel, thrust, and fuel-use values.
-- The in-flight rocket sprite now reflects the stacked parts.
-
-## Builder notes
-
-- Budget is currently infinite for fast prototyping.
-- Costs are still included so future economy balancing will be easier.
-- Stack parts from top to bottom.
-- A valid rocket needs a command pod, fuel, and at least one engine.
-- TWR must be at least 1.0 to launch.
-
-## Mobile controls
-
-- Hold **Thrust** to fire the engine.
-- Hold **Left** or **Right** to rotate.
-- Tap **Build** to return to construction.
-- Tap **Reset** to restart the current rocket launch.
-- Tap **Pause** to pause/resume.
-- Tap **DBG** to show debug data, FPS, and vectors.
-- Drag directly on the playfield to pan the camera.
-- Pinch on the playfield to zoom in/out.
-- Tap **Center** when it appears to snap the camera back to the rocket.
-
-## Keyboard controls
-
-- `W` / `Up Arrow`: thrust
-- `A` / `Left Arrow`: rotate left
-- `D` / `Right Arrow`: rotate right
-- `R`: reset launch
-- `Space`: pause
-- `F`: toggle debug overlay
-
-## Testing checklist
-
-- Empty rocket cannot launch.
-- Rocket without command pod cannot launch.
-- Rocket without fuel cannot launch.
-- Rocket without engine cannot launch.
-- Rocket with TWR below 1.0 cannot launch.
-- Starter rocket launches and lifts off.
-- Adding fuel increases fuel and mass.
-- Adding payload increases mass and cost.
-- Adding a heavy engine increases thrust and fuel burn.
-- Reset keeps the current built rocket.
-- Build returns to the construction screen.
+1. Use the Starter rocket.
+2. Launch and climb out of the atmosphere.
+3. Tilt sideways to build orbital speed.
+4. Press **Stage** once to drop the lower booster.
+5. Press **Stage** again in orbit to deploy the data center.
+6. Reenter and press **Stage** again inside the atmosphere to deploy parachute and legs.
