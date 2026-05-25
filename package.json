@@ -1,6 +1,6 @@
 {
   "name": "novalift",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Vertical mobile-first 2D rocket prototype with builder guidance, fixed-size rocket rendering, part hitboxes, and larger homeworld.",
   "type": "module",
   "private": true,

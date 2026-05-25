@@ -1,75 +1,65 @@
-# NovaLift v0.3.1 — Builder Guidance, Hitboxes, Larger Homeworld
+# NovaLift v0.3.2 — World-Scale Rockets, Better Parts, Recovery Physics
 
-NovaLift is a vertical mobile-first 2D space-company rocket prototype that runs on GitHub Pages with no build step.
+NovaLift is a portrait/mobile-first 2D rocket sandbox prototype. This version focuses on fixing rocket scale, improving part readability, and making parachutes/landing legs actually useful for recovery.
 
-## What is new in v0.3.1
+## What is new in v0.3.2
 
-- Added a selected-part explanation panel in the builder.
-- Tapping a part in the catalog or current stack now explains what it does and how to use it.
-- Added post-flight summaries with max altitude, max speed, outcome, and a short improvement tip.
-- Rocket rendering is now a fixed readable screen size while panning/zooming the camera.
-- Added per-part hitboxes for surface contact instead of using one simple circular rocket radius.
-- Increased Homeworld radius by 5x and scaled atmosphere with it.
-- Scaled planetary gravity to preserve familiar surface-gravity feel after the planet size increase.
-
-The budget is still infinite for this prototype, but parts have costs for future economy balancing.
+- Rocket rendering is now world-scale instead of screen-locked.
+- Zooming in/out now scales the rocket, Earth, trajectory, pad, and hitboxes together.
+- Rebuilt rocket part visuals with clearer Canvas vector assets:
+  - nose cones
+  - command pods
+  - fuel tanks
+  - engines
+  - decouplers
+  - satellites/data centers
+  - parachutes
+  - landing legs
+- Added a local auto-camera framing pass so the rocket stays readable without breaking world scale.
+- Improved per-part hitboxes to line up with the visible rocket.
+- Added deployed landing-leg contact hitboxes near the lower vessel contact point.
+- Retuned body drag so launch does not feel overly sluggish.
+- Retuned parachute drag so a safe deployment slows a normal rocket to recovery speed.
+- Added parachute stabilization so the rocket tends to hang upright under canopy.
+- Added a `Safe` descent status when parachute + landing legs have slowed the vehicle enough.
 
 ## Controls
 
-### Mobile
+Keyboard:
 
-- **Left** — rotate left
-- **Thrust** — hold to burn engines
-- **Right** — rotate right
-- **Stage** — activate the next assigned stage
-- **Build** — return to rocket construction
-- **Reset** — reset the current launch
-- **Pause** — pause flight
-- Drag the playfield to pan the camera
-- Pinch the playfield to zoom
-- Tap **Center** to snap back to the rocket after moving the camera
+- W / Up Arrow: thrust
+- A / Left Arrow: rotate left
+- D / Right Arrow: rotate right
+- X / Enter: activate next stage
+- R: reset flight
+- Space: pause
+- F: debug
 
-### Keyboard
+Mobile:
 
-- **W / Up Arrow** — thrust
-- **A / Left Arrow** — rotate left
-- **D / Right Arrow** — rotate right
-- **X / Enter** — stage
-- **R** — reset launch
-- **Space** — pause
-- **F** — debug overlay
+- Use the large on-screen buttons for thrust, rotation, staging, reset, pause, and debug.
+- Drag the playfield to pan the camera.
+- Pinch the playfield to zoom.
+- Tap Center to return to rocket follow mode.
 
-## Builder notes
+## Testing notes
 
-- Parts are stacked from top to bottom.
-- Tap any catalog or stack part to see an explanation and usage tip.
-- **F** means the part stays active during flight and does not trigger from the Stage button.
-- Numbered stages fire in order: Stage 1, Stage 2, Stage 3, etc.
-- Decouplers remove themselves and every part below them.
-- Payloads detach when their stage fires.
-- Parachutes and landing legs deploy when their stage fires.
+Recommended quick tests:
 
-## How to test locally
+1. Pinch zoom in/out and confirm the rocket changes size with Earth rather than staying screen-fixed.
+2. Launch the starter rocket and confirm the part visuals remain aligned to the vessel.
+3. Stage the parachute and landing legs during descent below safe deploy speed.
+4. Confirm the parachute slows the rocket to a safe descent and landing legs can recover the vehicle.
+5. Deploy the parachute too fast and confirm it can still fail.
 
-Open `index.html` in a browser, or run a tiny local server:
+## Running locally
+
+Open `index.html` in a browser, or serve the folder with a simple local server:
 
 ```bash
 python3 -m http.server 8000
 ```
 
-Then open:
+Then open `http://localhost:8000`.
 
-```txt
-http://localhost:8000
-```
-
-## Recommended quick test
-
-1. Tap several parts in the builder and confirm the explanation panel changes.
-2. Use the Starter rocket.
-3. Launch and test camera zoom. The rocket should stay readable instead of shrinking/growing with zoom.
-4. Tip sideways to build orbital speed.
-5. Press **Stage** once to drop the lower booster.
-6. Press **Stage** again in orbit to deploy the data center.
-7. Reenter and press **Stage** again inside the atmosphere to deploy parachute and legs.
-8. Crash or recover and confirm the mission area gives a short flight summary.
+This build has no bundler and is ready for GitHub Pages.

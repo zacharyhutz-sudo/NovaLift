@@ -370,6 +370,7 @@ function compactStatus(status) {
     ["Impact", "Impact"],
     ["Descending", "Descent"],
     ["Chute deployed", "Chute"],
+    ["Descent safe", "Safe"],
     ["Chute failed", "Chute fail"]
   ]);
 

@@ -69,12 +69,19 @@ export function getDragVector(rocket, planet = PLANET, scale = PHYSICS.dragScale
   const mass = Math.max(getRocketMass(rocket), 0.1);
   if (speed <= 0.001 || density <= 0) return { x: 0, y: 0, strength: 0, density };
 
-  let dragArea = rocket.dragArea ?? 1;
-  if (rocket.parachuteState === "deployed") {
-    dragArea += getParachuteDragArea(rocket);
-  }
-  const force = density * speed * speed * Math.max(0.1, dragArea) * scale;
-  const acceleration = force / mass;
+  const bodyArea = Math.max(0.1, rocket.dragArea ?? 1);
+  const bodyForce = density * speed * speed * bodyArea * scale;
+  const chuteArea = rocket.parachuteState === "deployed" && density >= (PHYSICS.parachuteMinEffectiveDensity ?? 0)
+    ? getParachuteDragArea(rocket)
+    : 0;
+  const chuteForce = density * speed * speed * chuteArea * (PHYSICS.parachuteDragScale ?? scale);
+
+  let acceleration = (bodyForce + chuteForce) / mass;
+  acceleration = Math.min(acceleration, PHYSICS.maxDragAcceleration ?? acceleration);
+
+  // Avoid numerical overshoot where drag reverses the velocity in one fixed step.
+  const maxStableAccel = speed * 0.82 / PHYSICS.fixedDt;
+  acceleration = Math.min(acceleration, maxStableAccel);
 
   return {
     x: -(rocket.vx / speed) * acceleration,
@@ -159,6 +166,8 @@ export function stepRocket(rocket, input, dt, planet = PLANET) {
   rocket.vx += drag.x * dt;
   rocket.vy += drag.y * dt;
 
+  stabilizeUnderParachute(rocket, planet, dt);
+
   rocket.x += rocket.vx * dt;
   rocket.y += rocket.vy * dt;
 
@@ -216,7 +225,8 @@ function resolveSurfaceContact(rocket, planet) {
   const contact = getRocketSurfaceContact(rocket, planet);
   const nx = contact.normalX;
   const ny = contact.normalY;
-  const safeTouchdownSpeed = rocket.landingLegsDeployed ? PHYSICS.landingSafeSpeedLegs : PHYSICS.landingSafeSpeedBare;
+  const legContact = contact.part?.type === "legs" && rocket.landingLegsDeployed;
+  const safeTouchdownSpeed = legContact ? PHYSICS.landingSafeSpeedLegs : PHYSICS.landingSafeSpeedBare;
   const upright = getUprightAngleError(rocket, planet) <= PHYSICS.landingUprightAngle;
   const safeTouchdown = speed < safeTouchdownSpeed && upright && !rocket.missionComplete;
 
@@ -245,7 +255,11 @@ export function getOrbitStatus(rocket, planet = PLANET) {
   if (rocket.payloadsOnline > 0) return "Payload online";
   if (rocket.missionComplete) return "Orbit achieved";
   if (rocket.landed) return "Ready on pad";
-  if (rocket.parachuteState === "deployed") return "Chute deployed";
+  if (rocket.parachuteState === "deployed") {
+    const recoveryLimit = rocket.landingLegsDeployed ? PHYSICS.landingSafeSpeedLegs : PHYSICS.landingSafeSpeedBare;
+    if (getSpeed(rocket) <= recoveryLimit * 1.2 && getAltitude(rocket, planet) < planet.atmosphereHeight) return "Descent safe";
+    return "Chute deployed";
+  }
   if (rocket.parachuteState === "failed") return "Chute failed";
 
   const altitude = getAltitude(rocket, planet);
@@ -345,17 +359,20 @@ export function activateNextStage(rocket, planet = PLANET) {
       const speed = getSpeed(rocket);
       const density = getAtmosphereDensity(rocket, planet);
       const safeSpeed = part.safeDeploySpeed ?? PHYSICS.parachuteSafeDeploySpeed;
+      const ripSpeed = PHYSICS.parachuteRipSpeed ?? safeSpeed;
       if (density <= 0) {
         rocket.parachuteState = "packed";
         messages.push(`Stage ${stageNumber}: parachute armed, but there is no air here.`);
-      } else if (speed > safeSpeed) {
+      } else if (speed > ripSpeed) {
         rocket.parachuteState = "failed";
         part.active = false;
         messages.push(`Stage ${stageNumber}: parachute ripped off. Slow below ${Math.round(safeSpeed)} m/s first.`);
       } else {
         rocket.parachuteState = "deployed";
         part.deployed = true;
-        messages.push(`Stage ${stageNumber}: parachute deployed.`);
+        messages.push(speed > safeSpeed
+          ? `Stage ${stageNumber}: parachute deployed hard. Expect a strong pull.`
+          : `Stage ${stageNumber}: parachute deployed.`);
       }
     });
 
@@ -486,6 +503,17 @@ function isStableEnoughForPayload(rocket, planet) {
   const tangentialSpeed = getTangentialSpeed(rocket, planet);
   const circularSpeed = getCircularOrbitSpeed(rocket, planet);
   return altitude > planet.atmosphereHeight && tangentialSpeed > circularSpeed * 0.82 && radialVelocity < 35;
+}
+
+function stabilizeUnderParachute(rocket, planet, dt) {
+  if (rocket.parachuteState !== "deployed") return;
+  const density = getAtmosphereDensity(rocket, planet);
+  if (density <= 0) return;
+
+  const localUp = Math.atan2(rocket.y - planet.y, rocket.x - planet.x);
+  const error = normalizeAngle(localUp - rocket.angle);
+  const strength = (PHYSICS.parachuteStabilization ?? 1.2) * Math.min(1, density * 2.5);
+  rocket.angle += error * strength * dt;
 }
 
 function getParachuteDragArea(rocket) {

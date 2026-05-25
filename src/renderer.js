@@ -1,6 +1,6 @@
 import { PLANET, RENDER } from "./config.js";
 import { getGravityVector, predictTrajectory } from "./physics.js";
-import { getDrawLength, ROCKET_BODY_HEIGHT } from "./dimensions.js";
+import { getPartWorldLength, getPartWorldWidth, ROCKET_WORLD_LINE } from "./dimensions.js";
 
 function makeStars(count) {
   let seed = 8128;
@@ -294,19 +294,20 @@ export class Renderer {
 
   getAutoCameraTarget(rocket) {
     const distanceFromPlanet = Math.hypot(rocket.x - PLANET.x, rocket.y - PLANET.y);
+    const altitude = Math.max(0, distanceFromPlanet - PLANET.radius);
     const isPortrait = this.height >= this.width;
     const usableWidth = this.width;
-    const usableHeight = this.height * (isPortrait ? 0.74 : 1);
-    const scale = clamp(
-      Math.min(usableWidth, usableHeight) / Math.max(PLANET.radius * 2.9, distanceFromPlanet * 2.1),
-      RENDER.minScale,
-      RENDER.maxScale
-    );
+    const usableHeight = this.height * (isPortrait ? 0.74 : 0.92);
+
+    // Frame the local rocket/surface view first, then zoom out naturally as altitude rises.
+    // This keeps the rocket and Earth in the same world scale instead of screen-locking the rocket.
+    const localSpan = clamp(2200 + altitude * 1.35, 2200, PLANET.radius * 3.4);
+    const scale = clamp(Math.min(usableWidth, usableHeight) / localSpan, RENDER.minScale, RENDER.maxScale);
     const center = this.getDefaultScreenCenter();
 
     return {
-      x: rocket.x * (isPortrait ? 0.42 : 0.36),
-      y: rocket.y * (isPortrait ? 0.54 : 0.36),
+      x: rocket.x,
+      y: rocket.y,
       scale,
       centerX: center.x,
       centerY: center.y
@@ -474,45 +475,76 @@ export class Renderer {
 
     objects.forEach((object) => {
       const screen = this.worldToScreen(object.x, object.y);
-      const scale = Math.max(0.42, this.camera.scale);
       ctx.save();
       ctx.translate(screen.x, screen.y);
       ctx.rotate(object.angle ?? 0);
-      ctx.scale(scale, scale);
+      ctx.scale(this.camera.scale, this.camera.scale);
+      ctx.lineWidth = Math.max(ROCKET_WORLD_LINE, 1.25 / Math.max(this.camera.scale, 0.001));
 
       if (object.kind === "payload") {
-        ctx.fillStyle = object.online ? "#86efac" : object.color ?? "#a78bfa";
-        ctx.strokeStyle = "rgba(15, 23, 42, 0.85)";
-        ctx.lineWidth = 1.5;
-        roundRect(ctx, -8, -6, 16, 12, 4);
-        ctx.fill();
-        ctx.stroke();
-        ctx.strokeStyle = "rgba(255,255,255,0.7)";
-        ctx.beginPath();
-        ctx.moveTo(-13, 0);
-        ctx.lineTo(-8, 0);
-        ctx.moveTo(8, 0);
-        ctx.lineTo(13, 0);
-        ctx.stroke();
+        this.drawDetachedPayload(ctx, object);
       } else {
         ctx.fillStyle = object.crashed ? "#fb7185" : "rgba(148, 163, 184, 0.9)";
-        roundRect(ctx, -12, -5, 24, 10, 3);
+        ctx.strokeStyle = "rgba(15, 23, 42, 0.85)";
+        roundRect(ctx, -78, -28, 156, 56, 14);
         ctx.fill();
+        ctx.stroke();
       }
 
       ctx.restore();
     });
   }
 
+  drawDetachedPayload(ctx, object) {
+    const online = object.online;
+    const color = online ? "#86efac" : object.color ?? "#a78bfa";
+    ctx.strokeStyle = "rgba(15, 23, 42, 0.85)";
+    ctx.fillStyle = color;
+
+    if ((object.name ?? "").toLowerCase().includes("satellite")) {
+      ctx.fillStyle = "rgba(125, 211, 252, 0.92)";
+      roundRect(ctx, -36, -26, 72, 52, 12);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = online ? "rgba(134,239,172,0.9)" : "rgba(191,219,254,0.75)";
+      roundRect(ctx, -126, -18, 76, 36, 5);
+      roundRect(ctx, 50, -18, 76, 36, 5);
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(255,255,255,0.65)";
+      ctx.beginPath();
+      ctx.moveTo(-50, 0);
+      ctx.lineTo(-36, 0);
+      ctx.moveTo(36, 0);
+      ctx.lineTo(50, 0);
+      ctx.stroke();
+      return;
+    }
+
+    roundRect(ctx, -64, -44, 128, 88, 14);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.18)";
+    for (let i = -1; i <= 1; i += 1) {
+      roundRect(ctx, -42 + i * 34, -26, 22, 52, 5);
+      ctx.fill();
+    }
+    ctx.fillStyle = online ? "#bbf7d0" : "#fef3c7";
+    ctx.beginPath();
+    ctx.arc(44, -24, 8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   drawRocket(ctx, rocket, thrusting) {
     const screen = this.worldToScreen(rocket.x, rocket.y);
-    const scale = RENDER.rocketScreenScale * this.dpr;
     const parts = Array.isArray(rocket.parts) && rocket.parts.length > 0 ? rocket.parts.filter((part) => part.active !== false) : null;
 
     ctx.save();
     ctx.translate(screen.x, screen.y);
     ctx.rotate(rocket.angle);
-    ctx.scale(scale, scale);
+    // The rocket is now a world-space object. Camera zoom changes its screen size
+    // exactly the same way it changes the planet, trajectory, launch pad, and hitboxes.
+    ctx.scale(this.camera.scale, this.camera.scale);
 
     if (parts) {
       this.drawStackedRocketBody(ctx, parts, thrusting, rocket.crashed, rocket);
@@ -527,199 +559,319 @@ export class Renderer {
       ctx.beginPath();
       ctx.strokeStyle = "rgba(251, 113, 133, 0.9)";
       ctx.lineWidth = 3 * this.dpr;
-      ctx.arc(screen.x, screen.y, 28 * this.dpr, 0, Math.PI * 2);
+      ctx.arc(screen.x, screen.y, Math.max(16 * this.dpr, (rocket.collisionRadius ?? 80) * this.camera.scale * 0.45), 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
   }
 
   drawStackedRocketBody(ctx, parts, thrusting, crashed, rocket = {}) {
-    const lengths = parts.map((part) => getDrawLength(part.type));
+    const lengths = parts.map((part) => getPartWorldLength(part));
     const totalLength = lengths.reduce((total, length) => total + length, 0);
-    const bodyHeight = ROCKET_BODY_HEIGHT;
     let cursor = totalLength / 2;
+    const lineWidth = Math.max(ROCKET_WORLD_LINE, 1.25 / Math.max(this.camera.scale, 0.001));
+
+    ctx.lineWidth = lineWidth;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
 
     if (rocket.parachuteState === "deployed") {
-      this.drawParachute(ctx, totalLength / 2 + 42);
+      this.drawParachute(ctx, totalLength / 2 + 230, totalLength);
     }
 
     if (thrusting) {
-      this.drawEngineFlame(ctx, -totalLength / 2);
+      this.drawEngineFlame(ctx, -totalLength / 2 - 22);
     }
 
     parts.forEach((part, index) => {
       const length = lengths[index];
       const centerX = cursor - length / 2;
+      const width = getPartWorldWidth(part);
       const isFirst = index === 0;
       const isLast = index === parts.length - 1;
       cursor -= length;
 
       ctx.save();
       ctx.fillStyle = crashed ? "#fb7185" : part.color ?? "#e5e7eb";
-      ctx.strokeStyle = "rgba(15, 23, 42, 0.85)";
-      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = "rgba(15, 23, 42, 0.92)";
+      ctx.lineWidth = lineWidth;
 
-      if (part.type === "aero" || (isFirst && part.type === "command")) {
-        ctx.beginPath();
-        ctx.moveTo(centerX + length / 2, 0);
-        ctx.lineTo(centerX + length * 0.04, -bodyHeight / 2);
-        ctx.lineTo(centerX - length / 2, -bodyHeight / 2);
-        ctx.lineTo(centerX - length / 2, bodyHeight / 2);
-        ctx.lineTo(centerX + length * 0.04, bodyHeight / 2);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
+      if (part.type === "aero") {
+        this.drawNoseCone(ctx, centerX, length, width, crashed ? "#fb7185" : part.color);
+      } else if (part.type === "command") {
+        this.drawCommandPod(ctx, centerX, length, width, crashed ? "#fb7185" : part.color, isFirst);
+      } else if (part.type === "fuel") {
+        this.drawFuelTank(ctx, centerX, length, width, crashed ? "#fb7185" : part.color);
+      } else if (part.type === "engine") {
+        this.drawEnginePart(ctx, centerX, length, width, crashed ? "#fb7185" : part.color, isLast);
       } else if (part.type === "decoupler") {
-        ctx.fillStyle = crashed ? "#fb7185" : part.color ?? "#facc15";
-        roundRect(ctx, centerX - length / 2, -bodyHeight / 2, length, bodyHeight, 3);
-        ctx.fill();
-        ctx.stroke();
-        ctx.strokeStyle = "rgba(15, 23, 42, 0.55)";
-        ctx.beginPath();
-        ctx.moveTo(centerX - length * 0.25, -bodyHeight / 2);
-        ctx.lineTo(centerX - length * 0.25, bodyHeight / 2);
-        ctx.moveTo(centerX + length * 0.25, -bodyHeight / 2);
-        ctx.lineTo(centerX + length * 0.25, bodyHeight / 2);
-        ctx.stroke();
+        this.drawDecoupler(ctx, centerX, length, width, crashed ? "#fb7185" : part.color);
+      } else if (part.type === "payload") {
+        this.drawPayloadPart(ctx, centerX, length, width, part, crashed);
+      } else if (part.type === "parachute") {
+        this.drawPackedParachute(ctx, centerX, length, width, crashed ? "#fb7185" : part.color, part.deployed);
+      } else if (part.type === "legs") {
+        this.drawLegsPart(ctx, centerX, length, width, crashed ? "#fb7185" : part.color, part.deployed || rocket.landingLegsDeployed);
       } else {
-        roundRect(ctx, centerX - length / 2, -bodyHeight / 2, length, bodyHeight, part.type === "engine" ? 3 : 5);
+        roundRect(ctx, centerX - length / 2, -width / 2, length, width, 16);
         ctx.fill();
         ctx.stroke();
-      }
-
-      if (part.type === "payload") {
-        ctx.fillStyle = "rgba(255,255,255,0.22)";
-        ctx.fillRect(centerX - length * 0.24, -bodyHeight / 2 + 3, length * 0.48, bodyHeight - 6);
-      }
-
-      if (part.type === "command") {
-        ctx.beginPath();
-        ctx.fillStyle = "#7dd3fc";
-        ctx.arc(centerX + length * 0.08, 0, 3.6, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      if (part.type === "fuel") {
-        ctx.fillStyle = "rgba(255,255,255,0.2)";
-        ctx.fillRect(centerX - 1, -bodyHeight / 2 + 2, 2, bodyHeight - 4);
-      }
-
-      if (part.type === "parachute") {
-        ctx.strokeStyle = "rgba(255,255,255,0.55)";
-        ctx.beginPath();
-        ctx.arc(centerX, 0, 4.2, Math.PI, 0);
-        ctx.stroke();
-      }
-
-      if (part.type === "legs") {
-        ctx.strokeStyle = "rgba(255,255,255,0.65)";
-        ctx.beginPath();
-        ctx.moveTo(centerX - 4, bodyHeight / 2 - 1);
-        ctx.lineTo(centerX - 9, bodyHeight / 2 + 6);
-        ctx.moveTo(centerX - 4, -bodyHeight / 2 + 1);
-        ctx.lineTo(centerX - 9, -bodyHeight / 2 - 6);
-        ctx.stroke();
-      }
-
-      if (part.type === "engine" || isLast) {
-        ctx.fillStyle = "#64748b";
-        ctx.fillRect(centerX - length / 2 - 5, -5.5, 6, 11);
       }
 
       ctx.restore();
     });
 
-    // Small fins near the bottom for readability.
-    const tailX = -totalLength / 2 + 10;
-    ctx.fillStyle = crashed ? "#fb7185" : "#94a3b8";
-    ctx.beginPath();
-    ctx.moveTo(tailX, -bodyHeight / 2);
-    ctx.lineTo(tailX + 8, -bodyHeight / 2);
-    ctx.lineTo(tailX - 2, -bodyHeight / 2 - 7);
-    ctx.closePath();
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(tailX, bodyHeight / 2);
-    ctx.lineTo(tailX + 8, bodyHeight / 2);
-    ctx.lineTo(tailX - 2, bodyHeight / 2 + 7);
-    ctx.closePath();
-    ctx.fill();
-
-    if (rocket.landingLegsDeployed) {
-      ctx.strokeStyle = "rgba(226, 232, 240, 0.9)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(tailX + 2, -bodyHeight / 2 + 2);
-      ctx.lineTo(tailX - 10, -bodyHeight / 2 - 12);
-      ctx.lineTo(tailX - 18, -bodyHeight / 2 - 12);
-      ctx.moveTo(tailX + 2, bodyHeight / 2 - 2);
-      ctx.lineTo(tailX - 10, bodyHeight / 2 + 12);
-      ctx.lineTo(tailX - 18, bodyHeight / 2 + 12);
-      ctx.stroke();
+    if (rocket.landingLegsDeployed && parts.some((part) => part.type === "legs")) {
+      this.drawTailLandingLegs(ctx, -totalLength / 2 + 58, Math.max(...parts.map((part) => getPartWorldWidth(part))));
     }
+  }
+
+  drawTailLandingLegs(ctx, tailX, width) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(226, 232, 240, 0.96)";
+    ctx.lineWidth = Math.max(ROCKET_WORLD_LINE, 1.6 / Math.max(this.camera.scale, 0.001));
+    ctx.beginPath();
+    ctx.moveTo(tailX, -width * 0.38);
+    ctx.lineTo(tailX - 118, -width * 1.28);
+    ctx.lineTo(tailX - 172, -width * 1.28);
+    ctx.moveTo(tailX, width * 0.38);
+    ctx.lineTo(tailX - 118, width * 1.28);
+    ctx.lineTo(tailX - 172, width * 1.28);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(148, 163, 184, 0.96)";
+    roundRect(ctx, tailX - 184, -width * 1.34, 58, 18, 7);
+    roundRect(ctx, tailX - 184, width * 1.22, 58, 18, 7);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  drawNoseCone(ctx, centerX, length, width, color) {
+    const left = centerX - length / 2;
+    const right = centerX + length / 2;
+    ctx.fillStyle = color ?? "#e2e8f0";
+    ctx.beginPath();
+    ctx.moveTo(right, 0);
+    ctx.lineTo(left + length * 0.14, -width / 2);
+    ctx.lineTo(left, -width / 2);
+    ctx.lineTo(left, width / 2);
+    ctx.lineTo(left + length * 0.14, width / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.25)";
+    ctx.beginPath();
+    ctx.moveTo(right - length * 0.22, -width * 0.18);
+    ctx.lineTo(left + length * 0.18, -width * 0.38);
+    ctx.lineTo(left + length * 0.18, -width * 0.16);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  drawCommandPod(ctx, centerX, length, width, color) {
+    const left = centerX - length / 2;
+    ctx.fillStyle = color ?? "#e5e7eb";
+    roundRect(ctx, left, -width / 2, length, width, width * 0.28);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#7dd3fc";
+    ctx.strokeStyle = "rgba(15, 23, 42, 0.6)";
+    ctx.beginPath();
+    ctx.arc(centerX + length * 0.16, 0, Math.min(20, width * 0.22), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  drawFuelTank(ctx, centerX, length, width, color) {
+    const left = centerX - length / 2;
+    ctx.fillStyle = color ?? "#38bdf8";
+    roundRect(ctx, left, -width / 2, length, width, 18);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.22)";
+    roundRect(ctx, left + length * 0.1, -width * 0.34, length * 0.18, width * 0.68, 7);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(15, 23, 42, 0.28)";
+    ctx.beginPath();
+    ctx.moveTo(left + length * 0.18, -width / 2);
+    ctx.lineTo(left + length * 0.18, width / 2);
+    ctx.moveTo(left + length * 0.82, -width / 2);
+    ctx.lineTo(left + length * 0.82, width / 2);
+    ctx.stroke();
+  }
+
+  drawEnginePart(ctx, centerX, length, width, color) {
+    const left = centerX - length / 2;
+    const right = centerX + length / 2;
+    ctx.fillStyle = color ?? "#f97316";
+    roundRect(ctx, left + length * 0.22, -width / 2, length * 0.78, width, 16);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#64748b";
+    ctx.beginPath();
+    ctx.moveTo(left + length * 0.24, -width * 0.34);
+    ctx.lineTo(left - length * 0.08, -width * 0.48);
+    ctx.lineTo(left - length * 0.18, width * 0.48);
+    ctx.lineTo(left + length * 0.24, width * 0.34);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(15,23,42,0.72)";
+    ctx.beginPath();
+    ctx.ellipse(left - length * 0.1, 0, length * 0.07, width * 0.34, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.15)";
+    ctx.fillRect(right - length * 0.12, -width * 0.36, length * 0.05, width * 0.72);
+  }
+
+  drawDecoupler(ctx, centerX, length, width, color) {
+    const left = centerX - length / 2;
+    ctx.fillStyle = color ?? "#facc15";
+    roundRect(ctx, left, -width / 2, length, width, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(15, 23, 42, 0.5)";
+    ctx.beginPath();
+    for (let i = 1; i <= 3; i += 1) {
+      const x = left + (length * i) / 4;
+      ctx.moveTo(x, -width / 2);
+      ctx.lineTo(x, width / 2);
+    }
+    ctx.stroke();
+  }
+
+  drawPayloadPart(ctx, centerX, length, width, part, crashed) {
+    const left = centerX - length / 2;
+    const isSatellite = part.id?.includes("satellite");
+    ctx.fillStyle = crashed ? "#fb7185" : part.color ?? "#a78bfa";
+    if (isSatellite) {
+      ctx.fillStyle = "#c4b5fd";
+      roundRect(ctx, centerX - length * 0.22, -width * 0.28, length * 0.44, width * 0.56, 12);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "rgba(125,211,252,0.55)";
+      roundRect(ctx, left + length * 0.02, -width * 0.2, length * 0.28, width * 0.4, 5);
+      roundRect(ctx, left + length * 0.7, -width * 0.2, length * 0.28, width * 0.4, 5);
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      roundRect(ctx, left, -width / 2, length, width, 14);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,0.2)";
+      for (let i = 0; i < 3; i += 1) {
+        roundRect(ctx, left + length * (0.18 + i * 0.23), -width * 0.32, length * 0.13, width * 0.64, 5);
+        ctx.fill();
+      }
+      ctx.fillStyle = "#fef08a";
+      ctx.beginPath();
+      ctx.arc(left + length * 0.82, -width * 0.27, width * 0.08, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  drawPackedParachute(ctx, centerX, length, width, color, deployed) {
+    const left = centerX - length / 2;
+    ctx.fillStyle = color ?? "#f9a8d4";
+    roundRect(ctx, left, -width / 2, length, width, 16);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = deployed ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.55)";
+    ctx.beginPath();
+    ctx.arc(centerX, 0, width * 0.28, Math.PI, Math.PI * 2);
+    ctx.moveTo(centerX - width * 0.28, 0);
+    ctx.lineTo(centerX + width * 0.28, 0);
+    ctx.stroke();
+  }
+
+  drawLegsPart(ctx, centerX, length, width, color, deployed) {
+    const left = centerX - length / 2;
+    ctx.fillStyle = color ?? "#94a3b8";
+    roundRect(ctx, left, -width / 2, length, width, 14);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(226,232,240,0.95)";
+    ctx.lineWidth = Math.max(ROCKET_WORLD_LINE, 1.5 / Math.max(this.camera.scale, 0.001));
+    ctx.beginPath();
+    if (deployed) {
+      ctx.moveTo(centerX - length * 0.24, -width * 0.36);
+      ctx.lineTo(centerX - length * 0.52, -width * 1.02);
+      ctx.lineTo(centerX - length * 0.74, -width * 1.02);
+      ctx.moveTo(centerX - length * 0.24, width * 0.36);
+      ctx.lineTo(centerX - length * 0.52, width * 1.02);
+      ctx.lineTo(centerX - length * 0.74, width * 1.02);
+    } else {
+      ctx.moveTo(centerX - length * 0.28, -width * 0.38);
+      ctx.lineTo(centerX + length * 0.22, -width * 0.38);
+      ctx.moveTo(centerX - length * 0.28, width * 0.38);
+      ctx.lineTo(centerX + length * 0.22, width * 0.38);
+    }
+    ctx.stroke();
   }
 
   drawParachute(ctx, noseX) {
     ctx.save();
-    ctx.strokeStyle = "rgba(255,255,255,0.72)";
-    ctx.fillStyle = "rgba(249, 168, 212, 0.72)";
-    ctx.lineWidth = 1.4;
+    const canopyRadius = 215;
+    ctx.strokeStyle = "rgba(255,255,255,0.78)";
+    ctx.fillStyle = "rgba(249, 168, 212, 0.78)";
+    ctx.lineWidth = Math.max(ROCKET_WORLD_LINE, 1.4 / Math.max(this.camera.scale, 0.001));
     ctx.beginPath();
-    ctx.arc(noseX, 0, 22, Math.PI, Math.PI * 2);
-    ctx.lineTo(noseX - 22, 0);
+    ctx.arc(noseX, 0, canopyRadius, Math.PI, Math.PI * 2);
+    ctx.lineTo(noseX - canopyRadius, 0);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,0.72)";
     ctx.beginPath();
-    ctx.moveTo(noseX - 16, 0);
-    ctx.lineTo(noseX - 34, -5);
-    ctx.moveTo(noseX, 0);
-    ctx.lineTo(noseX - 34, 0);
-    ctx.moveTo(noseX + 16, 0);
-    ctx.lineTo(noseX - 34, 5);
+    for (let i = -2; i <= 2; i += 1) {
+      const anchorY = i * 46;
+      ctx.moveTo(noseX + i * 48, 0);
+      ctx.lineTo(noseX - 250, anchorY * 0.28);
+    }
     ctx.stroke();
     ctx.restore();
   }
 
   drawFallbackRocketBody(ctx, thrusting, crashed) {
     if (thrusting) {
-      this.drawEngineFlame(ctx, -18);
+      this.drawEngineFlame(ctx, -110);
     }
 
+    ctx.lineWidth = Math.max(ROCKET_WORLD_LINE, 1.25 / Math.max(this.camera.scale, 0.001));
     ctx.beginPath();
     ctx.fillStyle = crashed ? "#fb7185" : "#e5e7eb";
-    ctx.moveTo(20, 0);
-    ctx.lineTo(8, -8);
-    ctx.lineTo(-18, -7);
-    ctx.lineTo(-18, 7);
-    ctx.lineTo(8, 8);
+    ctx.moveTo(118, 0);
+    ctx.lineTo(54, -44);
+    ctx.lineTo(-108, -42);
+    ctx.lineTo(-108, 42);
+    ctx.lineTo(54, 44);
     ctx.closePath();
     ctx.fill();
+    ctx.stroke();
 
     ctx.beginPath();
     ctx.fillStyle = "#7dd3fc";
-    ctx.arc(4, 0, 4.2, 0, Math.PI * 2);
+    ctx.arc(22, 0, 24, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = "#94a3b8";
-    ctx.fillRect(-22, -6, 5, 12);
+    ctx.fillRect(-138, -34, 36, 68);
   }
 
   drawEngineFlame(ctx, tailX) {
-    const flameLength = 18 + Math.sin(performance.now() / 36) * 5;
+    const flameLength = 118 + Math.sin(performance.now() / 36) * 30;
     ctx.beginPath();
     ctx.fillStyle = "rgba(251, 146, 60, 0.85)";
-    ctx.moveTo(tailX, -5);
+    ctx.moveTo(tailX, -35);
     ctx.lineTo(tailX - flameLength, 0);
-    ctx.lineTo(tailX, 5);
+    ctx.lineTo(tailX, 35);
     ctx.closePath();
     ctx.fill();
 
     ctx.beginPath();
     ctx.fillStyle = "rgba(254, 240, 138, 0.9)";
-    ctx.moveTo(tailX, -3);
+    ctx.moveTo(tailX, -19);
     ctx.lineTo(tailX - flameLength * 0.58, 0);
-    ctx.lineTo(tailX, 3);
+    ctx.lineTo(tailX, 19);
     ctx.closePath();
     ctx.fill();
   }

@@ -78,11 +78,11 @@ export const AVAILABLE_PARTS = [
     thrust: 0,
     fuelUse: 0,
     dragArea: 0.45,
-    deployedDragArea: 70,
-    safeDeploySpeed: 185,
+    deployedDragArea: 620,
+    safeDeploySpeed: 235,
     width: 1,
     color: "#f9a8d4",
-    description: "Stage inside atmosphere to slow descent. Deploying too fast will rip it off."
+    description: "Stage inside atmosphere to slow descent. It should bring a normal rocket down to a safe landing speed if deployed below its safe speed."
   },
   {
     id: "landing_legs_basic",

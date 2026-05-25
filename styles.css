@@ -931,7 +931,7 @@ body {
   }
 }
 
-/* v0.3.1 builder guide + selected part polish */
+/* v0.3.2 builder guide + selected part polish */
 .part-inspector {
   border-color: rgba(125, 211, 252, 0.24);
   background: linear-gradient(180deg, rgba(14, 116, 144, 0.2), rgba(8, 11, 20, 0.76));

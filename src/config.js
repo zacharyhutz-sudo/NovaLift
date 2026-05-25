@@ -7,12 +7,17 @@ export const PHYSICS = {
   trajectoryPointEvery: 2,
   trajectoryFullOrbitRadians: Math.PI * 2.02,
   trajectoryMaxDistanceMultiplier: 28,
-  dragScale: 0.00006,
-  detachedDragScale: 0.00008,
-  parachuteSafeDeploySpeed: 185,
-  landingSafeSpeedBare: 8,
-  landingSafeSpeedLegs: 24,
-  landingUprightAngle: 0.62
+  dragScale: 0.000035,
+  detachedDragScale: 0.000055,
+  parachuteDragScale: 0.00072,
+  maxDragAcceleration: 85,
+  parachuteSafeDeploySpeed: 235,
+  parachuteRipSpeed: 310,
+  parachuteMinEffectiveDensity: 0.035,
+  parachuteStabilization: 1.55,
+  landingSafeSpeedBare: 10,
+  landingSafeSpeedLegs: 34,
+  landingUprightAngle: 0.68
 };
 
 export const PLANET = {
@@ -54,7 +59,6 @@ export const RENDER = {
   maxScale: 1.65,
   manualMinScale: 0.006,
   manualMaxScale: 2.8,
-  rocketScreenScale: 0.78,
   cameraDragDeadzonePx: 3,
   velocityVectorScale: 1.55,
   gravityVectorScale: 90,
