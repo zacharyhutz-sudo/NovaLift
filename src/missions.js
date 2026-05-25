@@ -1,13 +1,13 @@
 import { PLANET } from "./config.js";
 import { getAltitude, getOrbitStatus, getSpeed } from "./physics.js";
 
-export const STARTING_CASH = 25000;
+export const STARTING_CASH = 500000;
 
 export const MISSIONS = [
   {
     id: "first_launch",
     title: "First Launch",
-    reward: 2500,
+    reward: 50000,
     description: "Leave the launch pad with any controllable rocket.",
     objective: "Lift off from Homeworld.",
     progressLabel: (ctx) => ctx.flightStats?.hasLaunched ? "Launched" : "On pad",
@@ -16,7 +16,7 @@ export const MISSIONS = [
   {
     id: "reach_sky",
     title: "Reach the Sky",
-    reward: 5000,
+    reward: 100000,
     description: "Reach 1,500 m above the surface.",
     objective: "Max altitude 1.50 km.",
     progressLabel: (ctx) => `${formatDistance(Math.min(ctx.flightStats?.maxAltitude ?? 0, 1500))} / 1.50 km`,
@@ -25,7 +25,7 @@ export const MISSIONS = [
   {
     id: "touch_space",
     title: "Touch Space",
-    reward: 12000,
+    reward: 240000,
     description: "Climb above Homeworld's atmosphere.",
     objective: `Reach ${formatDistance(PLANET.atmosphereHeight)} altitude.`,
     progressLabel: (ctx) => `${formatDistance(Math.min(ctx.flightStats?.maxAltitude ?? 0, PLANET.atmosphereHeight))} / ${formatDistance(PLANET.atmosphereHeight)}`,
@@ -34,7 +34,7 @@ export const MISSIONS = [
   {
     id: "first_orbit",
     title: "First Orbit",
-    reward: 30000,
+    reward: 600000,
     description: "Hold a stable orbit long enough for mission control to confirm it.",
     objective: "Achieve a stable orbit confirmation.",
     progressLabel: (ctx) => ctx.rocket?.missionComplete ? "Orbit confirmed" : `${(ctx.rocket?.orbitHoldTime ?? 0).toFixed(1)}s hold`,
@@ -43,7 +43,7 @@ export const MISSIONS = [
   {
     id: "deploy_satellite",
     title: "Deploy Satellite",
-    reward: 40000,
+    reward: 800000,
     description: "Deploy a satellite into a stable orbit so it starts generating revenue.",
     objective: "Online satellite in orbit.",
     progressLabel: (ctx) => `${countOnlinePayloads(ctx, "satellite")} online`,
@@ -52,7 +52,7 @@ export const MISSIONS = [
   {
     id: "deploy_datacenter",
     title: "Deploy Data Center",
-    reward: 75000,
+    reward: 1500000,
     description: "Deploy an orbital data center into a stable orbit for stronger recurring income.",
     objective: "Online data center in orbit.",
     progressLabel: (ctx) => `${countOnlinePayloads(ctx, "data_center")} online`,
@@ -61,7 +61,7 @@ export const MISSIONS = [
   {
     id: "recover_rocket",
     title: "Recover Rocket",
-    reward: 8000,
+    reward: 160000,
     description: "Land a command pod safely using parachutes, legs, or careful flying.",
     objective: "Safely recover a rocket.",
     progressLabel: (ctx) => ctx.flightStats?.outcome === "Recovered" ? "Recovered" : "Not recovered yet",
@@ -70,7 +70,7 @@ export const MISSIONS = [
   {
     id: "clean_orbit",
     title: "Clean Orbit",
-    reward: 3000,
+    reward: 60000,
     description: "Select orbital debris and explode it to keep space usable.",
     objective: "Destroy one debris object.",
     progressLabel: (ctx) => `${ctx.company?.totalDestroyed ?? 0} destroyed`,

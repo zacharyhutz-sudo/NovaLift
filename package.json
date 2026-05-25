@@ -1,7 +1,7 @@
 {
   "name": "novalift",
-  "version": "0.5.2",
-  "description": "Vertical mobile-first 2D rocket company prototype with improved payload activation, flight results cash-in, builder templates, auto-stage, part categories, and career economy.",
+  "version": "0.5.3",
+  "description": "Vertical mobile-first 2D rocket company prototype with simplified planet visuals, cleaner atmospheric drag effects, 20x economy scale, and a 5x larger Homeworld.",
   "type": "module",
   "private": true,
   "scripts": {

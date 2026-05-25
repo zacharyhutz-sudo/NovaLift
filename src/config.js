@@ -2,9 +2,9 @@ export const PHYSICS = {
   fixedDt: 1 / 60,
   maxFrameTime: 0.25,
   orbitRequiredHoldSeconds: 6,
-  trajectorySteps: 1200,
+  trajectorySteps: 2600,
   trajectoryDt: 0.42,
-  trajectoryPointEvery: 2,
+  trajectoryPointEvery: 3,
   trajectoryFullOrbitRadians: Math.PI * 2.02,
   trajectoryMaxDistanceMultiplier: 28,
   dragScale: 0.000035,
@@ -24,14 +24,14 @@ export const PLANET = {
   name: "Homeworld",
   x: 0,
   y: 0,
-  radius: 12500,
-  atmosphereHeight: 3700,
+  radius: 62500,
+  atmosphereHeight: 18500,
   surfaceDensity: 1,
-  // Radius is 5x larger than v0.3.0. Mu is scaled by 25x to preserve familiar surface gravity.
-  mu: 2250000000,
-  color: "#1d4ed8",
-  landColor: "#22c55e",
-  atmosphereColor: "rgba(125, 211, 252, 0.12)"
+  // Radius is 5x larger than v0.5.2. Mu is scaled by 25x to preserve familiar surface gravity.
+  mu: 56250000000,
+  color: "#2bb6a8",
+  landColor: "#2bb6a8",
+  atmosphereColor: "rgba(94, 234, 212, 0.13)"
 };
 
 export const ROCKET = {
@@ -55,9 +55,9 @@ export const ROCKET = {
 };
 
 export const RENDER = {
-  minScale: 0.018,
+  minScale: 0.0036,
   maxScale: 1.65,
-  manualMinScale: 0.006,
+  manualMinScale: 0.0012,
   manualMaxScale: 2.8,
   cameraDragDeadzonePx: 3,
   velocityVectorScale: 1.55,

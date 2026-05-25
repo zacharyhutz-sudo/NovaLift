@@ -429,27 +429,31 @@ export class Renderer {
     const atmosphereRadius = (planet.radius + planet.atmosphereHeight) * this.camera.scale;
     if (radius <= 0) return;
 
-    const glow = ctx.createRadialGradient(center.x, center.y, radius * 0.92, center.x, center.y, atmosphereRadius);
-    glow.addColorStop(0, "rgba(125, 211, 252, 0.22)");
-    glow.addColorStop(0.55, planet.atmosphereColor ?? "rgba(125, 211, 252, 0.12)");
-    glow.addColorStop(1, "rgba(125, 211, 252, 0)");
+    // v0.5.3: keep the starter planet intentionally simple. A single
+    // bluish-green body with sphere shading reads cleaner at every zoom level
+    // than the previous land/cloud treatment.
+    const glow = ctx.createRadialGradient(center.x, center.y, radius * 0.98, center.x, center.y, atmosphereRadius);
+    glow.addColorStop(0, "rgba(94, 234, 212, 0.18)");
+    glow.addColorStop(0.45, planet.atmosphereColor ?? "rgba(94, 234, 212, 0.11)");
+    glow.addColorStop(1, "rgba(94, 234, 212, 0)");
     ctx.fillStyle = glow;
     ctx.beginPath();
     ctx.arc(center.x, center.y, atmosphereRadius, 0, Math.PI * 2);
     ctx.fill();
 
-    const ocean = ctx.createRadialGradient(
-      center.x - radius * 0.35,
+    const sphere = ctx.createRadialGradient(
+      center.x - radius * 0.36,
       center.y - radius * 0.42,
-      radius * 0.12,
-      center.x,
-      center.y,
-      radius * 1.12
+      radius * 0.06,
+      center.x + radius * 0.22,
+      center.y + radius * 0.26,
+      radius * 1.18
     );
-    ocean.addColorStop(0, "#38bdf8");
-    ocean.addColorStop(0.36, planet.color);
-    ocean.addColorStop(1, "#0f2f87");
-    ctx.fillStyle = ocean;
+    sphere.addColorStop(0, "#7ddfd3");
+    sphere.addColorStop(0.32, planet.color ?? "#2bb6a8");
+    sphere.addColorStop(0.72, "#168f8c");
+    sphere.addColorStop(1, "#075c64");
+    ctx.fillStyle = sphere;
     ctx.beginPath();
     ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
     ctx.fill();
@@ -459,51 +463,43 @@ export class Renderer {
     ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
     ctx.clip();
 
-    ctx.fillStyle = planet.landColor;
-    for (let i = 0; i < 13; i += 1) {
-      const angle = i * 0.74 + 0.35;
-      const landX = center.x + Math.cos(angle * 1.13) * radius * (0.18 + (i % 4) * 0.1);
-      const landY = center.y + Math.sin(angle * 1.71) * radius * (0.16 + (i % 5) * 0.07);
-      ctx.beginPath();
-      ctx.ellipse(landX, landY, radius * (0.12 + (i % 3) * 0.035), radius * (0.035 + (i % 4) * 0.016), angle, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    ctx.strokeStyle = "rgba(255,255,255,0.18)";
-    ctx.lineWidth = Math.max(1, radius * 0.004);
-    for (let i = 0; i < 7; i += 1) {
-      const angle = -0.65 + i * 0.22;
-      ctx.beginPath();
-      ctx.ellipse(
-        center.x + Math.cos(i * 1.4) * radius * 0.2,
-        center.y + Math.sin(i * 1.1) * radius * 0.34,
-        radius * (0.28 + (i % 2) * 0.08),
-        radius * 0.025,
-        angle,
-        0,
-        Math.PI * 2
-      );
-      ctx.stroke();
-    }
-
-    const shadow = ctx.createLinearGradient(center.x - radius * 0.65, center.y - radius * 0.2, center.x + radius * 0.86, center.y + radius * 0.32);
-    shadow.addColorStop(0, "rgba(255,255,255,0.07)");
-    shadow.addColorStop(0.46, "rgba(255,255,255,0)");
-    shadow.addColorStop(0.78, "rgba(2,6,23,0.18)");
-    shadow.addColorStop(1, "rgba(2,6,23,0.52)");
+    const shadow = ctx.createLinearGradient(
+      center.x - radius * 0.72,
+      center.y - radius * 0.48,
+      center.x + radius * 0.86,
+      center.y + radius * 0.58
+    );
+    shadow.addColorStop(0, "rgba(255,255,255,0.18)");
+    shadow.addColorStop(0.28, "rgba(255,255,255,0.05)");
+    shadow.addColorStop(0.64, "rgba(2,6,23,0.08)");
+    shadow.addColorStop(1, "rgba(2,6,23,0.42)");
     ctx.fillStyle = shadow;
+    ctx.fillRect(center.x - radius, center.y - radius, radius * 2, radius * 2);
+
+    const rim = ctx.createRadialGradient(
+      center.x - radius * 0.18,
+      center.y - radius * 0.28,
+      radius * 0.52,
+      center.x,
+      center.y,
+      radius
+    );
+    rim.addColorStop(0, "rgba(255,255,255,0)");
+    rim.addColorStop(0.82, "rgba(255,255,255,0.02)");
+    rim.addColorStop(1, "rgba(255,255,255,0.16)");
+    ctx.fillStyle = rim;
     ctx.fillRect(center.x - radius, center.y - radius, radius * 2, radius * 2);
     ctx.restore();
 
     ctx.beginPath();
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.20)";
-    ctx.lineWidth = Math.max(1, 2 * this.dpr);
+    ctx.strokeStyle = "rgba(187, 247, 208, 0.22)";
+    ctx.lineWidth = Math.max(1, 1.6 * this.dpr);
     ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.strokeStyle = "rgba(125, 211, 252, 0.22)";
-    ctx.lineWidth = Math.max(1, 1.2 * this.dpr);
+    ctx.strokeStyle = "rgba(94, 234, 212, 0.20)";
+    ctx.lineWidth = Math.max(1, 1.1 * this.dpr);
     ctx.arc(center.x, center.y, radius + Math.max(2, 6 * this.dpr), 0, Math.PI * 2);
     ctx.stroke();
   }
@@ -745,27 +741,49 @@ export class Renderer {
     if (rocket.crashed || rocket.landed) return;
     const density = rocket.lastDensity ?? 0;
     const speed = Math.hypot(rocket.vx ?? 0, rocket.vy ?? 0);
-    if (density < 0.025 || speed < 135) return;
+    if (density < 0.018 || speed < 155) return;
 
     const screen = this.worldToScreen(rocket.x, rocket.y);
     const travelAngle = Math.atan2(rocket.vy, rocket.vx);
-    const intensity = clamp((speed - 135) / 210, 0, 1) * clamp(density * 1.7, 0, 1);
-    const length = (58 + intensity * 120) * this.dpr;
-    const spread = (20 + intensity * 34) * this.dpr;
+    const intensity = clamp((speed - 155) / 360, 0, 1) * clamp(density * 2.25, 0, 1);
+    const wakeLength = (42 + intensity * 86) * this.dpr;
+    const wakeWidth = (26 + intensity * 54) * this.dpr;
 
     ctx.save();
+    ctx.translate(screen.x, screen.y);
+    ctx.rotate(travelAngle);
+
+    // A soft bow-wave communicates drag without noisy speed-line clutter.
+    const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, wakeWidth * 1.25);
+    glow.addColorStop(0, `rgba(186, 230, 253, ${0.06 + intensity * 0.10})`);
+    glow.addColorStop(0.62, `rgba(125, 211, 252, ${0.035 + intensity * 0.08})`);
+    glow.addColorStop(1, "rgba(125, 211, 252, 0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.ellipse(-wakeLength * 0.08, 0, wakeWidth * 0.82, wakeWidth * 0.48, 0, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.lineCap = "round";
-    ctx.lineWidth = Math.max(1, (1.2 + intensity * 2.4) * this.dpr);
-    for (let i = -2; i <= 2; i += 1) {
-      const offset = i * spread * 0.42;
-      const nx = Math.cos(travelAngle + Math.PI / 2) * offset;
-      const ny = Math.sin(travelAngle + Math.PI / 2) * offset;
-      ctx.strokeStyle = `rgba(125, 211, 252, ${0.1 + intensity * (0.16 - Math.abs(i) * 0.018)})`;
+    ctx.lineWidth = Math.max(1, (0.9 + intensity * 1.15) * this.dpr);
+    const streaks = 3;
+    for (let i = 0; i < streaks; i += 1) {
+      const offset = (i - 1) * wakeWidth * 0.28;
+      const alpha = 0.045 + intensity * (0.13 - Math.abs(i - 1) * 0.025);
+      ctx.strokeStyle = `rgba(191, 219, 254, ${alpha})`;
       ctx.beginPath();
-      ctx.moveTo(screen.x + nx, screen.y + ny);
-      ctx.lineTo(screen.x + nx - Math.cos(travelAngle) * length, screen.y + ny - Math.sin(travelAngle) * length);
+      ctx.moveTo(-wakeLength * 0.18, offset);
+      ctx.quadraticCurveTo(-wakeLength * 0.55, offset * 0.8, -wakeLength, offset * 0.35);
       ctx.stroke();
     }
+
+    if (intensity > 0.64) {
+      ctx.strokeStyle = `rgba(254, 240, 138, ${(intensity - 0.64) * 0.18})`;
+      ctx.lineWidth = Math.max(1, 1.2 * this.dpr);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, wakeWidth * 0.66, wakeWidth * 0.38, 0, Math.PI * 0.72, Math.PI * 1.28);
+      ctx.stroke();
+    }
+
     ctx.restore();
   }
 

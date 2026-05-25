@@ -31,6 +31,8 @@ const WORLD_OBJECT_SAVE_INTERVAL = 1.5;
 const RECOVERY_REFUND_RATE = 0.55;
 const CAREER_LAUNCHES_CHARGE_MONEY = true;
 const MAX_PERSISTENT_OBJECTS = 80;
+const ECONOMY_SCALE_VERSION = "v0.5.3-20x";
+const LEGACY_ECONOMY_MULTIPLIER = 20;
 
 export class Game {
   constructor(input, renderer, rocketTemplate = ROCKET) {
@@ -382,20 +384,22 @@ export class Game {
       if (!raw) return createDefaultCompany();
       const parsed = JSON.parse(raw);
       const hasMode = typeof parsed.mode === "string";
-      const money = Number(parsed.money ?? STARTING_CASH);
+      const isLegacyEconomy = parsed.economyScaleVersion !== ECONOMY_SCALE_VERSION;
+      const money = scaleLegacyMoney(Number(parsed.money ?? STARTING_CASH), isLegacyEconomy);
       return {
         ...createDefaultCompany(),
         ...parsed,
+        economyScaleVersion: ECONOMY_SCALE_VERSION,
         mode: hasMode && parsed.mode === "sandbox" ? "sandbox" : "career",
         money: hasMode ? Math.max(money, 0) : Math.max(money, STARTING_CASH),
-        totalRevenue: Number(parsed.totalRevenue ?? 0),
-        totalRecovery: Number(parsed.totalRecovery ?? 0),
+        totalRevenue: scaleLegacyMoney(Number(parsed.totalRevenue ?? 0), isLegacyEconomy),
+        totalRecovery: scaleLegacyMoney(Number(parsed.totalRecovery ?? 0), isLegacyEconomy),
         totalDestroyed: Number(parsed.totalDestroyed ?? 0),
-        totalMissionRewards: Number(parsed.totalMissionRewards ?? 0),
-        totalLaunchCosts: Number(parsed.totalLaunchCosts ?? 0),
-        lastRecoveryRefund: Number(parsed.lastRecoveryRefund ?? 0),
-        lastMissionReward: Number(parsed.lastMissionReward ?? 0),
-        lastLaunchCost: Number(parsed.lastLaunchCost ?? 0),
+        totalMissionRewards: scaleLegacyMoney(Number(parsed.totalMissionRewards ?? 0), isLegacyEconomy),
+        totalLaunchCosts: scaleLegacyMoney(Number(parsed.totalLaunchCosts ?? 0), isLegacyEconomy),
+        lastRecoveryRefund: scaleLegacyMoney(Number(parsed.lastRecoveryRefund ?? 0), isLegacyEconomy),
+        lastMissionReward: scaleLegacyMoney(Number(parsed.lastMissionReward ?? 0), isLegacyEconomy),
+        lastLaunchCost: scaleLegacyMoney(Number(parsed.lastLaunchCost ?? 0), isLegacyEconomy),
         missions: normalizeMissionState(parsed.missions),
         incomePerSecond: 0
       };
@@ -410,6 +414,7 @@ export class Game {
       const storage = globalThis.localStorage;
       if (!storage) return;
       storage.setItem(COMPANY_STORAGE_KEY, JSON.stringify({
+        economyScaleVersion: ECONOMY_SCALE_VERSION,
         mode: this.company.mode,
         money: this.company.money,
         totalRevenue: this.company.totalRevenue,
@@ -614,6 +619,7 @@ export class Game {
 
 function createDefaultCompany() {
   return {
+    economyScaleVersion: ECONOMY_SCALE_VERSION,
     mode: "career",
     money: STARTING_CASH,
     totalRevenue: 0,
@@ -629,7 +635,13 @@ function createDefaultCompany() {
   };
 }
 
+function scaleLegacyMoney(value, shouldScale) {
+  if (!Number.isFinite(value)) return 0;
+  return shouldScale ? value * LEGACY_ECONOMY_MULTIPLIER : value;
+}
+
 function normalizeStoredObject(object) {
+  const isLegacyEconomy = object?.economyScaleVersion !== ECONOMY_SCALE_VERSION;
   const normalized = {
     ...object,
     kind: normalizeObjectKind(object),
@@ -645,9 +657,12 @@ function normalizeStoredObject(object) {
     mass: Number(object.mass ?? object.dryMass ?? 1),
     dragArea: Number(object.dragArea ?? 1),
     collisionRadius: Number(object.collisionRadius ?? 10),
-    cost: Number(object.cost ?? 0),
-    recoveryValue: Number(object.recoveryValue ?? 0),
-    incomeRate: Number(object.incomeRate ?? inferIncomeRate(object)),
+    economyScaleVersion: ECONOMY_SCALE_VERSION,
+    cost: scaleLegacyMoney(Number(object.cost ?? 0), isLegacyEconomy),
+    recoveryValue: scaleLegacyMoney(Number(object.recoveryValue ?? 0), isLegacyEconomy),
+    incomeRate: object.incomeRate == null
+      ? inferIncomeRate(object)
+      : scaleLegacyMoney(Number(object.incomeRate), isLegacyEconomy),
     revenueEarned: Number(object.revenueEarned ?? 0),
     parts: Array.isArray(object.parts) ? object.parts.map((part) => ({ ...part, active: part.active !== false })) : [],
     online: Boolean(object.online),
@@ -668,6 +683,7 @@ function normalizeStoredObject(object) {
 
 function serializeObject(object) {
   return {
+    economyScaleVersion: ECONOMY_SCALE_VERSION,
     id: object.id,
     name: object.name,
     kind: object.kind,
@@ -740,9 +756,9 @@ function inferIncomeRate(object) {
   if (normalizeObjectKind(object) !== "payload") return 0;
   const payloadType = inferPayloadType(object);
   const name = `${object.name ?? ""} ${object.payloadType ?? ""}`.toLowerCase();
-  if (payloadType === "data_center" || name.includes("data")) return 18;
-  if (payloadType === "satellite" || name.includes("satellite")) return 7;
-  return 5;
+  if (payloadType === "data_center" || name.includes("data")) return 360;
+  if (payloadType === "satellite" || name.includes("satellite")) return 140;
+  return 100;
 }
 
 function objectToInfo(object) {

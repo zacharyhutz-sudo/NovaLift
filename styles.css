@@ -1695,7 +1695,7 @@ body {
   font-size: clamp(18px, 4.7vw, 27px);
 }
 
-/* v0.5.2 payload activation, results, and builder QoL */
+/* v0.5.3 payload activation, results, and builder QoL */
 .template-deck {
   display: grid;
   grid-template-columns: 1fr;

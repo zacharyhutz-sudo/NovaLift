@@ -1,72 +1,55 @@
-# NovaLift v0.5.2 — Payload Activation + Flight Results + Builder QoL
+# NovaLift v0.5.3 — Planet + FX + Economy Scale Polish
 
-NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version focuses on fixing payload activation clarity, making flights end with a real results/cash-in loop, and making rocket construction much faster.
+NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version refines the visual style, scales up the starter world, and makes the economy numbers feel more substantial.
 
-## What is new in v0.5.2
+## What is new in v0.5.3
 
-### Payload activation fix
+### Cleaner starter planet
 
-- Satellites and data centers now use a better orbit evaluation based on projected orbital shape instead of only momentary radial velocity.
-- Payload tracker statuses now explain why a payload is offline, such as:
-  - orbit dips into atmosphere
-  - too low in atmosphere
-  - not enough sideways speed
-  - escape trajectory
-- Older saved payload objects are still normalized and rechecked when loaded.
-- Online satellites/data centers continue generating company revenue over time.
+- Homeworld is now a simpler bluish-green sphere.
+- Removed the busy landmass/cloud treatment from the starter planet.
+- Added soft spherical shading, a subtle rim highlight, and a light atmosphere glow.
 
-### Flight results and recovery cash-in
+### Cleaner air-resistance visuals
 
-- Landing or crashing the active command rocket now opens a **Flight Results** popup.
-- The popup shows:
-  - max altitude
-  - max speed
-  - launch cost
-  - mission rewards
-  - recovery value
-  - net result
-  - recovered parts
-  - a flight improvement tip
-- Successful recoveries now create a pending recovery value.
-- Tap **Cash In** to collect the recovered part value.
-- Recovery payouts can only be cashed in once.
+- Replaced the harsher atmospheric streak effect with a softer bow-wave/wake effect.
+- Drag visuals are now subtler at medium speed and only become more noticeable under heavier atmospheric load.
+- Rocket readability should be improved during launch and descent.
 
-### Builder quality-of-life improvements
+### Larger Homeworld
 
-- Added **Quick Build** templates:
-  - Starter Orbit
-  - Satellite Launcher
-  - Data Center Rig
-  - Recovery Test
-- Added an **Auto-Stage** button.
-- Added part category tabs:
-  - All
-  - Core
-  - Fuel
-  - Engines
-  - Payloads
-  - Recovery
-  - Aero
-- Added mission-based recommended parts.
-- Added **+3** buttons for repeated fuel/engine additions when there is room.
-- Added duplicate controls for parts already in the current stack.
+- Increased Homeworld radius by 5x.
+- Scaled atmosphere height with the planet.
+- Scaled gravity parameter to preserve a familiar surface-gravity launch feel.
+- Extended trajectory prediction so arcs still read better around the larger world.
+- Lowered automatic/manual minimum camera scale so the player can still zoom out meaningfully.
+
+### Economy scale rebalance
+
+- Increased all part costs by 20x.
+- Increased starting career cash from $25,000 to $500,000.
+- Increased mission rewards by 20x.
+- Scaled payload income to match the larger economy:
+  - Satellite: $140/sec
+  - Data Center: $360/sec
+- Older company/object saves migrate into the new economy scale when loaded.
 
 ## Existing features retained
 
 - Mobile-first vertical flight view.
 - Rocket construction from a vertical stack of parts.
 - Live builder preview.
+- Quick Build templates, Auto-Stage, part category tabs, recommended parts, and +3 quick-add controls.
 - Stage preview text in flight.
 - Staging, decouplers, satellites, data centers, parachutes, and landing legs.
 - Basic atmosphere, drag, parachute recovery, and per-part hitboxes.
-- Mission Board, Career Mode, Sandbox Mode, launch costs, mission rewards, and recurring payload income.
+- Mission Board, Career Mode, Sandbox Mode, launch costs, mission rewards, recovery cash-in, and recurring payload income.
 - The **Track** button toggles an orbit tracker panel for command pods, satellites, data centers, and debris.
 - Separated stages become tracked debris objects instead of vanishing.
-- Debris continues under gravity and atmosphere until it stays in orbit or crashes into the planet.
 - Tap/click a deployed object in flight to inspect it.
 - Tap orbital debris and choose **Explode Debris** to remove it.
 - Persistent world objects and company state save to `localStorage`.
-- Procedural starfield, improved Homeworld visuals, color-coded trajectory lines, and lightweight effects.
+- Procedural starfield, color-coded trajectory lines, lightweight engine effects, and builder hangar visuals.
 
 ## Controls
 
@@ -82,37 +65,11 @@ Keyboard:
 
 Mobile:
 
-- Use the large on-screen buttons for thrust, rotation, staging, pause, tracking, and debug.
-- The Stage preview panel tells you what the Stage button will do next.
-- Drag the playfield to pan the camera.
-- Pinch the playfield to zoom.
-- Tap Center to return to rocket follow mode.
-- Tap orbital debris or deployed payloads in the playfield to inspect them.
-- Tap **Track** to open/close the active object tracker. Tap **Select** in the tracker to inspect/focus an object.
+- Touch **Thrust**, **Left**, **Right**, **Stage**, **Track**, **Pause**, **Build**, and **Center** buttons.
+- Drag the flight view to pan the camera.
+- Pinch the flight view to zoom.
+- Tap **Center** to return to rocket follow mode.
 
-## Testing notes
+## Testing
 
-Recommended quick tests:
-
-1. Open the builder and confirm the rocket starts empty.
-2. Tap a Quick Build template and confirm the rocket stack, live preview, and stages update.
-3. Tap **Auto-Stage** after editing and confirm staged parts receive sensible stage numbers.
-4. Use part category tabs and recommended parts to add/duplicate parts quickly.
-5. Launch a satellite or data center template and deploy the payload in a stable orbit.
-6. Confirm the tracker shows the payload as online and generating income, or explains why it is offline.
-7. Land a command rocket and confirm the Flight Results popup appears.
-8. Tap **Cash In** and confirm the recovery value is added once.
-9. Crash a rocket and confirm the Flight Results popup still appears with no recovery value.
-10. Refresh the page and confirm company cash, completed missions, and orbital objects persist.
-
-## Running locally
-
-Open `index.html` in a browser, or serve the folder with a simple local server:
-
-```bash
-python3 -m http.server 8000
-```
-
-Then open `http://localhost:8000`.
-
-This build has no bundler and is ready for GitHub Pages.
+Open `index.html` directly or host the folder through GitHub Pages/Netlify. No build step is required.
