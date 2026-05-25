@@ -83,12 +83,21 @@ const objectNameEl = document.querySelector("#objectName");
 const objectDetailsEl = document.querySelector("#objectDetails");
 const explodeObjectButton = document.querySelector("#explodeObject");
 const closeObjectInspectorButton = document.querySelector("#closeObjectInspector");
+const builderWorldViewButton = document.querySelector("#builderWorldView");
+const builderJumpToPreviewButton = document.querySelector("#builderJumpToPreview");
+const builderJumpToPartsButton = document.querySelector("#builderJumpToParts");
+const builderJumpToMissionsButton = document.querySelector("#builderJumpToMissions");
+const toggleMissionBoardViewButton = document.querySelector("#toggleMissionBoardView");
+const builderRocketSectionEl = document.querySelector("#builderRocketSection");
+const builderPartsSectionEl = document.querySelector("#builderPartsSection");
+const builderMissionsSectionEl = document.querySelector("#builderMissionsSection");
 
 let builderStack = [];
 let screenMode = "builder";
 let trackerOpen = false;
 let selectedPartId = AVAILABLE_PARTS[0]?.id ?? null;
 let activePartCategory = "all";
+let missionsExpanded = false;
 let lastShownFlightSummaryKey = "";
 const PART_CATEGORIES = [
   { id: "all", label: "All" },
@@ -136,6 +145,7 @@ const game = new Game(input, renderer, initialRocket);
 renderBuilder();
 renderer.onObjectTap = (object) => {
   game.selectObject(object.id);
+  renderer.centerOnWorldObject?.(object);
   updateObjectInspector(game.getHudData().selectedObject);
 };
 game.paused = true;
@@ -176,6 +186,14 @@ function bindBuilderEvents() {
   });
   bindActivation(toggleEconomyModeButton, () => {
     game.toggleEconomyMode();
+    renderBuilder();
+  });
+  bindActivation(builderWorldViewButton, showWorldView);
+  bindActivation(builderJumpToPreviewButton, () => scrollBuilderSection(builderRocketSectionEl));
+  bindActivation(builderJumpToPartsButton, () => scrollBuilderSection(builderPartsSectionEl));
+  bindActivation(builderJumpToMissionsButton, () => scrollBuilderSection(builderMissionsSectionEl));
+  bindActivation(toggleMissionBoardViewButton, () => {
+    missionsExpanded = !missionsExpanded;
     renderBuilder();
   });
   bindActivation(rebuildRocketButton, showBuilder);
@@ -320,6 +338,7 @@ function showBuilder() {
   updateObjectInspector(null);
   builderScreenEl.classList.remove("hidden");
   gameShellEl.classList.add("builder-open");
+  gameShellEl.classList.remove("world-view");
   renderBuilder();
 }
 
@@ -327,6 +346,24 @@ function hideBuilder() {
   screenMode = "flight";
   builderScreenEl.classList.add("hidden");
   gameShellEl.classList.remove("builder-open");
+  gameShellEl.classList.remove("world-view");
+}
+
+function showWorldView() {
+  hideFlightSummaryModal();
+  screenMode = "world";
+  trackerOpen = true;
+  game.paused = false;
+  builderScreenEl.classList.add("hidden");
+  gameShellEl.classList.remove("builder-open");
+  gameShellEl.classList.add("world-view");
+  renderer.recenterCamera?.(game.rocket);
+  updateTrackerPanel(game.getHudData().trackedObjects);
+}
+
+function scrollBuilderSection(section) {
+  if (!section) return;
+  section.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function launchBuiltRocket() {
@@ -542,7 +579,14 @@ function renderMissionBoard(data) {
   const completed = missions.filter((mission) => mission.completed).length;
   missionBoardSummaryEl.textContent = `${completed}/${missions.length} complete · Rewards ${formatMoney(data.company?.totalMissionRewards ?? 0)}`;
 
-  missionBoardEl.innerHTML = missions.map((mission) => `
+  if (toggleMissionBoardViewButton) toggleMissionBoardViewButton.textContent = missionsExpanded ? "Show Less" : "View All";
+  const visibleMissions = missionsExpanded
+    ? missions
+    : [
+        ...missions.filter((mission) => !mission.completed).slice(0, 3),
+        ...missions.filter((mission) => mission.completed).slice(0, Math.max(0, 3 - missions.filter((mission) => !mission.completed).slice(0, 3).length))
+      ];
+  missionBoardEl.innerHTML = visibleMissions.map((mission) => `
     <article class="mission-card ${mission.completed ? "complete" : ""}">
       <div class="mission-card-top">
         <div>
@@ -557,11 +601,12 @@ function renderMissionBoard(data) {
   `).join("");
 }
 
+
 function updateHud(data) {
   altitudeEl.textContent = formatDistance(data.altitude);
   speedEl.textContent = `${data.speed.toFixed(1)} m/s`;
   fuelEl.textContent = `${Math.max(0, data.fuelPercent).toFixed(0)}%`;
-  statusEl.textContent = screenMode === "builder" ? "Build" : compactStatus(data.status);
+  statusEl.textContent = screenMode === "builder" ? "Build" : screenMode === "world" ? "World" : compactStatus(data.status);
   statusEl.title = data.status;
   fpsEl.textContent = `${Math.round(data.fps)}`;
   if (companyCashHudEl) companyCashHudEl.textContent = data.company?.mode === "sandbox" ? "∞" : formatMoney(data.company?.money ?? 0);
@@ -569,7 +614,7 @@ function updateHud(data) {
   gameShellEl.classList.toggle("income-active", (data.company?.incomePerSecond ?? 0) > 0);
   if (builderCashEl) builderCashEl.textContent = data.company?.mode === "sandbox" ? "∞" : formatMoney(data.company?.money ?? 0);
   if (builderModeLabelEl) builderModeLabelEl.textContent = data.company?.mode === "sandbox" ? "Sandbox Mode" : "Career Mode";
-  if (nextStageActionEl) nextStageActionEl.textContent = screenMode === "builder" ? "Build a rocket first" : data.nextStageDescription;
+  if (nextStageActionEl) nextStageActionEl.textContent = screenMode === "builder" ? "Build a rocket first" : screenMode === "world" ? "Viewing persistent orbit network" : data.nextStageDescription;
   updateStageFuelPanel(data.stageFuel ?? []);
   updateObjectInspector(data.selectedObject);
   updateTrackerPanel(data.trackedObjects ?? []);
@@ -579,6 +624,9 @@ function updateHud(data) {
     const next = data.nextMission;
     missionResultEl.textContent = next ? `Next mission: ${next.title} — ${next.objective}` : "All starter missions complete. Keep expanding your orbital network.";
     missionResultEl.classList.remove("success");
+  } else if (screenMode === "world") {
+    missionResultEl.textContent = `World view: ${data.savedOrbitalObjects} payloads · ${data.debrisCount} debris · ${formatMoney(data.company?.incomePerSecond ?? 0)}/s income. Use Track to inspect objects.`;
+    missionResultEl.classList.toggle("success", (data.company?.incomePerSecond ?? 0) > 0);
   } else if (data.stageMessage) {
     missionResultEl.textContent = data.stageMessage;
     missionResultEl.classList.toggle("success", data.stageMessage.includes("Mission complete"));
@@ -604,7 +652,7 @@ function updateHud(data) {
 
 function updateStageFuelPanel(stageFuel = []) {
   if (!stageFuelPanelEl) return;
-  const visible = screenMode !== "builder" && stageFuel.length > 0;
+  const visible = screenMode === "flight" && stageFuel.length > 0;
   stageFuelPanelEl.classList.toggle("hidden", !visible);
   if (!visible) {
     stageFuelPanelEl.innerHTML = "";

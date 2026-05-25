@@ -29,7 +29,7 @@ export class Renderer {
     this.width = 0;
     this.height = 0;
     this.dpr = 1;
-    this.camera = { x: 0, y: 0, scale: 1, centerX: 0, centerY: 0, manual: false };
+    this.camera = { x: 0, y: 0, scale: 1, centerX: 0, centerY: 0, manual: false, mode: "followRocket", targetObjectId: null };
     this.pointers = new Map();
     this.gesture = null;
     this.lastRocket = null;
@@ -266,6 +266,11 @@ export class Renderer {
 
   setManualCamera(isManual) {
     this.camera.manual = isManual;
+    if (isManual) {
+      this.camera.mode = "manual";
+    } else if (this.camera.mode === "manual") {
+      this.camera.mode = "followRocket";
+    }
     this.updateRecenterButton();
   }
 
@@ -275,6 +280,14 @@ export class Renderer {
   }
 
   recenterCamera(rocket = this.lastRocket) {
+    const trackedObject = this.camera.targetObjectId
+      ? this.lastObjects.find((object) => object.id === this.camera.targetObjectId && !object.exploded)
+      : null;
+    if (trackedObject) {
+      this.centerOnWorldObject(trackedObject);
+      return;
+    }
+
     if (rocket) {
       const target = this.getAutoCameraTarget(rocket);
       this.camera.x = target.x;
@@ -284,17 +297,23 @@ export class Renderer {
       this.camera.centerY = target.centerY;
     }
 
+    this.camera.mode = "followRocket";
+    this.camera.targetObjectId = null;
     this.setManualCamera(false);
   }
 
   centerOnWorldObject(object) {
     if (!object) return;
-    const center = this.getDefaultScreenCenter();
-    this.camera.x = object.x;
-    this.camera.y = object.y;
-    this.camera.centerX = center.x;
-    this.camera.centerY = center.y;
-    this.setManualCamera(true);
+    const target = this.getObjectCameraTarget(object);
+    this.camera.x = target.x;
+    this.camera.y = target.y;
+    this.camera.scale = target.scale;
+    this.camera.centerX = target.centerX;
+    this.camera.centerY = target.centerY;
+    this.camera.mode = "followObject";
+    this.camera.targetObjectId = object.id;
+    this.camera.manual = false;
+    this.updateRecenterButton();
   }
 
   render(state) {
@@ -313,19 +332,31 @@ export class Renderer {
 
     this.drawTrajectory(ctx, predictTrajectory(rocket, PLANET));
     this.drawDetachedObjects(ctx, objects);
+    this.drawSelectedObjectOverlay(ctx, objects);
 
     if (debug) {
       this.drawDebugVectors(ctx, rocket);
     }
 
     this.drawRocket(ctx, rocket, state.input.thrusting && rocket.fuel > 0 && !rocket.landed && !rocket.crashed);
+    this.drawActiveRocketOverlay(ctx, rocket);
   }
 
   updateCamera(rocket) {
-    if (this.camera.manual) return;
+    if (this.camera.manual || this.camera.mode === "manual") return;
 
-    const target = this.getAutoCameraTarget(rocket);
-    const smoothing = 0.075;
+    let target = null;
+    if (this.camera.mode === "followObject" && this.camera.targetObjectId) {
+      const object = this.lastObjects.find((candidate) => candidate.id === this.camera.targetObjectId && !candidate.exploded);
+      if (object) target = this.getObjectCameraTarget(object);
+      else {
+        this.camera.mode = "followRocket";
+        this.camera.targetObjectId = null;
+      }
+    }
+
+    if (!target) target = this.getAutoCameraTarget(rocket);
+    const smoothing = this.camera.mode === "followObject" ? 0.16 : 0.075;
 
     this.camera.x += (target.x - this.camera.x) * smoothing;
     this.camera.y += (target.y - this.camera.y) * smoothing;
@@ -350,6 +381,22 @@ export class Renderer {
     return {
       x: rocket.x,
       y: rocket.y,
+      scale,
+      centerX: center.x,
+      centerY: center.y
+    };
+  }
+
+  getObjectCameraTarget(object) {
+    const center = this.getDefaultScreenCenter();
+    const isPortrait = this.height >= this.width;
+    const baseScale = isPortrait ? 0.42 : 0.34;
+    const objectRadius = Math.max(80, object.collisionRadius ?? 80);
+    const minVisibleScale = Math.min(RENDER.manualMaxScale, Math.max(RENDER.minScale, (56 * this.dpr) / objectRadius));
+    const scale = clamp(Math.max(this.camera.scale, baseScale, minVisibleScale), RENDER.manualMinScale, RENDER.manualMaxScale);
+    return {
+      x: object.x,
+      y: object.y,
       scale,
       centerX: center.x,
       centerY: center.y
@@ -635,6 +682,62 @@ export class Renderer {
     });
   }
 
+
+  drawSelectedObjectOverlay(ctx, objects) {
+    const object = objects.find((candidate) => candidate?.id === this.selectedObjectId && !candidate.exploded);
+    if (!object) return;
+
+    const screen = this.worldToScreen(object.x, object.y);
+    const pulse = 1 + Math.sin(performance.now() / 220) * 0.08;
+    const color = object.kind === "payload" ? "rgba(134, 239, 172, 0.96)" : object.kind === "debris" ? "rgba(251, 146, 60, 0.96)" : "rgba(125, 211, 252, 0.96)";
+    const radius = Math.max(34 * this.dpr, Math.min(94 * this.dpr, (object.collisionRadius ?? 80) * this.camera.scale * 2.1)) * pulse;
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = Math.max(2, 3.2 * this.dpr);
+    ctx.setLineDash([9 * this.dpr, 7 * this.dpr]);
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 18 * this.dpr;
+    ctx.beginPath();
+    ctx.arc(screen.x, screen.y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 0.28;
+    ctx.beginPath();
+    ctx.arc(screen.x, screen.y, radius * 0.52, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.globalAlpha = 1;
+    const label = object.name ?? (object.kind === "payload" ? "Payload" : "Object");
+    ctx.font = `${Math.round(12 * this.dpr)}px system-ui, -apple-system, BlinkMacSystemFont, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const textWidth = ctx.measureText(label).width;
+    const labelY = screen.y - radius - 22 * this.dpr;
+    ctx.fillStyle = "rgba(2, 6, 23, 0.84)";
+    roundRect(ctx, screen.x - textWidth / 2 - 10 * this.dpr, labelY - 13 * this.dpr, textWidth + 20 * this.dpr, 26 * this.dpr, 10 * this.dpr);
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(1, 1.2 * this.dpr);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(248, 250, 252, 0.96)";
+    ctx.fillText(label, screen.x, labelY);
+    ctx.restore();
+  }
+
+  drawActiveRocketOverlay(ctx, rocket) {
+    if (!rocket || rocket.crashed || rocket.landed) return;
+    const screen = this.worldToScreen(rocket.x, rocket.y);
+    ctx.save();
+    ctx.strokeStyle = "rgba(125, 211, 252, 0.45)";
+    ctx.lineWidth = Math.max(1, 1.8 * this.dpr);
+    ctx.beginPath();
+    ctx.arc(screen.x, screen.y, Math.max(22 * this.dpr, (rocket.collisionRadius ?? 80) * this.camera.scale * 0.36), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   tryTapObjectAt(screenX, screenY) {
     if (!this.onObjectTap || !this.lastObjects?.length) return;

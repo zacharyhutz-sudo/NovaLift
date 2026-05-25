@@ -156,12 +156,12 @@ export const AVAILABLE_PARTS = [
     cost: 62000,
     dryMass: 1.05,
     fuelCapacity: 0,
-    thrust: 123.75,
+    thrust: 148.5,
     fuelUse: 6.1,
     dragArea: 0.7,
     width: 1,
     color: "#fdba74",
-    description: "Lower thrust, better fuel use. Best after the lower stage separates."
+    description: "Balanced thrust, better fuel use. Best after the lower stage separates."
   },
   {
     id: "engine_basic",
@@ -171,12 +171,12 @@ export const AVAILABLE_PARTS = [
     cost: 50000,
     dryMass: 1.35,
     fuelCapacity: 0,
-    thrust: 165,
+    thrust: 198,
     fuelUse: 9.2,
     dragArea: 0.8,
     width: 1.05,
     color: "#f97316",
-    description: "Reliable starter engine. Efficient enough for first orbit attempts."
+    description: "Reliable starter engine with 20% more thrust for larger-world launches."
   },
   {
     id: "engine_heavy",
@@ -186,7 +186,7 @@ export const AVAILABLE_PARTS = [
     cost: 84000,
     dryMass: 2.1,
     fuelCapacity: 0,
-    thrust: 270,
+    thrust: 324,
     fuelUse: 15.4,
     dragArea: 1.05,
     width: 1.25,

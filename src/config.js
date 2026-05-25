@@ -44,7 +44,7 @@ export const ROCKET = {
   fuel: 875,
   maxFuel: 875,
   fuelMassPerUnit: 0.003,
-  thrust: 165,
+  thrust: 198,
   fuelUse: 9.2,
   rotateSpeed: 0.45,
   collisionRadius: 18,

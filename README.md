@@ -1,17 +1,18 @@
-# NovaLift v0.5.4 — Stage Fuel Logic + Fuel Bars
+# NovaLift v0.5.5 — UI Clarity + World View + Tracking Polish
 
-NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version refines fuel capacity and fixes staging/fuel logic so upper-stage tanks are not drained by lower-stage engines.
+NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version improves builder navigation, adds world-view access from the build page, makes object tracking/centering more reliable, and increases engine thrust by 20%.
 
 
-## What is new in v0.5.4
+## What is new in v0.5.5
 
-- Increased fuel tank capacity by 25%.
-- Fuel is now tracked per tank instead of as one shared global pool.
-- Engines only consume fuel from tanks assigned to the same stage.
-- Future-stage tanks are preserved until that stage is active.
-- Staged engines ignite when their assigned stage is pressed.
-- Added a flight-view fuel panel showing each stage's fuel percentage and a live bar.
-- Auto-stage now assigns upper-stage engines/tanks to their own stage after a decoupler.
+- Added a **World View** button directly in the builder so players can inspect the persistent orbital world anytime.
+- Added builder shortcut buttons for Rocket, Parts, and Missions sections.
+- Mission Board now defaults to a shorter recommended view with a **View All** toggle.
+- Selecting an object from Track now centers it, follows it, and keeps it highly visible.
+- The Center button now restores tracked-object or active-vessel follow behavior instead of just jumping once.
+- Added stronger pulsing rings and labels for selected satellites, data centers, command pods, and debris.
+- Added World View mode that hides flight controls and focuses on Build / Track / Pause.
+- Increased engine thrust by 20%.
 
 ## What was new in v0.5.3
 

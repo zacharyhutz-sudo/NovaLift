@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050816" />
-    <title>NovaLift v0.5.4</title>
+    <title>NovaLift v0.5.5</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -15,7 +15,7 @@
         <section id="hud" class="compact-hud" aria-label="Flight status">
           <div class="brand-chip">
             <strong>NovaLift</strong>
-            <span>v0.5.4</span>
+            <span>v0.5.5</span>
           </div>
           <div class="hud-stats">
             <div class="hud-stat"><span>Alt</span><strong id="altitude">0 m</strong></div>
@@ -51,11 +51,20 @@
           </div>
         </div>
 
+        <nav class="builder-top-actions" aria-label="Builder navigation and quick actions">
+          <button id="builderWorldView" type="button" class="nav-pill primary">World View</button>
+          <button id="builderJumpToPreview" type="button" class="nav-pill">Rocket</button>
+          <button id="builderJumpToParts" type="button" class="nav-pill">Parts</button>
+          <button id="builderJumpToMissions" type="button" class="nav-pill">Missions</button>
+        </nav>
 
-        <section class="builder-card mission-board-card" aria-label="Company missions">
+        <section class="builder-card mission-board-card" id="builderMissionsSection" aria-label="Company missions">
           <div class="builder-section-title">
             <h2>Mission Board</h2>
-            <span id="missionBoardSummary">Career progression</span>
+            <div class="section-title-actions">
+              <span id="missionBoardSummary">Career progression</span>
+              <button id="toggleMissionBoardView" type="button" class="mini-button">View All</button>
+            </div>
           </div>
           <div id="missionBoard" class="mission-board"></div>
         </section>
@@ -68,7 +77,7 @@
           <div id="templateDeck" class="template-deck"></div>
         </section>
 
-        <section class="builder-card builder-preview-card" aria-label="Live rocket preview">
+        <section class="builder-card builder-preview-card" id="builderRocketSection" aria-label="Live rocket preview">
           <div class="builder-section-title">
             <h2>Live Rocket Preview</h2>
             <span>Updates as you build</span>
@@ -114,7 +123,7 @@
           <p class="stack-note">Top of rocket is first. Stage F means the part stays active; numbered stages fire with the Stage button.</p>
         </section>
 
-        <section class="builder-card parts-card" aria-label="Available parts">
+        <section class="builder-card parts-card" id="builderPartsSection" aria-label="Available parts">
           <div class="builder-section-title">
             <h2>Parts Catalog</h2>
             <span id="partCountLabel">0 parts</span>

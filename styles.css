@@ -1992,3 +1992,159 @@ body {
 .stage-fuel-row.standby .stage-fuel-track span {
   opacity: 0.62;
 }
+
+/* v0.5.5 UI clarity + world view polish */
+.builder-top-actions {
+  position: sticky;
+  top: calc(6px + var(--safe-top));
+  z-index: 23;
+  display: grid;
+  grid-template-columns: 1.2fr repeat(3, 0.85fr);
+  gap: 7px;
+  margin: 0 0 10px;
+  padding: 7px;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 18px;
+  background: rgba(3, 7, 18, 0.82);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.24);
+}
+
+.nav-pill {
+  min-height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.nav-pill.primary {
+  color: #ecfeff;
+  border-color: rgba(125, 211, 252, 0.42);
+  background: linear-gradient(180deg, rgba(14, 116, 144, 0.58), rgba(15, 23, 42, 0.88));
+  box-shadow: 0 0 22px rgba(34, 211, 238, 0.12);
+}
+
+.section-title-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.builder-header {
+  align-items: center;
+  margin-bottom: 9px;
+}
+
+.builder-header h1 {
+  font-size: clamp(30px, 7.4vw, 42px);
+  max-width: 13ch;
+}
+
+.builder-copy {
+  max-width: 26rem;
+}
+
+.mission-board-card {
+  max-height: none;
+}
+
+.template-card-wrap {
+  background: linear-gradient(180deg, rgba(14, 116, 144, 0.18), rgba(8, 11, 20, 0.78));
+}
+
+.world-view .flight-controls,
+.world-view .stage-preview,
+.world-view .stage-fuel-panel,
+.world-view .keyboard-hint,
+.world-view .stage-control {
+  display: none !important;
+}
+
+.world-view .touch-controls {
+  gap: 8px;
+  bottom: calc(12px + var(--safe-bottom));
+}
+
+.world-view .touch-actions {
+  width: min(92vw, 420px);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-inline: auto;
+}
+
+.world-view #rebuildRocket::after {
+  content: "";
+}
+
+.world-view #toggleTracker {
+  color: var(--accent);
+  border-color: rgba(125, 211, 252, 0.38);
+}
+
+.world-view .mission-panel {
+  bottom: calc(86px + var(--safe-bottom));
+}
+
+.world-view .mission-label::after {
+  content: " View";
+}
+
+.tracker-item.selected {
+  transform: translateY(-1px);
+}
+
+.tracker-item.selected .tracker-main strong::after {
+  content: "  • TRACKING";
+  color: var(--accent);
+  font-size: 0.68em;
+  letter-spacing: 0.08em;
+}
+
+@media (max-width: 430px) {
+  .compact-hud {
+    padding: 8px 9px;
+    border-radius: 16px;
+  }
+
+  .brand-chip {
+    margin-bottom: 6px;
+  }
+
+  .brand-chip strong {
+    font-size: 18px;
+  }
+
+  .hud-stat strong {
+    font-size: 11px;
+  }
+
+  .economy-strip {
+    font-size: 11px;
+  }
+
+  .builder-top-actions {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .nav-pill {
+    min-height: 34px;
+    font-size: 9.5px;
+    padding: 0 4px;
+  }
+
+  .budget-chip strong {
+    font-size: 24px;
+  }
+
+  .builder-card {
+    border-radius: 18px;
+  }
+}

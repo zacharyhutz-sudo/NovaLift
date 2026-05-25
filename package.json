@@ -1,7 +1,7 @@
 {
   "name": "novalift",
-  "version": "0.5.4",
-  "description": "Vertical mobile-first 2D rocket company prototype with stage-isolated fuel tanks, fuel bars, updated tank capacity, and mission economy.",
+  "version": "0.5.5",
+  "description": "Vertical mobile-first 2D rocket company prototype with improved UI navigation, world view tracking, and tuned engine thrust.",
   "type": "module",
   "private": true,
   "scripts": {
