@@ -2,6 +2,17 @@ import { Game } from "./game.js";
 import { Input } from "./input.js";
 import { Renderer } from "./renderer.js";
 import { PHYSICS } from "./config.js";
+import {
+  AVAILABLE_PARTS,
+  MAX_STACK_PARTS,
+  buildRocketFromStack,
+  calculateBuildStats,
+  formatMoney,
+  formatStatNumber,
+  getPartTypeLabel,
+  validateBuild
+} from "./builder.js";
+import { STARTING_STACK } from "./parts.js";
 
 const canvas = document.querySelector("#gameCanvas");
 const recenterCameraButton = document.querySelector("#recenterCamera");
@@ -15,9 +26,34 @@ const debugPanelEl = document.querySelector("#debugPanel");
 const debugTextEl = document.querySelector("#debugText");
 const gameShellEl = document.querySelector("#gameShell");
 
+const builderScreenEl = document.querySelector("#builderScreen");
+const stackListEl = document.querySelector("#stackList");
+const partsCatalogEl = document.querySelector("#partsCatalog");
+const buildValidationEl = document.querySelector("#buildValidation");
+const launchBuiltRocketButton = document.querySelector("#launchBuiltRocket");
+const starterBuildButton = document.querySelector("#starterBuild");
+const clearBuildButton = document.querySelector("#clearBuild");
+const rebuildRocketButton = document.querySelector("#rebuildRocket");
+const partCountLabelEl = document.querySelector("#partCountLabel");
+const buildCostEl = document.querySelector("#buildCost");
+const buildMassEl = document.querySelector("#buildMass");
+const buildFuelEl = document.querySelector("#buildFuel");
+const buildTwrEl = document.querySelector("#buildTwr");
+const buildBurnEl = document.querySelector("#buildBurn");
+
+let builderStack = [...STARTING_STACK];
+let screenMode = "builder";
+
+renderBuilder();
+
 const input = new Input();
 const renderer = new Renderer(canvas, recenterCameraButton);
-const game = new Game(input, renderer);
+const initialRocket = buildRocketFromStack(builderStack).rocket;
+const game = new Game(input, renderer, initialRocket);
+game.paused = true;
+
+bindBuilderEvents();
+requestAnimationFrame(loop);
 
 function loop(timestamp) {
   game.frame(timestamp);
@@ -25,11 +61,194 @@ function loop(timestamp) {
   requestAnimationFrame(loop);
 }
 
+function bindBuilderEvents() {
+  bindActivation(launchBuiltRocketButton, launchBuiltRocket);
+  bindActivation(starterBuildButton, () => {
+    builderStack = [...STARTING_STACK];
+    renderBuilder();
+  });
+  bindActivation(clearBuildButton, () => {
+    builderStack = [];
+    renderBuilder();
+  });
+  bindActivation(rebuildRocketButton, showBuilder);
+
+  bindDelegatedActivation(partsCatalogEl, "[data-add-part]", (button) => {
+    if (builderStack.length >= MAX_STACK_PARTS) return;
+    builderStack.push(button.dataset.addPart);
+    renderBuilder();
+  });
+
+  bindDelegatedActivation(stackListEl, "[data-stack-action]", (button) => {
+    const index = Number(button.dataset.index);
+    const action = button.dataset.stackAction;
+
+    if (action === "remove") {
+      builderStack.splice(index, 1);
+    }
+
+    if (action === "up" && index > 0) {
+      [builderStack[index - 1], builderStack[index]] = [builderStack[index], builderStack[index - 1]];
+    }
+
+    if (action === "down" && index < builderStack.length - 1) {
+      [builderStack[index + 1], builderStack[index]] = [builderStack[index], builderStack[index + 1]];
+    }
+
+    renderBuilder();
+  });
+}
+
+function bindActivation(element, handler) {
+  let lastPointerActivation = 0;
+  const activate = (event) => {
+    if (element.disabled) return;
+    if (event.type === "click" && performance.now() - lastPointerActivation < 450) return;
+    if (event.type === "pointerup") lastPointerActivation = performance.now();
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    handler(event);
+  };
+
+  element.addEventListener("pointerup", activate);
+  element.addEventListener("click", activate);
+}
+
+function bindDelegatedActivation(container, selector, handler) {
+  let lastPointerActivation = 0;
+  const activate = (event) => {
+    const button = event.target.closest(selector);
+    if (!button || !container.contains(button) || button.disabled) return;
+    if (event.type === "click" && performance.now() - lastPointerActivation < 450) return;
+    if (event.type === "pointerup") lastPointerActivation = performance.now();
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    handler(button, event);
+  };
+
+  container.addEventListener("pointerup", activate);
+  container.addEventListener("click", activate);
+}
+
+function showBuilder() {
+  screenMode = "builder";
+  game.paused = true;
+  builderScreenEl.classList.remove("hidden");
+  gameShellEl.classList.add("builder-open");
+  renderBuilder();
+}
+
+function hideBuilder() {
+  screenMode = "flight";
+  builderScreenEl.classList.add("hidden");
+  gameShellEl.classList.remove("builder-open");
+}
+
+function launchBuiltRocket() {
+  const { valid } = validateBuild(builderStack);
+  if (!valid) {
+    renderBuilder(true);
+    return;
+  }
+
+  const { rocket } = buildRocketFromStack(builderStack);
+  game.setRocketTemplate(rocket);
+  game.paused = false;
+  hideBuilder();
+}
+
+function renderBuilder(highlightErrors = false) {
+  const validation = validateBuild(builderStack);
+  const stats = validation.stats;
+
+  buildCostEl.textContent = formatMoney(stats.cost);
+  buildMassEl.textContent = `${formatStatNumber(stats.launchMass)}t`;
+  buildFuelEl.textContent = Math.round(stats.fuelCapacity).toLocaleString();
+  buildTwrEl.textContent = formatStatNumber(stats.twr, 2);
+  buildBurnEl.textContent = stats.burnTime > 0 ? `${formatStatNumber(stats.burnTime, 0)}s` : "0s";
+
+  renderStackList(stats.parts);
+  renderPartsCatalog();
+  renderValidation(validation, highlightErrors);
+
+  launchBuiltRocketButton.disabled = !validation.valid;
+  launchBuiltRocketButton.textContent = validation.valid ? "Launch Rocket" : "Fix Rocket to Launch";
+  partCountLabelEl.textContent = `${builderStack.length}/${MAX_STACK_PARTS} parts`;
+}
+
+function renderStackList(parts) {
+  if (!parts.length) {
+    stackListEl.innerHTML = `<div class="empty-stack">No parts yet. Add a command pod, fuel tank, and engine.</div>`;
+    return;
+  }
+
+  stackListEl.innerHTML = parts
+    .map(
+      (part, index) => `
+        <article class="stack-item" style="--part-color: ${escapeHtml(part.color)}">
+          <div class="stack-index">${index === 0 ? "Top" : index + 1}</div>
+          <div class="part-swatch" aria-hidden="true"></div>
+          <div class="stack-info">
+            <strong>${escapeHtml(part.shortName ?? part.name)}</strong>
+            <span>${getPartTypeLabel(part.type)} · ${formatMoney(part.cost)}</span>
+          </div>
+          <div class="stack-buttons">
+            <button type="button" data-stack-action="up" data-index="${index}" ${index === 0 ? "disabled" : ""}>↑</button>
+            <button type="button" data-stack-action="down" data-index="${index}" ${index === parts.length - 1 ? "disabled" : ""}>↓</button>
+            <button type="button" data-stack-action="remove" data-index="${index}">×</button>
+          </div>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function renderPartsCatalog() {
+  partsCatalogEl.innerHTML = AVAILABLE_PARTS.map(
+    (part) => `
+      <article class="part-card" style="--part-color: ${escapeHtml(part.color)}">
+        <div class="part-card-top">
+          <div class="part-swatch" aria-hidden="true"></div>
+          <div>
+            <h3>${escapeHtml(part.name)}</h3>
+            <p>${getPartTypeLabel(part.type)} · ${formatMoney(part.cost)}</p>
+          </div>
+        </div>
+        <p class="part-description">${escapeHtml(part.description)}</p>
+        <div class="part-metrics">
+          <span>Mass ${formatStatNumber(part.dryMass)}t</span>
+          ${part.fuelCapacity ? `<span>Fuel ${Math.round(part.fuelCapacity)}</span>` : ""}
+          ${part.thrust ? `<span>Thrust ${Math.round(part.thrust)}</span>` : ""}
+        </div>
+        <button type="button" data-add-part="${escapeHtml(part.id)}" ${builderStack.length >= MAX_STACK_PARTS ? "disabled" : ""}>Add</button>
+      </article>
+    `
+  ).join("");
+}
+
+function renderValidation(validation, highlightErrors) {
+  const messages = [];
+
+  validation.errors.forEach((message) => messages.push({ type: "error", message }));
+  validation.warnings.forEach((message) => messages.push({ type: "warning", message }));
+
+  if (messages.length === 0) {
+    buildValidationEl.innerHTML = `<div class="validation-message success">Rocket is launch capable. Budget is infinite for this prototype.</div>`;
+    return;
+  }
+
+  buildValidationEl.innerHTML = messages
+    .map(
+      ({ type, message }) => `<div class="validation-message ${type} ${highlightErrors && type === "error" ? "pulse" : ""}">${escapeHtml(message)}</div>`
+    )
+    .join("");
+}
+
 function updateHud(data) {
   altitudeEl.textContent = formatDistance(data.altitude);
   speedEl.textContent = `${data.speed.toFixed(1)} m/s`;
   fuelEl.textContent = `${Math.max(0, data.fuelPercent).toFixed(0)}%`;
-  statusEl.textContent = compactStatus(data.status);
+  statusEl.textContent = screenMode === "builder" ? "Build" : compactStatus(data.status);
   statusEl.title = data.status;
   fpsEl.textContent = `${Math.round(data.fps)}`;
 
@@ -70,4 +289,11 @@ function formatDistance(value) {
   return `${value.toFixed(0)} m`;
 }
 
-requestAnimationFrame(loop);
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}

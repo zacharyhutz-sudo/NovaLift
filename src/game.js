@@ -16,10 +16,11 @@ import {
 } from "./physics.js";
 
 export class Game {
-  constructor(input, renderer) {
+  constructor(input, renderer, rocketTemplate = ROCKET) {
     this.input = input;
     this.renderer = renderer;
-    this.rocket = cloneRocket(ROCKET);
+    this.rocketTemplate = rocketTemplate;
+    this.rocket = cloneRocket(this.rocketTemplate);
     this.paused = false;
     this.debug = false;
     this.accumulator = 0;
@@ -29,9 +30,15 @@ export class Game {
   }
 
   reset() {
-    this.rocket = cloneRocket(ROCKET);
+    this.rocket = cloneRocket(this.rocketTemplate);
     this.accumulator = 0;
     this.renderer.recenterCamera?.(this.rocket);
+  }
+
+  setRocketTemplate(rocketTemplate) {
+    this.rocketTemplate = rocketTemplate;
+    this.paused = false;
+    this.reset();
   }
 
   frame(timestamp) {
@@ -123,6 +130,8 @@ export class Game {
       `Gravity:       ${fmt(gravity.strength)}`,
       `Mass:          ${fmt(getRocketMass(this.rocket))}`,
       `Fuel:          ${fmt(this.rocket.fuel)} / ${this.rocket.maxFuel}`,
+      `Parts:         ${this.rocket.parts?.length ?? 0}`,
+      `Build cost:    ${this.rocket.buildStats?.cost ? `$${this.rocket.buildStats.cost}` : "--"}`,
       `Landed:        ${this.rocket.landed}`,
       `Crashed:       ${this.rocket.crashed}`,
       `Debug vectors: green = velocity, yellow = gravity`

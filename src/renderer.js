@@ -469,33 +469,119 @@ export class Renderer {
   drawRocket(ctx, rocket, thrusting) {
     const screen = this.worldToScreen(rocket.x, rocket.y);
     const scale = Math.max(0.55, this.camera.scale);
+    const parts = Array.isArray(rocket.parts) && rocket.parts.length > 0 ? rocket.parts : null;
 
     ctx.save();
     ctx.translate(screen.x, screen.y);
     ctx.rotate(rocket.angle);
     ctx.scale(scale, scale);
 
-    if (thrusting) {
-      const flameLength = 18 + Math.sin(performance.now() / 36) * 5;
-      ctx.beginPath();
-      ctx.fillStyle = "rgba(251, 146, 60, 0.85)";
-      ctx.moveTo(-18, -5);
-      ctx.lineTo(-18 - flameLength, 0);
-      ctx.lineTo(-18, 5);
-      ctx.closePath();
-      ctx.fill();
+    if (parts) {
+      this.drawStackedRocketBody(ctx, parts, thrusting, rocket.crashed);
+    } else {
+      this.drawFallbackRocketBody(ctx, thrusting, rocket.crashed);
+    }
 
+    ctx.restore();
+
+    if (rocket.crashed) {
+      ctx.save();
       ctx.beginPath();
-      ctx.fillStyle = "rgba(254, 240, 138, 0.9)";
-      ctx.moveTo(-18, -3);
-      ctx.lineTo(-18 - flameLength * 0.58, 0);
-      ctx.lineTo(-18, 3);
-      ctx.closePath();
-      ctx.fill();
+      ctx.strokeStyle = "rgba(251, 113, 133, 0.9)";
+      ctx.lineWidth = 3 * this.dpr;
+      ctx.arc(screen.x, screen.y, 28 * this.camera.scale, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  drawStackedRocketBody(ctx, parts, thrusting, crashed) {
+    const lengths = parts.map((part) => getDrawLength(part.type));
+    const totalLength = lengths.reduce((total, length) => total + length, 0);
+    const bodyHeight = 15;
+    let cursor = totalLength / 2;
+
+    if (thrusting) {
+      this.drawEngineFlame(ctx, -totalLength / 2);
+    }
+
+    parts.forEach((part, index) => {
+      const length = lengths[index];
+      const centerX = cursor - length / 2;
+      const isFirst = index === 0;
+      const isLast = index === parts.length - 1;
+      cursor -= length;
+
+      ctx.save();
+      ctx.fillStyle = crashed ? "#fb7185" : part.color ?? "#e5e7eb";
+      ctx.strokeStyle = "rgba(15, 23, 42, 0.85)";
+      ctx.lineWidth = 1.6;
+
+      if (isFirst && part.type === "command") {
+        ctx.beginPath();
+        ctx.moveTo(centerX + length / 2, 0);
+        ctx.lineTo(centerX + length * 0.12, -bodyHeight / 2);
+        ctx.lineTo(centerX - length / 2, -bodyHeight / 2);
+        ctx.lineTo(centerX - length / 2, bodyHeight / 2);
+        ctx.lineTo(centerX + length * 0.12, bodyHeight / 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        roundRect(ctx, centerX - length / 2, -bodyHeight / 2, length, bodyHeight, part.type === "engine" ? 3 : 5);
+        ctx.fill();
+        ctx.stroke();
+      }
+
+      if (part.type === "payload") {
+        ctx.fillStyle = "rgba(255,255,255,0.22)";
+        ctx.fillRect(centerX - length * 0.24, -bodyHeight / 2 + 3, length * 0.48, bodyHeight - 6);
+      }
+
+      if (part.type === "command") {
+        ctx.beginPath();
+        ctx.fillStyle = "#7dd3fc";
+        ctx.arc(centerX + length * 0.08, 0, 3.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      if (part.type === "fuel") {
+        ctx.fillStyle = "rgba(255,255,255,0.2)";
+        ctx.fillRect(centerX - 1, -bodyHeight / 2 + 2, 2, bodyHeight - 4);
+      }
+
+      if (part.type === "engine" || isLast) {
+        ctx.fillStyle = "#64748b";
+        ctx.fillRect(centerX - length / 2 - 5, -5.5, 6, 11);
+      }
+
+      ctx.restore();
+    });
+
+    // Small fins near the bottom for readability.
+    const tailX = -totalLength / 2 + 10;
+    ctx.fillStyle = crashed ? "#fb7185" : "#94a3b8";
+    ctx.beginPath();
+    ctx.moveTo(tailX, -bodyHeight / 2);
+    ctx.lineTo(tailX + 8, -bodyHeight / 2);
+    ctx.lineTo(tailX - 2, -bodyHeight / 2 - 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(tailX, bodyHeight / 2);
+    ctx.lineTo(tailX + 8, bodyHeight / 2);
+    ctx.lineTo(tailX - 2, bodyHeight / 2 + 7);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  drawFallbackRocketBody(ctx, thrusting, crashed) {
+    if (thrusting) {
+      this.drawEngineFlame(ctx, -18);
     }
 
     ctx.beginPath();
-    ctx.fillStyle = rocket.crashed ? "#fb7185" : "#e5e7eb";
+    ctx.fillStyle = crashed ? "#fb7185" : "#e5e7eb";
     ctx.moveTo(20, 0);
     ctx.lineTo(8, -8);
     ctx.lineTo(-18, -7);
@@ -511,19 +597,27 @@ export class Renderer {
 
     ctx.fillStyle = "#94a3b8";
     ctx.fillRect(-22, -6, 5, 12);
-
-    ctx.restore();
-
-    if (rocket.crashed) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.strokeStyle = "rgba(251, 113, 133, 0.9)";
-      ctx.lineWidth = 3 * this.dpr;
-      ctx.arc(screen.x, screen.y, 28 * this.camera.scale, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
   }
+
+  drawEngineFlame(ctx, tailX) {
+    const flameLength = 18 + Math.sin(performance.now() / 36) * 5;
+    ctx.beginPath();
+    ctx.fillStyle = "rgba(251, 146, 60, 0.85)";
+    ctx.moveTo(tailX, -5);
+    ctx.lineTo(tailX - flameLength, 0);
+    ctx.lineTo(tailX, 5);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.fillStyle = "rgba(254, 240, 138, 0.9)";
+    ctx.moveTo(tailX, -3);
+    ctx.lineTo(tailX - flameLength * 0.58, 0);
+    ctx.lineTo(tailX, 3);
+    ctx.closePath();
+    ctx.fill();
+  }
+
 }
 
 function getPinchInfo(first, second) {
@@ -539,4 +633,28 @@ function getPinchInfo(first, second) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function getDrawLength(type) {
+  return {
+    payload: 19,
+    command: 20,
+    fuel: 18,
+    engine: 16
+  }[type] ?? 16;
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, Math.abs(width) / 2, Math.abs(height) / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }

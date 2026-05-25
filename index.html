@@ -4,18 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050816" />
-    <title>NovaLift v0.1.5</title>
+    <title>NovaLift v0.2.0</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <main id="gameShell">
+    <main id="gameShell" class="builder-open">
       <canvas id="gameCanvas" aria-label="NovaLift 2D vertical space flight sandbox"></canvas>
 
       <div class="top-layer" aria-label="Flight status and camera controls">
         <section id="hud" class="compact-hud" aria-label="Flight status">
           <div class="brand-chip">
             <strong>NovaLift</strong>
-            <span>v0.1.5</span>
+            <span>v0.2.0</span>
           </div>
           <div class="hud-stats">
             <div class="hud-stat"><span>Alt</span><strong id="altitude">0 m</strong></div>
@@ -32,6 +32,54 @@
         </div>
       </div>
 
+      <section id="builderScreen" class="builder-screen" aria-label="Rocket builder">
+        <div class="builder-header">
+          <div>
+            <p class="eyebrow">Rocket Construction</p>
+            <h1>Build your NovaLift rocket</h1>
+            <p class="builder-copy">Stack parts from top to bottom. Budget is infinite for now, but every part has a real cost for future economy balancing.</p>
+          </div>
+          <div class="budget-chip">
+            <span>Budget</span>
+            <strong>∞</strong>
+          </div>
+        </div>
+
+        <section class="builder-card builder-stats-card" aria-label="Rocket stats">
+          <div class="builder-stat"><span>Cost</span><strong id="buildCost">$0</strong></div>
+          <div class="builder-stat"><span>Mass</span><strong id="buildMass">0.0t</strong></div>
+          <div class="builder-stat"><span>Fuel</span><strong id="buildFuel">0</strong></div>
+          <div class="builder-stat"><span>TWR</span><strong id="buildTwr">0.00</strong></div>
+          <div class="builder-stat"><span>Burn</span><strong id="buildBurn">0s</strong></div>
+        </section>
+
+        <section class="builder-card validation-card" aria-live="polite">
+          <div id="buildValidation" class="validation-list"></div>
+        </section>
+
+        <section class="builder-card stack-card" aria-label="Current rocket stack">
+          <div class="builder-section-title">
+            <h2>Current Stack</h2>
+            <div class="stack-actions">
+              <button id="starterBuild" type="button" class="mini-button">Starter</button>
+              <button id="clearBuild" type="button" class="mini-button">Clear</button>
+            </div>
+          </div>
+          <div id="stackList" class="stack-list"></div>
+          <p class="stack-note">Top of rocket is first. Engine works best at the bottom.</p>
+        </section>
+
+        <section class="builder-card parts-card" aria-label="Available parts">
+          <div class="builder-section-title">
+            <h2>Parts Catalog</h2>
+            <span id="partCountLabel">0 parts</span>
+          </div>
+          <div id="partsCatalog" class="parts-catalog"></div>
+        </section>
+
+        <button id="launchBuiltRocket" type="button" class="launch-button">Launch Rocket</button>
+      </section>
+
       <section id="mission" class="panel mission-panel">
         <div class="mission-label">Mission</div>
         <h1>Reach stable orbit</h1>
@@ -41,6 +89,7 @@
 
       <section id="touchControls" class="touch-controls" aria-label="Touch flight controls">
         <div class="touch-actions">
+          <button id="rebuildRocket" class="small-control" type="button">Build</button>
           <button class="small-control" type="button" data-press-action="reset">Reset</button>
           <button class="small-control" type="button" data-press-action="pause">Pause</button>
         </div>
