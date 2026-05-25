@@ -1,4 +1,4 @@
-# NovaLift v0.1.1 — Vertical Flight Sandbox
+# NovaLift v0.1.2 — Vertical Flight Sandbox
 
 A portrait-first 2D browser prototype for a simplified Kerbal-style space company game.
 
@@ -36,6 +36,14 @@ http://localhost:8000
 - `R`: reset launch
 - `Space`: pause
 - `F`: toggle debug overlay
+
+## v0.1.2 patch notes
+
+- Increased the homeworld radius from `250` to `2500`, making the planet 10x larger.
+- Scaled atmospheric height from `74` to `740` to match the larger planet.
+- Scaled gravity parameter from `900000` to `90000000` so surface gravity remains meaningful on the larger world.
+- Increased fuel capacity from `140` to `1400`.
+- Reduced fuel mass per unit from `0.03` to `0.003` so the 10x fuel tank does not make the rocket too heavy to launch.
 
 ## v0.1.1 patch notes
 
