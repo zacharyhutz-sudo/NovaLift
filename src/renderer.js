@@ -279,8 +279,9 @@ export class Renderer {
     this.recenterButton.classList.toggle("hidden", !this.camera.manual);
   }
 
-  recenterCamera(rocket = this.lastRocket) {
-    const trackedObject = this.camera.targetObjectId
+  recenterCamera(rocket = this.lastRocket, options = {}) {
+    const forceRocket = options?.forceRocket === true;
+    const trackedObject = !forceRocket && this.camera.targetObjectId
       ? this.lastObjects.find((object) => object.id === this.camera.targetObjectId && !object.exploded)
       : null;
     if (trackedObject) {
@@ -288,7 +289,16 @@ export class Renderer {
       return;
     }
 
-    if (rocket) {
+    this.followRocket(rocket, { snap: true });
+  }
+
+  followRocket(rocket = this.lastRocket, options = {}) {
+    const snap = options?.snap !== false;
+    this.camera.mode = "followRocket";
+    this.camera.targetObjectId = null;
+    this.camera.manual = false;
+
+    if (rocket && snap) {
       const target = this.getAutoCameraTarget(rocket);
       this.camera.x = target.x;
       this.camera.y = target.y;
@@ -297,9 +307,16 @@ export class Renderer {
       this.camera.centerY = target.centerY;
     }
 
-    this.camera.mode = "followRocket";
+    this.updateRecenterButton();
+  }
+
+  clearObjectTracking() {
     this.camera.targetObjectId = null;
-    this.setManualCamera(false);
+    if (this.camera.mode === "followObject") {
+      this.camera.mode = "followRocket";
+    }
+    this.camera.manual = false;
+    this.updateRecenterButton();
   }
 
   centerOnWorldObject(object) {

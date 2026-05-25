@@ -1,6 +1,13 @@
 import { PHYSICS, PLANET, ROCKET } from "./config.js";
 import { STARTING_CASH, evaluateMissions, getMissionView, getNextMission, normalizeMissionState } from "./missions.js";
 import {
+  STARTING_RESEARCH,
+  getResearchView,
+  isResearchComplete,
+  normalizeResearchState,
+  purchaseResearch as purchaseResearchNode
+} from "./research.js";
+import {
   activateNextStage,
   cloneRocket,
   getAltitude,
@@ -65,7 +72,11 @@ export class Game {
     this.stageMessageTimer = 4;
     this.flightStats = this.createFlightStats(this.rocket);
     this.accumulator = 0;
-    this.renderer.recenterCamera?.(this.rocket);
+    if (this.renderer.followRocket) {
+      this.renderer.followRocket(this.rocket);
+    } else {
+      this.renderer.recenterCamera?.(this.rocket, { forceRocket: true });
+    }
   }
 
   setRocketTemplate(rocketTemplate) {
@@ -179,6 +190,7 @@ export class Game {
       fuelUsed: 0,
       recoveryRefund: 0,
       recoveryAvailable: 0,
+      researchRewards: 0,
       recoveryCashedIn: false,
       recoveredParts: [],
       missionRewards: 0,
@@ -226,6 +238,8 @@ export class Game {
 
   updateEconomy(dt) {
     let incomeRate = 0;
+    let researchRate = 0;
+    const telemetryOnline = isResearchComplete(this.company, "orbital_telemetry");
     for (const object of this.objects) {
       if (!object || object.crashed || object.exploded) continue;
       updateDetachedObjectStatus(object, PLANET);
@@ -236,14 +250,27 @@ export class Game {
           const earned = rate * dt;
           object.revenueEarned = (object.revenueEarned ?? 0) + earned;
         }
+
+        const dataRate = telemetryOnline ? Number(object.researchRate ?? 0) : 0;
+        if (dataRate > 0) {
+          researchRate += dataRate;
+          const dataEarned = dataRate * dt;
+          object.researchEarned = (object.researchEarned ?? 0) + dataEarned;
+        }
       }
     }
 
     this.company.incomePerSecond = incomeRate;
+    this.company.researchPerSecond = researchRate;
     if (incomeRate > 0) {
       const earned = incomeRate * dt;
       this.company.money += earned;
       this.company.totalRevenue += earned;
+    }
+    if (researchRate > 0) {
+      const dataEarned = researchRate * dt;
+      this.company.researchPoints = (this.company.researchPoints ?? 0) + dataEarned;
+      this.company.totalResearchEarned = (this.company.totalResearchEarned ?? 0) + dataEarned;
     }
   }
 
@@ -254,11 +281,23 @@ export class Game {
 
     if (newlyCompleted.length) {
       const reward = newlyCompleted.reduce((total, mission) => total + (mission.reward ?? 0), 0);
+      const researchReward = newlyCompleted.reduce((total, mission) => total + (mission.researchReward ?? 0), 0);
       this.company.money += reward;
+      this.company.researchPoints = (this.company.researchPoints ?? 0) + researchReward;
       this.company.totalMissionRewards = (this.company.totalMissionRewards ?? 0) + reward;
+      this.company.totalResearchEarned = (this.company.totalResearchEarned ?? 0) + researchReward;
       this.company.lastMissionReward = reward;
-      if (this.flightStats) this.flightStats.missionRewards = (this.flightStats.missionRewards ?? 0) + reward;
-      this.stageMessage = newlyCompleted.map((mission) => `Mission complete: ${mission.title} +${formatMoney(mission.reward)}.`).join(" ");
+      this.company.lastResearchReward = researchReward;
+      if (this.flightStats) {
+        this.flightStats.missionRewards = (this.flightStats.missionRewards ?? 0) + reward;
+        this.flightStats.researchRewards = (this.flightStats.researchRewards ?? 0) + researchReward;
+      }
+      this.stageMessage = newlyCompleted
+        .map((mission) => {
+          const researchText = mission.researchReward ? ` +${Math.round(mission.researchReward).toLocaleString()} Research` : "";
+          return `Mission complete: ${mission.title} +${formatMoney(mission.reward)}${researchText}.`;
+        })
+        .join(" ");
       this.stageMessageTimer = 9;
       this.saveCompany();
     }
@@ -377,6 +416,20 @@ export class Game {
     return true;
   }
 
+  purchaseResearch(id) {
+    const result = purchaseResearchNode(this.company, id);
+    if (result.ok) {
+      const unlocked = result.node.unlockText ? ` ${result.node.unlockText}` : "";
+      this.stageMessage = `Research complete: ${result.node.name}.${unlocked}`;
+      this.stageMessageTimer = 9;
+      this.saveCompany();
+    } else {
+      this.stageMessage = result.reason ?? "Research unavailable.";
+      this.stageMessageTimer = 6;
+    }
+    return result;
+  }
+
   loadCompany() {
     try {
       const storage = globalThis.localStorage;
@@ -398,11 +451,17 @@ export class Game {
         totalDestroyed: Number(parsed.totalDestroyed ?? 0),
         totalMissionRewards: scaleLegacyMoney(Number(parsed.totalMissionRewards ?? 0), isLegacyEconomy),
         totalLaunchCosts: scaleLegacyMoney(Number(parsed.totalLaunchCosts ?? 0), isLegacyEconomy),
+        researchPoints: Number(parsed.researchPoints ?? STARTING_RESEARCH),
+        totalResearchEarned: Number(parsed.totalResearchEarned ?? 0),
+        completedResearch: normalizeResearchState(parsed.completedResearch),
+        lastResearchReward: Number(parsed.lastResearchReward ?? 0),
+        lastResearchPurchase: parsed.lastResearchPurchase ?? "",
         lastRecoveryRefund: scaleLegacyMoney(Number(parsed.lastRecoveryRefund ?? 0), isLegacyEconomy),
         lastMissionReward: scaleLegacyMoney(Number(parsed.lastMissionReward ?? 0), isLegacyEconomy),
         lastLaunchCost: scaleLegacyMoney(Number(parsed.lastLaunchCost ?? 0), isLegacyEconomy),
         missions: normalizeMissionState(parsed.missions),
-        incomePerSecond: 0
+        incomePerSecond: 0,
+        researchPerSecond: 0
       };
     } catch (error) {
       console.warn("NovaLift could not load company state.", error);
@@ -423,6 +482,11 @@ export class Game {
         totalDestroyed: this.company.totalDestroyed,
         totalMissionRewards: this.company.totalMissionRewards ?? 0,
         totalLaunchCosts: this.company.totalLaunchCosts ?? 0,
+        researchPoints: this.company.researchPoints ?? 0,
+        totalResearchEarned: this.company.totalResearchEarned ?? 0,
+        completedResearch: normalizeResearchState(this.company.completedResearch),
+        lastResearchReward: this.company.lastResearchReward ?? 0,
+        lastResearchPurchase: this.company.lastResearchPurchase ?? "",
         lastRecoveryRefund: this.company.lastRecoveryRefund ?? 0,
         lastMissionReward: this.company.lastMissionReward ?? 0,
         lastLaunchCost: this.company.lastLaunchCost ?? 0,
@@ -510,6 +574,7 @@ export class Game {
       debrisCount,
       objectCount: this.objects.length,
       company: { ...this.company },
+      research: getResearchView(this.company),
       missions: getMissionView(this.getMissionContext()),
       nextMission: getNextMission(this.getMissionContext()),
       flightSummary: this.getFlightSummary(),
@@ -573,6 +638,7 @@ export class Game {
       recoveredParts: this.flightStats.recoveredParts ?? [],
       launchCost: this.company.lastLaunchCost ?? 0,
       missionReward: this.flightStats.missionRewards ?? 0,
+      researchReward: this.flightStats.researchRewards ?? 0,
       net: (this.flightStats.missionRewards ?? 0) + (this.flightStats.recoveryCashedIn ? (this.flightStats.recoveryRefund ?? 0) : 0) - (this.company.mode === "sandbox" ? 0 : (this.company.lastLaunchCost ?? 0)),
       tip: this.flightStats.tip
     };
@@ -607,6 +673,7 @@ export class Game {
       `Payloads:      ${this.objects.filter((object) => object.kind === "payload" && object.online).length}`,
       `Debris:        ${this.objects.filter((object) => object.kind === "debris").length}`,
       `Income:        ${formatMoney(this.company.incomePerSecond)}/sec`,
+      `Research:      ${fmt(this.company.researchPoints ?? 0)} (${fmt(this.company.researchPerSecond ?? 0)}/sec)`,
       `Cash:          ${formatMoney(this.company.money)}`,
       `Mode:          ${this.company.mode}`,
       `Mission rewards: ${formatMoney(this.company.totalMissionRewards ?? 0)}`,
@@ -629,9 +696,15 @@ function createDefaultCompany() {
     totalDestroyed: 0,
     totalMissionRewards: 0,
     totalLaunchCosts: 0,
+    researchPoints: STARTING_RESEARCH,
+    totalResearchEarned: 0,
+    completedResearch: normalizeResearchState(),
     incomePerSecond: 0,
+    researchPerSecond: 0,
     lastRecoveryRefund: 0,
     lastMissionReward: 0,
+    lastResearchReward: 0,
+    lastResearchPurchase: "",
     lastLaunchCost: 0,
     missions: normalizeMissionState()
   };
@@ -665,7 +738,9 @@ function normalizeStoredObject(object) {
     incomeRate: object.incomeRate == null
       ? inferIncomeRate(object)
       : scaleLegacyMoney(Number(object.incomeRate), isLegacyEconomy),
+    researchRate: object.researchRate == null ? inferResearchRate(object) : Number(object.researchRate),
     revenueEarned: Number(object.revenueEarned ?? 0),
+    researchEarned: Number(object.researchEarned ?? 0),
     parts: Array.isArray(object.parts) ? object.parts.map((part) => ({ ...part, active: part.active !== false })) : [],
     online: Boolean(object.online),
     crashed: Boolean(object.crashed),
@@ -709,7 +784,9 @@ function serializeObject(object) {
     cost: object.cost ?? 0,
     recoveryValue: object.recoveryValue ?? 0,
     incomeRate: object.incomeRate ?? 0,
+    researchRate: object.researchRate ?? 0,
     revenueEarned: object.revenueEarned ?? 0,
+    researchEarned: object.researchEarned ?? 0,
     online: Boolean(object.online),
     crashed: Boolean(object.crashed),
     landed: Boolean(object.landed),
@@ -732,11 +809,13 @@ function normalizeObjectKind(object) {
 function inferPayloadType(object) {
   const existing = String(object?.payloadType ?? "").toLowerCase();
   if (existing.includes("data")) return "data_center";
+  if (existing.includes("exploration")) return "exploration_satellite";
   if (existing.includes("satellite")) return "satellite";
 
   const text = `${object?.name ?? ""} ${object?.id ?? ""}`.toLowerCase();
   const parts = Array.isArray(object?.parts) ? object.parts : [];
   if (text.includes("data") || parts.some((part) => part.id?.includes("data_center") || /data/i.test(part.name ?? ""))) return "data_center";
+  if (text.includes("exploration") || parts.some((part) => part.id?.includes("exploration_satellite") || /exploration/i.test(part.name ?? ""))) return "exploration_satellite";
   if (text.includes("satellite") || parts.some((part) => part.id?.includes("satellite") || /satellite/i.test(part.name ?? ""))) return "satellite";
   if (parts.some((part) => part.type === "payload")) return "payload";
   return "";
@@ -748,6 +827,7 @@ function objectContainsPartType(object, type) {
 
 function defaultObjectName(kind, payloadType) {
   if (kind === "payload" && payloadType === "data_center") return "Orbital Data Center";
+  if (kind === "payload" && payloadType === "exploration_satellite") return "Exploration Satellite";
   if (kind === "payload" && payloadType === "satellite") return "Small Satellite";
   if (kind === "payload") return "Payload";
   if (kind === "vessel") return "Command Pod";
@@ -759,8 +839,19 @@ function inferIncomeRate(object) {
   const payloadType = inferPayloadType(object);
   const name = `${object.name ?? ""} ${object.payloadType ?? ""}`.toLowerCase();
   if (payloadType === "data_center" || name.includes("data")) return 360;
+  if (payloadType === "exploration_satellite" || name.includes("exploration")) return 80;
   if (payloadType === "satellite" || name.includes("satellite")) return 140;
   return 100;
+}
+
+function inferResearchRate(object) {
+  if (normalizeObjectKind(object) !== "payload") return 0;
+  const payloadType = inferPayloadType(object);
+  const name = `${object.name ?? ""} ${object.payloadType ?? ""}`.toLowerCase();
+  if (payloadType === "data_center" || name.includes("data")) return 0.28;
+  if (payloadType === "exploration_satellite" || name.includes("exploration")) return 0.9;
+  if (payloadType === "satellite" || name.includes("satellite")) return 0.16;
+  return 0.1;
 }
 
 function objectToInfo(object) {
@@ -777,7 +868,9 @@ function objectToInfo(object) {
     altitude: getAltitude(object, PLANET),
     speed: getSpeed(object),
     incomeRate: kind === "payload" && object.online ? Number(object.incomeRate ?? 0) : 0,
+    researchRate: kind === "payload" && object.online ? Number(object.researchRate ?? 0) : 0,
     revenueEarned: Number(object.revenueEarned ?? 0),
+    researchEarned: Number(object.researchEarned ?? 0),
     cost: Number(object.cost ?? 0),
     online: Boolean(object.online),
     canExplode: kind === "debris" && !object.crashed && !object.exploded

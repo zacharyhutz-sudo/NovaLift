@@ -18,6 +18,7 @@ import {
   validateBuild
 } from "./builder.js";
 import { STARTING_STACK } from "./parts.js";
+import { formatResearch, getPartUnlockText, isPartUnlocked } from "./research.js";
 
 const canvas = document.querySelector("#gameCanvas");
 const recenterCameraButton = document.querySelector("#recenterCamera");
@@ -58,6 +59,7 @@ const builderPreviewEmptyEl = document.querySelector("#builderPreviewEmpty");
 const nextStageActionEl = document.querySelector("#nextStageAction");
 const companyCashHudEl = document.querySelector("#companyCashHud");
 const companyIncomeHudEl = document.querySelector("#companyIncomeHud");
+const companyResearchHudEl = document.querySelector("#companyResearchHud");
 const builderCashEl = document.querySelector("#builderCash");
 const builderModeLabelEl = document.querySelector("#builderModeLabel");
 const toggleEconomyModeButton = document.querySelector("#toggleEconomyMode");
@@ -87,10 +89,14 @@ const builderWorldViewButton = document.querySelector("#builderWorldView");
 const builderJumpToPreviewButton = document.querySelector("#builderJumpToPreview");
 const builderJumpToPartsButton = document.querySelector("#builderJumpToParts");
 const builderJumpToMissionsButton = document.querySelector("#builderJumpToMissions");
+const builderJumpToResearchButton = document.querySelector("#builderJumpToResearch");
 const toggleMissionBoardViewButton = document.querySelector("#toggleMissionBoardView");
+const researchSummaryEl = document.querySelector("#researchSummary");
+const researchTreeEl = document.querySelector("#researchTree");
 const builderRocketSectionEl = document.querySelector("#builderRocketSection");
 const builderPartsSectionEl = document.querySelector("#builderPartsSection");
 const builderMissionsSectionEl = document.querySelector("#builderMissionsSection");
+const builderResearchSectionEl = document.querySelector("#builderResearchSection");
 
 let builderStack = [];
 let screenMode = "builder";
@@ -105,6 +111,7 @@ const PART_CATEGORIES = [
   { id: "fuel", label: "Fuel", types: ["fuel"] },
   { id: "engine", label: "Engines", types: ["engine"] },
   { id: "payload", label: "Payloads", types: ["payload"] },
+  { id: "locked", label: "Research", lockedOnly: true },
   { id: "recovery", label: "Recovery", types: ["parachute", "legs"] },
   { id: "aero", label: "Aero", types: ["aero"] }
 ];
@@ -127,6 +134,13 @@ const ROCKET_TEMPLATES = [
     name: "Data Center Rig",
     description: "Heavier payload launcher for orbital revenue attempts.",
     stack: ["nose_cone_basic", "data_center_basic", "command_pod_basic", "parachute_basic", "landing_legs_basic", "fuel_tank_small", "engine_vacuum", "decoupler_basic", "fuel_tank_medium", "fuel_tank_medium", "engine_heavy"]
+  },
+  {
+    id: "explorer_sat",
+    name: "Explorer Probe",
+    description: "Research-gated exploration payload for the next planet-discovery milestone.",
+    requiresResearch: "orbital_surveying",
+    stack: ["nose_cone_basic", "exploration_satellite_basic", "command_pod_basic", "parachute_basic", "fuel_tank_small", "engine_skyburner", "decoupler_basic", "fuel_tank_composite", "engine_titan"]
   },
   {
     id: "recovery_test",
@@ -175,7 +189,7 @@ function bindBuilderEvents() {
   });
   bindDelegatedActivation(templateDeckEl, "[data-template]", (button) => {
     const template = ROCKET_TEMPLATES.find((candidate) => candidate.id === button.dataset.template);
-    if (!template) return;
+    if (!template || (template.requiresResearch && !game.company.completedResearch?.includes(template.requiresResearch) && game.company.mode !== "sandbox")) return;
     builderStack = autoStageStack(template.stack.map((id) => ({ id, stage: 0 })));
     selectedPartId = builderStack[0]?.id ?? selectedPartId;
     renderBuilder();
@@ -192,8 +206,13 @@ function bindBuilderEvents() {
   bindActivation(builderJumpToPreviewButton, () => scrollBuilderSection(builderRocketSectionEl));
   bindActivation(builderJumpToPartsButton, () => scrollBuilderSection(builderPartsSectionEl));
   bindActivation(builderJumpToMissionsButton, () => scrollBuilderSection(builderMissionsSectionEl));
+  bindActivation(builderJumpToResearchButton, () => scrollBuilderSection(builderResearchSectionEl));
   bindActivation(toggleMissionBoardViewButton, () => {
     missionsExpanded = !missionsExpanded;
+    renderBuilder();
+  });
+  bindDelegatedActivation(researchTreeEl, "[data-buy-research]", (button) => {
+    game.purchaseResearch(button.dataset.buyResearch);
     renderBuilder();
   });
   bindActivation(rebuildRocketButton, showBuilder);
@@ -207,10 +226,13 @@ function bindBuilderEvents() {
   });
   bindActivation(closeObjectInspectorButton, () => {
     game.clearSelectedObject();
+    renderer.clearObjectTracking?.();
+    renderer.followRocket?.(game.rocket, { snap: false });
     updateObjectInspector(null);
   });
   bindActivation(explodeObjectButton, () => {
     game.explodeObject();
+    renderer.followRocket?.(game.rocket);
     updateObjectInspector(null);
   });
   bindActivation(cashInRecoveryButton, () => {
@@ -228,6 +250,7 @@ function bindBuilderEvents() {
   bindDelegatedActivation(partsCatalogEl, "[data-add-part]", (button) => {
     if (builderStack.length >= MAX_STACK_PARTS) return;
     const part = AVAILABLE_PARTS.find((candidate) => candidate.id === button.dataset.addPart);
+    if (!part || !isPartUnlocked(part, game.company)) return;
     const count = Math.max(1, Number(button.dataset.addCount ?? 1));
     selectedPartId = button.dataset.addPart;
     for (let i = 0; i < count && builderStack.length < MAX_STACK_PARTS; i++) {
@@ -287,7 +310,11 @@ if (trackerListEl) {
     const id = button.dataset.trackObject;
     if (id === "current-rocket") {
       game.clearSelectedObject();
-      renderer.recenterCamera?.(game.rocket);
+      if (renderer.followRocket) {
+        renderer.followRocket(game.rocket);
+      } else {
+        renderer.recenterCamera?.(game.rocket, { forceRocket: true });
+      }
       updateObjectInspector(null);
       return;
     }
@@ -335,6 +362,7 @@ function showBuilder() {
   trackerOpen = false;
   game.paused = true;
   game.clearSelectedObject();
+  renderer.clearObjectTracking?.();
   updateObjectInspector(null);
   builderScreenEl.classList.remove("hidden");
   gameShellEl.classList.add("builder-open");
@@ -357,7 +385,11 @@ function showWorldView() {
   builderScreenEl.classList.add("hidden");
   gameShellEl.classList.remove("builder-open");
   gameShellEl.classList.add("world-view");
-  renderer.recenterCamera?.(game.rocket);
+  if (renderer.followRocket) {
+    renderer.followRocket(game.rocket);
+  } else {
+    renderer.recenterCamera?.(game.rocket, { forceRocket: true });
+  }
   updateTrackerPanel(game.getHudData().trackedObjects);
 }
 
@@ -368,7 +400,8 @@ function scrollBuilderSection(section) {
 
 function launchBuiltRocket() {
   const { valid } = validateBuild(builderStack);
-  if (!valid) {
+  const lockedParts = getLockedStackParts();
+  if (!valid || lockedParts.length) {
     renderBuilder(true);
     return;
   }
@@ -380,6 +413,11 @@ function launchBuiltRocket() {
     return;
   }
   game.setRocketTemplate(rocket);
+  if (renderer.followRocket) {
+    renderer.followRocket(game.rocket);
+  } else {
+    renderer.recenterCamera?.(game.rocket, { forceRocket: true });
+  }
   lastShownFlightSummaryKey = "";
   hideFlightSummaryModal();
   game.paused = false;
@@ -390,6 +428,7 @@ function renderBuilder(highlightErrors = false) {
   builderStack = normalizeStack(builderStack);
   const validation = validateBuild(builderStack);
   const stats = validation.stats;
+  const lockedParts = getLockedStackParts();
   const canAfford = game.canAffordLaunch(stats.cost);
 
   buildCostEl.textContent = formatMoney(stats.cost);
@@ -409,11 +448,13 @@ function renderBuilder(highlightErrors = false) {
   renderRecommendedParts(game.getHudData().nextMission);
   renderPartsCatalog(game.getHudData().nextMission);
   renderSelectedPart();
-  renderMissionBoard(game.getHudData());
-  renderValidation(validation, highlightErrors, canAfford, stats.cost);
+  const hudData = game.getHudData();
+  renderMissionBoard(hudData);
+  renderResearchLab(hudData);
+  renderValidation(validation, highlightErrors, canAfford, stats.cost, lockedParts);
 
-  launchBuiltRocketButton.disabled = !validation.valid || !canAfford;
-  launchBuiltRocketButton.textContent = !validation.valid ? "Fix Rocket to Launch" : !canAfford ? "Not Enough Cash" : game.company.mode === "sandbox" ? "Launch Rocket" : `Launch for ${formatMoney(stats.cost)}`;
+  launchBuiltRocketButton.disabled = !validation.valid || !canAfford || lockedParts.length > 0;
+  launchBuiltRocketButton.textContent = lockedParts.length ? "Unlock Parts to Launch" : !validation.valid ? "Fix Rocket to Launch" : !canAfford ? "Not Enough Cash" : game.company.mode === "sandbox" ? "Launch Rocket" : `Launch for ${formatMoney(stats.cost)}`;
   partCountLabelEl.textContent = `${builderStack.length}/${MAX_STACK_PARTS} parts`;
 }
 
@@ -426,12 +467,12 @@ function renderStackList(parts) {
   stackListEl.innerHTML = parts
     .map(
       (part, index) => `
-        <article class="stack-item ${part.id === selectedPartId ? "selected" : ""}" data-select-stack-part="${escapeHtml(part.id)}" data-index="${index}" style="--part-color: ${escapeHtml(part.color)}">
+        <article class="stack-item ${part.id === selectedPartId ? "selected" : ""} ${isPartUnlocked(part, game.company) ? "" : "locked"}" data-select-stack-part="${escapeHtml(part.id)}" data-index="${index}" style="--part-color: ${escapeHtml(part.color)}">
           <div class="stack-index">${index === 0 ? "Top" : index + 1}</div>
           <div class="part-swatch" aria-hidden="true"></div>
           <div class="stack-info">
             <strong>${escapeHtml(part.shortName ?? part.name)}</strong>
-            <span>${getPartTypeLabel(part.type)} · ${formatMoney(part.cost)} · ${escapeHtml(getStageLabel(part.stage))}</span>
+            <span>${getPartTypeLabel(part.type)} · ${formatMoney(part.cost)} · ${escapeHtml(getStageLabel(part.stage))}${isPartUnlocked(part, game.company) ? "" : " · Locked"}</span>
           </div>
           <div class="stage-buttons" aria-label="Stage controls">
             <button type="button" data-stack-action="stageDown" data-index="${index}" ${part.stage <= 0 ? "disabled" : ""}>−</button>
@@ -452,12 +493,14 @@ function renderStackList(parts) {
 
 function renderTemplateDeck() {
   if (!templateDeckEl) return;
-  templateDeckEl.innerHTML = ROCKET_TEMPLATES.map((template) => `
-    <button type="button" class="template-card" data-template="${escapeHtml(template.id)}">
+  templateDeckEl.innerHTML = ROCKET_TEMPLATES.map((template) => {
+    const locked = template.requiresResearch && !game.company.completedResearch?.includes(template.requiresResearch) && game.company.mode !== "sandbox";
+    return `
+    <button type="button" class="template-card ${locked ? "locked" : ""}" data-template="${escapeHtml(template.id)}" ${locked ? "disabled" : ""}>
       <strong>${escapeHtml(template.name)}</strong>
-      <span>${escapeHtml(template.description)}</span>
-    </button>
-  `).join("");
+      <span>${escapeHtml(locked ? `${template.description} Unlock through research first.` : template.description)}</span>
+    </button>`;
+  }).join("");
 }
 
 function renderPartCategoryTabs() {
@@ -484,32 +527,39 @@ function renderRecommendedParts(nextMission) {
 function renderPartsCatalog(nextMission = null) {
   const category = PART_CATEGORIES.find((candidate) => candidate.id === activePartCategory) ?? PART_CATEGORIES[0];
   const recommended = new Set(getRecommendedPartIds(nextMission));
-  const visibleParts = AVAILABLE_PARTS.filter((part) => !category.types || category.types.includes(part.type));
+  const visibleParts = AVAILABLE_PARTS.filter((part) => {
+    const unlocked = isPartUnlocked(part, game.company);
+    if (category.lockedOnly) return !unlocked || part.requiresResearch;
+    return !category.types || category.types.includes(part.type);
+  });
   partsCatalogEl.innerHTML = visibleParts.map(
     (part) => {
       const isRecommended = recommended.has(part.id);
-      const canAdd = builderStack.length < MAX_STACK_PARTS;
+      const unlocked = isPartUnlocked(part, game.company);
+      const lockText = getPartUnlockText(part, game.company);
+      const canAdd = unlocked && builderStack.length < MAX_STACK_PARTS;
       const canAddThree = canAdd && builderStack.length <= MAX_STACK_PARTS - 3 && ["fuel", "engine"].includes(part.type);
       return `
-      <article class="part-card ${part.id === selectedPartId ? "selected" : ""} ${isRecommended ? "recommended" : ""}" data-select-part="${escapeHtml(part.id)}" style="--part-color: ${escapeHtml(part.color)}">
+      <article class="part-card ${part.id === selectedPartId ? "selected" : ""} ${isRecommended ? "recommended" : ""} ${unlocked ? "" : "locked"}" data-select-part="${escapeHtml(part.id)}" style="--part-color: ${escapeHtml(part.color)}">
         <div class="part-card-top">
           <div class="part-icon ${getPartIconClass(part)}" aria-hidden="true"><span></span></div>
           <div>
             <h3>${escapeHtml(part.name)}</h3>
-            <p>${getPartTypeLabel(part.type)} · ${formatMoney(part.cost)}${isRecommended ? " · Recommended" : ""}</p>
+            <p>${getPartTypeLabel(part.type)} · ${formatMoney(part.cost)}${isRecommended ? " · Recommended" : ""}${unlocked ? "" : " · Locked"}</p>
           </div>
         </div>
-        <p class="part-description">${escapeHtml(part.description)}</p>
+        <p class="part-description">${escapeHtml(unlocked ? part.description : lockText)}</p>
         <div class="part-metrics">
           <span>Mass ${formatStatNumber(part.dryMass)}t</span>
           ${part.fuelCapacity ? `<span>Fuel ${Math.round(part.fuelCapacity)}</span>` : ""}
           ${part.thrust ? `<span>Thrust ${Math.round(part.thrust)}</span>` : ""}
           ${part.incomeRate ? `<span>Income ${formatMoney(part.incomeRate)}/s</span>` : ""}
+          ${part.researchRate ? `<span>Research ${formatStatNumber(part.researchRate, 2)}/s</span>` : ""}
           <span>Drag ${formatStatNumber(part.dragArea ?? 0, 1)}</span>
           ${part.stageAction ? `<span>Staged</span>` : ""}
         </div>
         <div class="part-card-actions">
-          <button type="button" data-add-part="${escapeHtml(part.id)}" data-add-count="1" ${!canAdd ? "disabled" : ""}>Add</button>
+          <button type="button" data-add-part="${escapeHtml(part.id)}" data-add-count="1" ${!canAdd ? "disabled" : ""}>${unlocked ? "Add" : "Locked"}</button>
           ${canAddThree ? `<button type="button" data-add-part="${escapeHtml(part.id)}" data-add-count="3">+3</button>` : ""}
         </div>
       </article>
@@ -523,15 +573,17 @@ function renderSelectedPart() {
   const part = AVAILABLE_PARTS.find((candidate) => candidate.id === selectedPartId) ?? AVAILABLE_PARTS[0];
   if (!part) return;
 
+  const unlocked = isPartUnlocked(part, game.company);
   selectedPartTitleEl.textContent = part.name;
-  selectedPartMetaEl.textContent = `${getPartTypeLabel(part.type)} · ${formatMoney(part.cost)}`;
-  selectedPartDescriptionEl.textContent = part.description;
-  selectedPartUsageEl.textContent = getPartUsageTip(part);
+  selectedPartMetaEl.textContent = `${getPartTypeLabel(part.type)} · ${formatMoney(part.cost)}${unlocked ? "" : " · Locked"}`;
+  selectedPartDescriptionEl.textContent = unlocked ? part.description : getPartUnlockText(part, game.company);
+  selectedPartUsageEl.textContent = unlocked ? getPartUsageTip(part) : "Complete the required research to add this part to a career rocket.";
   selectedPartMetricsEl.innerHTML = [
     `Mass ${formatStatNumber(part.dryMass)}t`,
     part.fuelCapacity ? `Fuel ${Math.round(part.fuelCapacity)}` : "",
     part.thrust ? `Thrust ${Math.round(part.thrust)}` : "",
     part.incomeRate ? `Income ${formatMoney(part.incomeRate)}/s` : "",
+    part.researchRate ? `Research ${formatStatNumber(part.researchRate, 2)}/s` : "",
     `Drag ${formatStatNumber(part.dragArea ?? 0, 1)}`,
     part.stageAction ? `Default ${getStageLabel(getDefaultStageForPart(part))}` : "Flight part"
   ]
@@ -554,12 +606,13 @@ function getPartUsageTip(part) {
   return tips[part.type] ?? "Add it to the stack, then use stage controls if it has an action.";
 }
 
-function renderValidation(validation, highlightErrors, canAfford = true, cost = 0) {
+function renderValidation(validation, highlightErrors, canAfford = true, cost = 0, lockedParts = []) {
   const messages = [];
 
   validation.errors.forEach((message) => messages.push({ type: "error", message }));
   validation.warnings.forEach((message) => messages.push({ type: "warning", message }));
   if (!canAfford) messages.push({ type: "error", message: `Not enough cash for this launch. Cost: ${formatMoney(cost)}.` });
+  lockedParts.forEach((part) => messages.push({ type: "error", message: `${part.shortName ?? part.name} is locked. ${getPartUnlockText(part, game.company)}.` }));
 
   if (messages.length === 0) {
     buildValidationEl.innerHTML = `<div class="validation-message success">Rocket is launch capable. ${game.company.mode === "sandbox" ? "Sandbox mode ignores part costs." : `Career launch cost: ${formatMoney(cost)}.`}</div>`;
@@ -593,7 +646,7 @@ function renderMissionBoard(data) {
           <strong>${escapeHtml(mission.title)}</strong>
           <span>${escapeHtml(mission.objective)}</span>
         </div>
-        <b>${mission.completed ? "✓" : formatMoney(mission.reward)}</b>
+        <b>${mission.completed ? "✓" : `${formatMoney(mission.reward)}${mission.researchReward ? ` + ${formatResearch(mission.researchReward)}R` : ""}`}</b>
       </div>
       <p>${escapeHtml(mission.description)}</p>
       <div class="mission-progress">${escapeHtml(mission.progress)}</div>
@@ -601,6 +654,57 @@ function renderMissionBoard(data) {
   `).join("");
 }
 
+function renderResearchLab(data) {
+  if (!researchSummaryEl || !researchTreeEl) return;
+  const company = data.company ?? game.company;
+  const researchPoints = company.researchPoints ?? 0;
+  const researchRate = company.researchPerSecond ?? 0;
+  const completed = data.research?.filter((node) => node.complete).length ?? 0;
+  const total = data.research?.length ?? 0;
+  researchSummaryEl.innerHTML = `
+    <div><span>Research</span><strong>${formatResearch(researchPoints, researchPoints < 10 ? 1 : 0)}</strong></div>
+    <div><span>Data/sec</span><strong>${formatResearch(researchRate, 2)}</strong></div>
+    <div><span>Completed</span><strong>${completed}/${total}</strong></div>
+  `;
+
+  const byCategory = new Map();
+  (data.research ?? []).forEach((node) => {
+    if (!byCategory.has(node.category)) byCategory.set(node.category, []);
+    byCategory.get(node.category).push(node);
+  });
+
+  researchTreeEl.innerHTML = [...byCategory.entries()].map(([category, nodes]) => `
+    <section class="research-category">
+      <h3>${escapeHtml(category)}</h3>
+      <div class="research-node-list">
+        ${nodes.map((node) => {
+          const statusClass = node.complete ? "complete" : node.locked ? "locked" : node.available ? "available" : "waiting";
+          const statusText = node.complete
+            ? "Complete"
+            : node.locked
+              ? `Requires ${node.missingPrerequisiteNames.join(", ")}`
+              : node.waitingForPoints
+                ? `Need ${formatResearch(Math.max(0, node.cost - researchPoints))} more`
+                : "Ready";
+          return `
+            <article class="research-node ${statusClass}">
+              <div class="research-node-top">
+                <div>
+                  <strong>${escapeHtml(node.name)}</strong>
+                  <span>${escapeHtml(statusText)}</span>
+                </div>
+                <b>${node.complete ? "✓" : `${formatResearch(node.cost)}R`}</b>
+              </div>
+              <p>${escapeHtml(node.description)}</p>
+              <small>${escapeHtml(node.unlockText ?? "Company capability upgrade.")}</small>
+              <button type="button" data-buy-research="${escapeHtml(node.id)}" ${node.available ? "" : "disabled"}>${node.complete ? "Researched" : "Research"}</button>
+            </article>
+          `;
+        }).join("")}
+      </div>
+    </section>
+  `).join("");
+}
 
 function updateHud(data) {
   altitudeEl.textContent = formatDistance(data.altitude);
@@ -611,6 +715,7 @@ function updateHud(data) {
   fpsEl.textContent = `${Math.round(data.fps)}`;
   if (companyCashHudEl) companyCashHudEl.textContent = data.company?.mode === "sandbox" ? "∞" : formatMoney(data.company?.money ?? 0);
   if (companyIncomeHudEl) companyIncomeHudEl.textContent = `${formatMoney(data.company?.incomePerSecond ?? 0)}/s`;
+  if (companyResearchHudEl) companyResearchHudEl.textContent = `${formatResearch(data.company?.researchPoints ?? 0, 0)}R`;
   gameShellEl.classList.toggle("income-active", (data.company?.incomePerSecond ?? 0) > 0);
   if (builderCashEl) builderCashEl.textContent = data.company?.mode === "sandbox" ? "∞" : formatMoney(data.company?.money ?? 0);
   if (builderModeLabelEl) builderModeLabelEl.textContent = data.company?.mode === "sandbox" ? "Sandbox Mode" : "Career Mode";
@@ -636,8 +741,9 @@ function updateHud(data) {
   } else if (data.flightSummary) {
     const refundText = data.flightSummary.recoveryRefund > 0 ? ` Refund ${formatMoney(data.flightSummary.recoveryRefund)}.` : "";
     const rewardText = data.flightSummary.missionReward > 0 ? ` Missions ${formatMoney(data.flightSummary.missionReward)}.` : "";
+    const researchText = data.flightSummary.researchReward > 0 ? ` Research +${formatResearch(data.flightSummary.researchReward)}.` : "";
     const netText = data.company?.mode === "sandbox" ? "" : ` Net ${formatMoney(data.flightSummary.net)}.`;
-    missionResultEl.textContent = `${data.flightSummary.outcome}: max ${formatDistance(data.flightSummary.maxAltitude)}, ${data.flightSummary.maxSpeed.toFixed(0)} m/s.${refundText}${rewardText}${netText} ${data.flightSummary.tip}`;
+    missionResultEl.textContent = `${data.flightSummary.outcome}: max ${formatDistance(data.flightSummary.maxAltitude)}, ${data.flightSummary.maxSpeed.toFixed(0)} m/s.${refundText}${rewardText}${researchText}${netText} ${data.flightSummary.tip}`;
     missionResultEl.classList.toggle("success", data.flightSummary.outcome === "Recovered" || data.flightSummary.missionReward > 0);
   } else {
     missionResultEl.textContent = `${data.nextStageDescription} · Orbit hold ${data.orbitHoldTime.toFixed(1)}s/${PHYSICS.orbitRequiredHoldSeconds.toFixed(0)}s · ATM ${data.atmospherePercent.toFixed(0)}%`;
@@ -691,8 +797,9 @@ function updateTrackerPanel(objects = []) {
   const vessels = objects.filter((object) => object.kind === "vessel");
   const debris = objects.filter((object) => object.kind === "debris");
   const income = payloads.reduce((total, object) => total + (object.incomeRate ?? 0), 0);
+  const research = payloads.reduce((total, object) => total + (object.researchRate ?? 0), 0);
 
-  trackerSummaryEl.textContent = `${payloads.length} payloads · ${vessels.length} command pods · ${debris.length} debris · ${formatMoney(income)}/s`;
+  trackerSummaryEl.textContent = `${payloads.length} payloads · ${vessels.length} command pods · ${debris.length} debris · ${formatMoney(income)}/s · ${formatResearch(research, 2)}R/s`;
 
   if (!objects.length) {
     trackerListEl.innerHTML = `<div class="tracker-empty">No orbital objects yet. Deploy a satellite or data center to start earning income.</div>`;
@@ -703,6 +810,7 @@ function updateTrackerPanel(objects = []) {
     const onlineClass = object.online ? " online" : "";
     const selectedClass = game.selectedObjectId === object.id ? " selected" : "";
     const income = object.incomeRate > 0 ? `${formatMoney(object.incomeRate)}/s` : "—";
+    const research = object.researchRate > 0 ? `${formatResearch(object.researchRate, 2)}R/s` : "—";
     const actionText = object.isCurrentRocket ? "Center" : "Select";
     return `
       <article class="tracker-item ${escapeHtml(object.kind)}${onlineClass}${selectedClass}">
@@ -714,6 +822,7 @@ function updateTrackerPanel(objects = []) {
           <span>${formatDistance(object.altitude)}</span>
           <span>${object.speed.toFixed(0)} m/s</span>
           <span>${income}</span>
+          <span>${research}</span>
         </div>
         <button type="button" class="mini-button" data-track-object="${escapeHtml(object.id)}">${actionText}</button>
       </article>
@@ -723,6 +832,7 @@ function updateTrackerPanel(objects = []) {
 
 function getTrackedTypeLabel(info) {
   if (info.kind === "payload" && info.payloadType === "data_center") return "Data Center";
+  if (info.kind === "payload" && info.payloadType === "exploration_satellite") return "Exploration Satellite";
   if (info.kind === "payload" && info.payloadType === "satellite") return "Satellite";
   if (info.kind === "payload") return "Payload";
   if (info.kind === "vessel") return "Command Pod";
@@ -750,6 +860,7 @@ function updateFlightSummaryModal(summary, force = false) {
       <div><span>Max Altitude</span><strong>${formatDistance(summary.maxAltitude)}</strong></div>
       <div><span>Max Speed</span><strong>${summary.maxSpeed.toFixed(0)} m/s</strong></div>
       <div><span>Mission Rewards</span><strong>${formatMoney(summary.missionReward)}</strong></div>
+      <div><span>Research Earned</span><strong>${formatResearch(summary.researchReward ?? 0)}R</strong></div>
       <div><span>Launch Cost</span><strong>${summary.launchCost ? formatMoney(summary.launchCost) : "Sandbox"}</strong></div>
       <div><span>Recovery</span><strong>${summary.recoveryCashedIn ? "Cashed in" : formatMoney(summary.recoveryAvailable ?? summary.recoveryRefund ?? 0)}</strong></div>
       <div><span>Net</span><strong>${formatMoney(summary.net)}</strong></div>
@@ -782,7 +893,9 @@ function updateObjectInspector(info) {
     ["Altitude", formatDistance(info.altitude)],
     ["Speed", `${info.speed.toFixed(1)} m/s`],
     ["Income", info.incomeRate > 0 ? `${formatMoney(info.incomeRate)}/s` : "—"],
-    ["Earned", formatMoney(info.revenueEarned ?? 0)]
+    ["Research", info.researchRate > 0 ? `${formatResearch(info.researchRate, 2)}R/s` : "—"],
+    ["Earned", formatMoney(info.revenueEarned ?? 0)],
+    ["Data", `${formatResearch(info.researchEarned ?? 0, 1)}R`]
   ]
     .map(([label, value]) => `<div class="object-detail"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`)
     .join("");
@@ -819,6 +932,12 @@ function compactStatus(status) {
   return labels.get(status) ?? status;
 }
 
+
+function getLockedStackParts() {
+  return normalizeStack(builderStack)
+    .map((entry) => AVAILABLE_PARTS.find((part) => part.id === entry.id))
+    .filter((part) => part && !isPartUnlocked(part, game.company));
+}
 
 function getRecommendedPartIds(nextMission) {
   const id = nextMission?.id ?? "";

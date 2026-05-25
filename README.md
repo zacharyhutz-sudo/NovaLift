@@ -1,9 +1,34 @@
-# NovaLift v0.5.5 — UI Clarity + World View + Tracking Polish
+# NovaLift v0.6.1 — Research Lab + Camera Tracking Fix
 
-NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version improves builder navigation, adds world-view access from the build page, makes object tracking/centering more reliable, and increases engine thrust by 20%.
+NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version adds the first long-term progression spine: Research earned from missions and orbital infrastructure, research-gated advanced parts, and the first exploration satellite hook for future planet discovery. It also fixes camera tracking so new launches do not stay locked onto previously tracked satellites, data centers, or vessels.
 
 
-## What is new in v0.5.5
+## What is fixed in v0.6.1
+
+- Launching a new rocket now explicitly clears any old tracked-object camera target.
+- The **Current Command Pod** tracker row now forces the camera back to the active rocket instead of re-centering on the last selected object.
+- Opening the builder clears object-follow state so the next launch starts focused on the new rocket.
+- Closing or destroying a tracked object releases object-follow mode and returns the camera to the active rocket.
+- Added renderer helpers for `followRocket()` and `clearObjectTracking()` so future world-view features can deliberately choose between rocket-follow and object-follow modes.
+
+## What is new in v0.6.0
+
+- Added a **Research Lab** to the builder screen.
+- Missions now award both cash and Research.
+- Added persistent company research state: current Research, total earned, completed nodes, and Research/sec.
+- Added an **Orbital Telemetry** research node so online payloads can generate Research over time.
+- Added research-gated parts:
+  - Skyburner Engine
+  - Titan Engine
+  - Composite Fuel Tank
+  - Efficient Data Center
+  - Exploration Satellite
+- Locked parts now appear in the catalog with their required research instead of silently disappearing.
+- Career launches are blocked if the stack contains a locked part.
+- Added Research readouts to the HUD, builder, tracker, object inspector, and flight summary.
+- Added the first exploration hook: the Exploration Satellite is now unlockable, ready for planet discovery in the next milestone.
+
+## What was new in v0.5.5
 
 - Added a **World View** button directly in the builder so players can inspect the persistent orbital world anytime.
 - Added builder shortcut buttons for Rocket, Parts, and Missions sections.

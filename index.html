@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050816" />
-    <title>NovaLift v0.5.5</title>
+    <title>NovaLift v0.6.1</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -15,7 +15,7 @@
         <section id="hud" class="compact-hud" aria-label="Flight status">
           <div class="brand-chip">
             <strong>NovaLift</strong>
-            <span>v0.5.5</span>
+            <span>v0.6.1</span>
           </div>
           <div class="hud-stats">
             <div class="hud-stat"><span>Alt</span><strong id="altitude">0 m</strong></div>
@@ -27,6 +27,7 @@
           <div class="economy-strip" aria-label="Company economy">
             <span>Cash <strong id="companyCashHud">$0</strong></span>
             <span>Income <strong id="companyIncomeHud">$0/s</strong></span>
+            <span>Research <strong id="companyResearchHud">0R</strong></span>
           </div>
         </section>
 
@@ -56,6 +57,7 @@
           <button id="builderJumpToPreview" type="button" class="nav-pill">Rocket</button>
           <button id="builderJumpToParts" type="button" class="nav-pill">Parts</button>
           <button id="builderJumpToMissions" type="button" class="nav-pill">Missions</button>
+          <button id="builderJumpToResearch" type="button" class="nav-pill">Research</button>
         </nav>
 
         <section class="builder-card mission-board-card" id="builderMissionsSection" aria-label="Company missions">
@@ -67,6 +69,16 @@
             </div>
           </div>
           <div id="missionBoard" class="mission-board"></div>
+        </section>
+
+        <section class="builder-card research-card" id="builderResearchSection" aria-label="Research lab">
+          <div class="builder-section-title">
+            <h2>Research Lab</h2>
+            <span>Unlock better parts and exploration</span>
+          </div>
+          <p class="research-intro">Complete missions to earn Research. Once Orbital Telemetry is researched, online payloads also generate Research over time.</p>
+          <div id="researchSummary" class="research-summary" aria-label="Research summary"></div>
+          <div id="researchTree" class="research-tree"></div>
         </section>
 
         <section class="builder-card template-card-wrap" aria-label="Quick rocket templates">
@@ -138,8 +150,8 @@
 
       <section id="mission" class="panel mission-panel">
         <div class="mission-label">Mission</div>
-        <h1>Complete missions, earn cash, grow</h1>
-        <p>Launch rockets, deploy revenue payloads, recover parts, and clean debris to build your space company.</p>
+        <h1>Complete missions, earn cash, research</h1>
+        <p>Launch rockets, deploy revenue payloads, complete research, and unlock the road to exploration.</p>
         <div id="missionResult" class="mission-result">Orbit hold: 0.0s / 6.0s</div>
       </section>
 
