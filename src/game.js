@@ -1,4 +1,5 @@
 import { PHYSICS, PLANET, ROCKET } from "./config.js";
+import { STARTING_CASH, evaluateMissions, getMissionView, getNextMission, normalizeMissionState } from "./missions.js";
 import {
   activateNextStage,
   cloneRocket,
@@ -24,9 +25,11 @@ import {
 
 const WORLD_OBJECTS_STORAGE_KEY = "novaliftWorldObjects.v2";
 const LEGACY_WORLD_OBJECTS_STORAGE_KEY = "novaliftWorldObjects.v1";
-const COMPANY_STORAGE_KEY = "novaliftCompany.v1";
+const COMPANY_STORAGE_KEY = "novaliftCompany.v2";
+const LEGACY_COMPANY_STORAGE_KEY = "novaliftCompany.v1";
 const WORLD_OBJECT_SAVE_INTERVAL = 1.5;
 const RECOVERY_REFUND_RATE = 0.55;
+const CAREER_LAUNCHES_CHARGE_MONEY = true;
 const MAX_PERSISTENT_OBJECTS = 80;
 
 export class Game {
@@ -64,9 +67,41 @@ export class Game {
 
   setRocketTemplate(rocketTemplate) {
     this.persistActiveCommandVessel("new launch");
+    const launchCost = Number(rocketTemplate?.buildStats?.cost ?? 0);
+    this.chargeLaunchCost(launchCost);
     this.rocketTemplate = rocketTemplate;
     this.paused = false;
     this.reset();
+    this.company.lastMissionReward = 0;
+    this.company.lastLaunchCost = launchCost;
+    this.saveCompany();
+  }
+
+  canAffordLaunch(cost = 0) {
+    if (this.company.mode === "sandbox") return true;
+    if (!CAREER_LAUNCHES_CHARGE_MONEY) return true;
+    return (this.company.money ?? 0) >= cost;
+  }
+
+  chargeLaunchCost(cost = 0) {
+    const amount = Math.max(0, Math.round(cost));
+    this.company.lastLaunchCost = amount;
+    if (this.company.mode === "sandbox" || !CAREER_LAUNCHES_CHARGE_MONEY || amount <= 0) return 0;
+    this.company.money = Math.max(0, (this.company.money ?? 0) - amount);
+    this.company.totalLaunchCosts = (this.company.totalLaunchCosts ?? 0) + amount;
+    return amount;
+  }
+
+  setEconomyMode(mode) {
+    this.company.mode = mode === "sandbox" ? "sandbox" : "career";
+    if (this.company.mode === "career" && (this.company.money ?? 0) <= 0) {
+      this.company.money = STARTING_CASH;
+    }
+    this.saveCompany();
+  }
+
+  toggleEconomyMode() {
+    this.setEconomyMode(this.company.mode === "sandbox" ? "career" : "sandbox");
   }
 
   persistActiveCommandVessel(reason = "left flight") {
@@ -141,6 +176,7 @@ export class Game {
       fuelUsed: 0,
       recoveryRefund: 0,
       recoveryAwarded: false,
+      missionRewards: 0,
       tip: ""
     };
   }
@@ -162,6 +198,7 @@ export class Game {
     this.trimObjects();
     this.updateEconomy(dt);
     this.updateFlightStats();
+    this.updateMissions();
     this.stageMessageTimer = Math.max(0, this.stageMessageTimer - dt);
 
     this.saveTimer += dt;
@@ -203,6 +240,32 @@ export class Game {
       this.company.money += earned;
       this.company.totalRevenue += earned;
     }
+  }
+
+  updateMissions() {
+    const context = this.getMissionContext();
+    const { missionState, newlyCompleted } = evaluateMissions(context);
+    this.company.missions = missionState;
+
+    if (newlyCompleted.length) {
+      const reward = newlyCompleted.reduce((total, mission) => total + (mission.reward ?? 0), 0);
+      this.company.money += reward;
+      this.company.totalMissionRewards = (this.company.totalMissionRewards ?? 0) + reward;
+      this.company.lastMissionReward = reward;
+      if (this.flightStats) this.flightStats.missionRewards = (this.flightStats.missionRewards ?? 0) + reward;
+      this.stageMessage = newlyCompleted.map((mission) => `Mission complete: ${mission.title} +${formatMoney(mission.reward)}.`).join(" ");
+      this.stageMessageTimer = 9;
+      this.saveCompany();
+    }
+  }
+
+  getMissionContext() {
+    return {
+      rocket: this.rocket,
+      objects: this.objects,
+      company: this.company,
+      flightStats: this.flightStats
+    };
   }
 
   updateFlightStats() {
@@ -289,6 +352,7 @@ export class Game {
     this.stageMessage = `${object.name ?? "Object"} destroyed.`;
     this.stageMessageTimer = 6;
     this.trimObjects();
+    this.updateMissions();
     this.selectedObjectId = null;
     this.saveWorldObjects();
     this.saveCompany();
@@ -299,16 +363,25 @@ export class Game {
     try {
       const storage = globalThis.localStorage;
       if (!storage) return createDefaultCompany();
-      const raw = storage.getItem(COMPANY_STORAGE_KEY);
+      const raw = storage.getItem(COMPANY_STORAGE_KEY) ?? storage.getItem(LEGACY_COMPANY_STORAGE_KEY);
       if (!raw) return createDefaultCompany();
       const parsed = JSON.parse(raw);
+      const hasMode = typeof parsed.mode === "string";
+      const money = Number(parsed.money ?? STARTING_CASH);
       return {
         ...createDefaultCompany(),
         ...parsed,
-        money: Number(parsed.money ?? 0),
+        mode: hasMode && parsed.mode === "sandbox" ? "sandbox" : "career",
+        money: hasMode ? Math.max(money, 0) : Math.max(money, STARTING_CASH),
         totalRevenue: Number(parsed.totalRevenue ?? 0),
         totalRecovery: Number(parsed.totalRecovery ?? 0),
         totalDestroyed: Number(parsed.totalDestroyed ?? 0),
+        totalMissionRewards: Number(parsed.totalMissionRewards ?? 0),
+        totalLaunchCosts: Number(parsed.totalLaunchCosts ?? 0),
+        lastRecoveryRefund: Number(parsed.lastRecoveryRefund ?? 0),
+        lastMissionReward: Number(parsed.lastMissionReward ?? 0),
+        lastLaunchCost: Number(parsed.lastLaunchCost ?? 0),
+        missions: normalizeMissionState(parsed.missions),
         incomePerSecond: 0
       };
     } catch (error) {
@@ -322,11 +395,17 @@ export class Game {
       const storage = globalThis.localStorage;
       if (!storage) return;
       storage.setItem(COMPANY_STORAGE_KEY, JSON.stringify({
+        mode: this.company.mode,
         money: this.company.money,
         totalRevenue: this.company.totalRevenue,
         totalRecovery: this.company.totalRecovery,
         totalDestroyed: this.company.totalDestroyed,
-        lastRecoveryRefund: this.company.lastRecoveryRefund ?? 0
+        totalMissionRewards: this.company.totalMissionRewards ?? 0,
+        totalLaunchCosts: this.company.totalLaunchCosts ?? 0,
+        lastRecoveryRefund: this.company.lastRecoveryRefund ?? 0,
+        lastMissionReward: this.company.lastMissionReward ?? 0,
+        lastLaunchCost: this.company.lastLaunchCost ?? 0,
+        missions: normalizeMissionState(this.company.missions)
       }));
     } catch (error) {
       console.warn("NovaLift could not save company state.", error);
@@ -409,6 +488,8 @@ export class Game {
       debrisCount,
       objectCount: this.objects.length,
       company: { ...this.company },
+      missions: getMissionView(this.getMissionContext()),
+      nextMission: getNextMission(this.getMissionContext()),
       flightSummary: this.getFlightSummary(),
       selectedObject: this.getSelectedObjectInfo(),
       trackedObjects: this.getTrackedObjects(),
@@ -465,6 +546,9 @@ export class Game {
       maxSpeed: this.flightStats.maxSpeed,
       fuelUsed: this.flightStats.fuelUsed,
       recoveryRefund: this.flightStats.recoveryRefund ?? 0,
+      launchCost: this.company.lastLaunchCost ?? 0,
+      missionReward: this.flightStats.missionRewards ?? 0,
+      net: (this.flightStats.missionRewards ?? 0) + (this.flightStats.recoveryRefund ?? 0) - (this.company.mode === "sandbox" ? 0 : (this.company.lastLaunchCost ?? 0)),
       tip: this.flightStats.tip
     };
   }
@@ -499,6 +583,9 @@ export class Game {
       `Debris:        ${this.objects.filter((object) => object.kind === "debris").length}`,
       `Income:        ${formatMoney(this.company.incomePerSecond)}/sec`,
       `Cash:          ${formatMoney(this.company.money)}`,
+      `Mode:          ${this.company.mode}`,
+      `Mission rewards: ${formatMoney(this.company.totalMissionRewards ?? 0)}`,
+      `Launch costs:  ${formatMoney(this.company.totalLaunchCosts ?? 0)}`,
       `World objects: ${this.objects.length}`,
       `Selected:      ${this.selectedObjectId ?? "none"}`,
       `Stage log:\n${stageEvents}`,
@@ -509,12 +596,18 @@ export class Game {
 
 function createDefaultCompany() {
   return {
-    money: 0,
+    mode: "career",
+    money: STARTING_CASH,
     totalRevenue: 0,
     totalRecovery: 0,
     totalDestroyed: 0,
+    totalMissionRewards: 0,
+    totalLaunchCosts: 0,
     incomePerSecond: 0,
-    lastRecoveryRefund: 0
+    lastRecoveryRefund: 0,
+    lastMissionReward: 0,
+    lastLaunchCost: 0,
+    missions: normalizeMissionState()
   };
 }
 

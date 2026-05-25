@@ -790,6 +790,10 @@ export class Renderer {
 
     ctx.restore();
 
+    if (rocket.parachuteState === "deployed") {
+      this.drawWorldAlignedParachute(ctx, rocket, parts);
+    }
+
     if (rocket.crashed) {
       ctx.save();
       ctx.beginPath();
@@ -810,10 +814,6 @@ export class Renderer {
     ctx.lineWidth = lineWidth;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
-
-    if (rocket.parachuteState === "deployed") {
-      this.drawParachute(ctx, totalLength / 2 + 230, totalLength);
-    }
 
     if (thrusting) {
       this.drawEngineFlame(ctx, -totalLength / 2 - 22);
@@ -1044,25 +1044,72 @@ export class Renderer {
     ctx.stroke();
   }
 
-  drawParachute(ctx, noseX) {
+  drawWorldAlignedParachute(ctx, rocket, parts = null) {
+    const activeParts = Array.isArray(parts) && parts.length > 0 ? parts : [];
+    const totalLength = activeParts.length
+      ? activeParts.map((part) => getPartWorldLength(part)).reduce((total, length) => total + length, 0)
+      : 260;
+
+    const upAngle = Math.atan2(rocket.y - PLANET.y, rocket.x - PLANET.x);
+    const up = { x: Math.cos(upAngle), y: Math.sin(upAngle) };
+    const tangent = { x: -Math.sin(upAngle), y: Math.cos(upAngle) };
+    const heading = { x: Math.cos(rocket.angle ?? upAngle), y: Math.sin(rocket.angle ?? upAngle) };
+
+    const attachWorld = {
+      x: rocket.x + heading.x * (totalLength / 2 + 12),
+      y: rocket.y + heading.y * (totalLength / 2 + 12)
+    };
+    const canopyWorld = {
+      x: rocket.x + up.x * (totalLength / 2 + 285),
+      y: rocket.y + up.y * (totalLength / 2 + 285)
+    };
+
+    const attach = this.worldToScreen(attachWorld.x, attachWorld.y);
+    const canopy = this.worldToScreen(canopyWorld.x, canopyWorld.y);
+    const scale = this.camera.scale;
+    const radius = 215 * scale;
+    const lineWidth = Math.max(1.2 * this.dpr, ROCKET_WORLD_LINE * scale);
+
+    const flatAnchors = [];
+    for (let i = -2; i <= 2; i += 1) {
+      flatAnchors.push({
+        x: canopy.x + tangent.x * i * 48 * scale,
+        y: canopy.y + tangent.y * i * 48 * scale
+      });
+    }
+
     ctx.save();
-    const canopyRadius = 215;
-    ctx.strokeStyle = "rgba(255,255,255,0.78)";
-    ctx.fillStyle = "rgba(249, 168, 212, 0.78)";
-    ctx.lineWidth = Math.max(ROCKET_WORLD_LINE, 1.4 / Math.max(this.camera.scale, 0.001));
+    ctx.lineWidth = lineWidth;
+    ctx.strokeStyle = "rgba(255,255,255,0.72)";
     ctx.beginPath();
-    ctx.arc(noseX, 0, canopyRadius, Math.PI, Math.PI * 2);
-    ctx.lineTo(noseX - canopyRadius, 0);
+    flatAnchors.forEach((anchor, index) => {
+      const spread = (index - 2) * 34 * scale;
+      ctx.moveTo(anchor.x, anchor.y);
+      ctx.lineTo(attach.x + tangent.x * spread * 0.16, attach.y + tangent.y * spread * 0.16);
+    });
+    ctx.stroke();
+
+    ctx.translate(canopy.x, canopy.y);
+    ctx.rotate(upAngle);
+    ctx.fillStyle = "rgba(249, 168, 212, 0.8)";
+    ctx.strokeStyle = "rgba(255,255,255,0.82)";
+    ctx.lineWidth = lineWidth;
+    ctx.shadowColor = "rgba(249, 168, 212, 0.28)";
+    ctx.shadowBlur = 18 * this.dpr;
+    ctx.beginPath();
+    // Local +X points opposite gravity, so this cap always opens away from the planet.
+    ctx.arc(0, 0, radius, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(0, -radius);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    ctx.strokeStyle = "rgba(255,255,255,0.72)";
+
+    ctx.globalAlpha = 0.28;
+    ctx.strokeStyle = "rgba(255,255,255,0.9)";
     ctx.beginPath();
-    for (let i = -2; i <= 2; i += 1) {
-      const anchorY = i * 46;
-      ctx.moveTo(noseX + i * 48, 0);
-      ctx.lineTo(noseX - 250, anchorY * 0.28);
-    }
+    ctx.arc(0, 0, radius * 0.64, -Math.PI / 2, Math.PI / 2);
+    ctx.moveTo(0, -radius);
+    ctx.quadraticCurveTo(radius * 0.24, 0, 0, radius);
     ctx.stroke();
     ctx.restore();
   }

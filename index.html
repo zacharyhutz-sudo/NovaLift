@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050816" />
-    <title>NovaLift v0.4.2</title>
+    <title>NovaLift v0.5.1</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -15,7 +15,7 @@
         <section id="hud" class="compact-hud" aria-label="Flight status">
           <div class="brand-chip">
             <strong>NovaLift</strong>
-            <span>v0.4.2</span>
+            <span>v0.5.1</span>
           </div>
           <div class="hud-stats">
             <div class="hud-stat"><span>Alt</span><strong id="altitude">0 m</strong></div>
@@ -46,9 +46,19 @@
           <div class="budget-chip">
             <span>Cash</span>
             <strong id="builderCash">$0</strong>
-            <small>Builds free</small>
+            <small id="builderModeLabel">Career Mode</small>
+            <button id="toggleEconomyMode" type="button" class="mini-button budget-mode-button">Toggle Mode</button>
           </div>
         </div>
+
+
+        <section class="builder-card mission-board-card" aria-label="Company missions">
+          <div class="builder-section-title">
+            <h2>Mission Board</h2>
+            <span id="missionBoardSummary">Career progression</span>
+          </div>
+          <div id="missionBoard" class="mission-board"></div>
+        </section>
 
         <section class="builder-card builder-preview-card" aria-label="Live rocket preview">
           <div class="builder-section-title">
@@ -108,8 +118,8 @@
 
       <section id="mission" class="panel mission-panel">
         <div class="mission-label">Mission</div>
-        <h1>Reach orbit, stage, recover</h1>
-        <p>Launch, tilt sideways, deploy payloads in orbit, then test parachutes and landing legs.</p>
+        <h1>Complete missions, earn cash, grow</h1>
+        <p>Launch rockets, deploy revenue payloads, recover parts, and clean debris to build your space company.</p>
         <div id="missionResult" class="mission-result">Orbit hold: 0.0s / 6.0s</div>
       </section>
 

@@ -1,38 +1,53 @@
-# NovaLift v0.4.2 — Visual Polish Pass
+# NovaLift v0.5.1 — Engine/Fuel Tuning + Gravity-Aligned Parachutes
 
-NovaLift is a portrait/mobile-first 2D rocket sandbox prototype. This version keeps the game lightweight while improving the look and feel with procedural Canvas visuals, cleaner UI styling, better builder presentation, and more readable flight effects.
+NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version turns the polished flight sandbox into a more game-like progression loop with starter missions, launch costs, rewards, and the existing payload-income economy.
 
-## What is new in v0.4.2
+## What is new in v0.5.1
 
-- Added a richer procedural space background with parallax stars and subtle nebula glows.
-- Improved Homeworld visuals with atmosphere glow, gradient ocean, land shapes, cloud wisps, and a simple day/night shadow.
-- Improved the launch pad with a small tower/stand treatment.
-- Color-coded the predicted trajectory:
-  - red/pink for impact paths
-  - yellow for suborbital paths
-  - green for orbit-like paths
-  - purple for escape-like paths
-- Added lightweight atmospheric speed streaks during fast flight in air.
-- Improved engine flame glow and exhaust puffs without image assets.
-- Added stronger selection glow/pulse for tracked orbital objects.
-- Added online payload glow for satellites/data centers that are generating revenue.
-- Improved the builder preview with a hangar-style background and launch stand.
-- Added lightweight CSS part icons to the builder catalog.
-- Polished HUD/cards/buttons with a more premium dark space UI style.
-- Added a subtle income pulse when payload revenue is active.
+### Balance/physics patch
 
-## Existing v0.4 features retained
+- Reduced all engine thrust values by 25%.
+- Reduced fuel tank capacities by 50%.
+- Parachute canopies now render opposite the local gravity vector, so they deploy away from the planet instead of simply pointing screen-up or rocket-up.
 
+
+- Added a **Mission Board** to the builder.
+- Added starter progression missions:
+  - First Launch
+  - Reach the Sky
+  - Touch Space
+  - First Orbit
+  - Deploy Satellite
+  - Deploy Data Center
+  - Recover Rocket
+  - Clean Orbit
+- Added mission rewards that pay company cash when completed.
+- Added **Career Mode** with a $25,000 starting budget.
+- Added a **Sandbox Mode** toggle that keeps unlimited launches for testing.
+- Rocket launches now subtract the rocket's part cost in Career Mode.
+- The launch button now shows the career launch cost.
+- Builder validation warns when the company cannot afford the current rocket.
+- Flight messages now call out completed missions and rewards.
+- Flight summaries include launch cost, mission reward, recovery refund, and net result.
+- Existing local saves migrate to the new company format with career cash available.
+
+## Existing features retained
+
+- Mobile-first vertical flight view.
+- Rocket construction from a vertical stack of parts.
+- Live builder preview.
+- Stage preview text in flight.
+- Staging, decouplers, satellites, data centers, parachutes, and landing legs.
+- Basic atmosphere, drag, parachute recovery, and per-part hitboxes.
 - Satellites and orbital data centers generate revenue over time when deployed into stable orbit.
 - The **Track** button toggles an orbit tracker panel for command pods, satellites, data centers, and debris.
-- Company cash and income-per-second are shown in the HUD.
-- Rocket construction is still free/unlimited for prototyping, but part costs matter for recovery value.
 - Successfully landing/recovering the active rocket refunds a portion of remaining active part costs.
 - Separated stages become tracked debris objects instead of vanishing.
-- Debris continues on its course under gravity and atmosphere until it stays in orbit or crashes into the planet.
+- Debris continues under gravity and atmosphere until it stays in orbit or crashes into the planet.
 - Tap/click a deployed object in flight to inspect it.
 - Tap orbital debris and choose **Explode Debris** to remove it.
-- Persistent world objects and company cash save to `localStorage`.
+- Persistent world objects and company state save to `localStorage`.
+- Procedural starfield, improved Homeworld visuals, color-coded trajectory lines, and lightweight effects.
 
 ## Controls
 
@@ -60,14 +75,16 @@ Mobile:
 
 Recommended quick tests:
 
-1. Build or use the Starter button, launch, and confirm the new planet/background visuals render smoothly.
-2. Thrust in atmosphere and confirm flame/exhaust visuals appear.
-3. Fly fast through atmosphere and confirm subtle speed streaks appear.
-4. Confirm trajectory color changes for crash/suborbital/orbit-like paths.
-5. Deploy a satellite/data center in stable orbit and confirm it glows when online.
-6. Open **Track** and select an object; confirm the selection ring pulses.
-7. Confirm company income increases and the income display pulses when revenue is active.
-8. Confirm the builder catalog icons and preview stand render correctly on mobile.
+1. Open the builder and confirm the Mission Board shows starter missions.
+2. Confirm Career Mode starts with $25,000 and launch button shows the rocket cost.
+3. Toggle Sandbox Mode and confirm the cash display shows infinite/unlimited budget behavior.
+4. Build a valid rocket, launch, and confirm the launch cost is deducted in Career Mode.
+5. Lift off and confirm **First Launch** pays its reward.
+6. Reach altitude milestones and confirm mission rewards appear in the flight message.
+7. Deploy an online satellite/data center and confirm recurring income plus mission reward behavior.
+8. Recover a rocket and confirm both part refund and recovery mission reward behavior.
+9. Explode orbital debris and confirm the Clean Orbit mission can complete.
+10. Refresh the page and confirm company cash, completed missions, and orbital objects persist.
 
 ## Running locally
 
