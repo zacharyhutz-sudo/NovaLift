@@ -1,5 +1,5 @@
 import { PHYSICS, PLANET, ROCKET } from "./config.js";
-import { STARTING_CASH, evaluateMissions, getMissionView, getNextMission, normalizeMissionState } from "./missions.js";
+import { MISSIONS, STARTING_CASH, evaluateMissions, getMissionView, getNextMission, normalizeMissionState } from "./missions.js";
 import {
   STARTING_RESEARCH,
   getResearchView,
@@ -453,7 +453,7 @@ export class Game {
       const hasMode = typeof parsed.mode === "string";
       const isLegacyEconomy = parsed.economyScaleVersion !== ECONOMY_SCALE_VERSION;
       const money = scaleLegacyMoney(Number(parsed.money ?? STARTING_CASH), isLegacyEconomy);
-      return {
+      const company = {
         ...createDefaultCompany(),
         ...parsed,
         economyScaleVersion: ECONOMY_SCALE_VERSION,
@@ -476,6 +476,7 @@ export class Game {
         incomePerSecond: 0,
         researchPerSecond: 0
       };
+      return backfillMissionResearchRewards(company);
     } catch (error) {
       console.warn("NovaLift could not load company state.", error);
       return createDefaultCompany();
@@ -697,6 +698,25 @@ export class Game {
       `Debug vectors: green = velocity, yellow = gravity`
     ].join("\n");
   }
+}
+
+function backfillMissionResearchRewards(company = {}) {
+  const missions = normalizeMissionState(company.missions);
+  const expectedMissionResearch = MISSIONS.reduce((total, mission) => {
+    const state = missions[mission.id];
+    return state?.completed ? total + Number(mission.researchReward ?? 0) : total;
+  }, 0);
+  const currentTotalResearch = Number(company.totalResearchEarned ?? 0);
+  const missingResearch = Math.max(0, expectedMissionResearch - currentTotalResearch);
+
+  if (missingResearch > 0) {
+    company.researchPoints = Number(company.researchPoints ?? 0) + missingResearch;
+    company.totalResearchEarned = currentTotalResearch + missingResearch;
+    company.lastResearchReward = missingResearch;
+  }
+
+  company.missions = missions;
+  return company;
 }
 
 function createDefaultCompany() {

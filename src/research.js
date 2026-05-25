@@ -5,8 +5,8 @@ export const RESEARCH_TREE = [
     id: "orbital_telemetry",
     category: "Orbital Infrastructure",
     name: "Orbital Telemetry",
-    cost: 25,
-    description: "Turns online satellites and data centers into a steady source of research data.",
+    cost: 20,
+    description: "Turns online satellites and data centers into a steady source of research data. Priced as the first early-game research purchase so the opening mission rewards cannot dead-end progression.",
     unlockText: "Payloads begin producing Research/sec."
   },
   {

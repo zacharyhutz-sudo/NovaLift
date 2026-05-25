@@ -1,9 +1,15 @@
-# NovaLift v0.6.2 — Compact Flight UI + Dedicated Research Lab
+# NovaLift v0.6.3 — Research Pacing Fix
 
-NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version improves the mobile launch viewport, moves Research into a dedicated page, and makes it much clearer how players earn and spend Research.
+NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version fixes the early Research pacing so Orbital Telemetry cannot become a dead-end gate.
 
 
-## What is new in v0.6.2
+## What is new in v0.6.3
+
+- Reduced **Orbital Telemetry** from 25R to 20R so it is reachable from the first small set of mission Research rewards.
+- Added a mission-research backfill on save load: if a player completed missions before the current Research rewards were balanced, the game grants any missing Research they should have earned.
+- This keeps existing saves from getting stuck short of the first passive-R/sec unlock.
+
+## What was new in v0.6.2
 
 - Reduced launch-view congestion on mobile by shrinking bottom flight controls, stage preview, fuel bars, and the top HUD.
 - Removed the keyboard help text from the bottom of the flight view to free up more viewport space.
