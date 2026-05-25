@@ -312,7 +312,7 @@ function renderPartsCatalog() {
     (part) => `
       <article class="part-card ${part.id === selectedPartId ? "selected" : ""}" data-select-part="${escapeHtml(part.id)}" style="--part-color: ${escapeHtml(part.color)}">
         <div class="part-card-top">
-          <div class="part-swatch" aria-hidden="true"></div>
+          <div class="part-icon ${getPartIconClass(part)}" aria-hidden="true"><span></span></div>
           <div>
             <h3>${escapeHtml(part.name)}</h3>
             <p>${getPartTypeLabel(part.type)} · ${formatMoney(part.cost)}</p>
@@ -395,6 +395,7 @@ function updateHud(data) {
   fpsEl.textContent = `${Math.round(data.fps)}`;
   if (companyCashHudEl) companyCashHudEl.textContent = formatMoney(data.company?.money ?? 0);
   if (companyIncomeHudEl) companyIncomeHudEl.textContent = `${formatMoney(data.company?.incomePerSecond ?? 0)}/s`;
+  gameShellEl.classList.toggle("income-active", (data.company?.incomePerSecond ?? 0) > 0);
   if (builderCashEl) builderCashEl.textContent = formatMoney(data.company?.money ?? 0);
   if (nextStageActionEl) nextStageActionEl.textContent = screenMode === "builder" ? "Build a rocket first" : data.nextStageDescription;
   updateObjectInspector(data.selectedObject);
@@ -526,6 +527,12 @@ function compactStatus(status) {
   ]);
 
   return labels.get(status) ?? status;
+}
+
+
+function getPartIconClass(part) {
+  const subtype = part.id?.includes("satellite") ? " satellite" : part.id?.includes("data_center") ? " data-center" : "";
+  return `type-${part.type}${subtype}`;
 }
 
 function getDefaultStageForPart(part) {

@@ -1,20 +1,36 @@
-# NovaLift v0.4.1 — Payload Income Fix + Orbit Tracker
+# NovaLift v0.4.2 — Visual Polish Pass
 
-NovaLift is a portrait/mobile-first 2D rocket sandbox prototype. This version fixes payload classification for data centers/satellites and adds a toggleable orbit tracker for active command pods, payloads, and debris.
+NovaLift is a portrait/mobile-first 2D rocket sandbox prototype. This version keeps the game lightweight while improving the look and feel with procedural Canvas visuals, cleaner UI styling, better builder presentation, and more readable flight effects.
 
-## What is new in v0.4.1
+## What is new in v0.4.2
 
-- Satellites and orbital data centers now generate revenue over time when deployed into stable orbit.
-- Data centers/satellites are normalized as income-producing payloads instead of being mistaken for debris.
-- Added a **Track** button in flight to toggle an orbit tracker panel.
+- Added a richer procedural space background with parallax stars and subtle nebula glows.
+- Improved Homeworld visuals with atmosphere glow, gradient ocean, land shapes, cloud wisps, and a simple day/night shadow.
+- Improved the launch pad with a small tower/stand treatment.
+- Color-coded the predicted trajectory:
+  - red/pink for impact paths
+  - yellow for suborbital paths
+  - green for orbit-like paths
+  - purple for escape-like paths
+- Added lightweight atmospheric speed streaks during fast flight in air.
+- Improved engine flame glow and exhaust puffs without image assets.
+- Added stronger selection glow/pulse for tracked orbital objects.
+- Added online payload glow for satellites/data centers that are generating revenue.
+- Improved the builder preview with a hangar-style background and launch stand.
+- Added lightweight CSS part icons to the builder catalog.
+- Polished HUD/cards/buttons with a more premium dark space UI style.
+- Added a subtle income pulse when payload revenue is active.
+
+## Existing v0.4 features retained
+
+- Satellites and orbital data centers generate revenue over time when deployed into stable orbit.
+- The **Track** button toggles an orbit tracker panel for command pods, satellites, data centers, and debris.
 - Company cash and income-per-second are shown in the HUD.
-- Rocket construction is still free/unlimited for prototyping, but part costs now matter for recovery value.
-- Successfully landing/recovering the active rocket refunds a portion of the remaining active part costs.
+- Rocket construction is still free/unlimited for prototyping, but part costs matter for recovery value.
+- Successfully landing/recovering the active rocket refunds a portion of remaining active part costs.
 - Separated stages become tracked debris objects instead of vanishing.
 - Debris continues on its course under gravity and atmosphere until it stays in orbit or crashes into the planet.
-- Persistent world objects now include payloads and debris, not only satellites/data centers.
 - Tap/click a deployed object in flight to inspect it.
-- The orbit tracker lists active command pods, satellites, data centers, and debris with status, altitude, speed, and income.
 - Tap orbital debris and choose **Explode Debris** to remove it.
 - Persistent world objects and company cash save to `localStorage`.
 
@@ -44,16 +60,14 @@ Mobile:
 
 Recommended quick tests:
 
-1. Use the Starter button, launch, and stage once to create debris.
-2. Confirm the separated stage continues moving instead of disappearing.
-3. Tap the debris object and confirm the object inspector appears.
-4. Tap **Explode Debris** and confirm the debris is removed.
-5. Deploy a satellite/data center in stable orbit and confirm it appears as a Payload/Data Center/Satellite, not debris.
-6. Open **Track** and confirm active command pods, satellites, data centers, and debris are listed.
-7. Confirm company income increases when payloads are online.
-8. Wait several seconds and confirm company cash increases over time.
-9. Recover a rocket with parachute/legs and confirm a refund appears in the flight summary.
-10. Refresh the page and confirm saved payloads/debris/company cash remain.
+1. Build or use the Starter button, launch, and confirm the new planet/background visuals render smoothly.
+2. Thrust in atmosphere and confirm flame/exhaust visuals appear.
+3. Fly fast through atmosphere and confirm subtle speed streaks appear.
+4. Confirm trajectory color changes for crash/suborbital/orbit-like paths.
+5. Deploy a satellite/data center in stable orbit and confirm it glows when online.
+6. Open **Track** and select an object; confirm the selection ring pulses.
+7. Confirm company income increases and the income display pulses when revenue is active.
+8. Confirm the builder catalog icons and preview stand render correctly on mobile.
 
 ## Running locally
 

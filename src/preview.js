@@ -31,6 +31,7 @@ export class BuilderPreview {
     let y = height * 0.5 - (totalLength * scale) / 2;
 
     this.drawCenterLine(ctx, centerX, y, totalLength * scale);
+    this.drawPreviewStand(ctx, centerX, y + totalLength * scale, Math.max(maxPartWidth * scale, 44 * this.dpr));
 
     activeParts.forEach((part, index) => {
       const length = lengths[index] * scale;
@@ -55,14 +56,20 @@ export class BuilderPreview {
   }
 
   drawBackground(ctx, width, height) {
-    const gradient = ctx.createRadialGradient(width / 2, height * 0.14, 0, width / 2, height / 2, height * 0.72);
-    gradient.addColorStop(0, "rgba(56,189,248,0.18)");
-    gradient.addColorStop(0.45, "rgba(15,23,42,0.18)");
-    gradient.addColorStop(1, "rgba(2,6,23,0.02)");
+    const gradient = ctx.createRadialGradient(width / 2, height * 0.1, 0, width / 2, height / 2, height * 0.82);
+    gradient.addColorStop(0, "rgba(56,189,248,0.2)");
+    gradient.addColorStop(0.42, "rgba(15,23,42,0.46)");
+    gradient.addColorStop(1, "rgba(2,6,23,0.96)");
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
 
-    ctx.strokeStyle = "rgba(255,255,255,0.04)";
+    const floor = ctx.createLinearGradient(0, height * 0.72, 0, height);
+    floor.addColorStop(0, "rgba(15,23,42,0)");
+    floor.addColorStop(1, "rgba(14,116,144,0.16)");
+    ctx.fillStyle = floor;
+    ctx.fillRect(0, height * 0.58, width, height * 0.42);
+
+    ctx.strokeStyle = "rgba(125,211,252,0.055)";
     ctx.lineWidth = 1 * this.dpr;
     const gap = 28 * this.dpr;
     for (let x = gap; x < width; x += gap) {
@@ -77,6 +84,38 @@ export class BuilderPreview {
       ctx.lineTo(width, y);
       ctx.stroke();
     }
+
+    ctx.strokeStyle = "rgba(255,255,255,0.05)";
+    ctx.lineWidth = 2 * this.dpr;
+    ctx.beginPath();
+    ctx.moveTo(width * 0.16, height);
+    ctx.lineTo(width * 0.38, height * 0.64);
+    ctx.lineTo(width * 0.62, height * 0.64);
+    ctx.lineTo(width * 0.84, height);
+    ctx.stroke();
+  }
+
+
+  drawPreviewStand(ctx, centerX, baseY, width) {
+    ctx.save();
+    const padWidth = Math.max(width * 2.2, 98 * this.dpr);
+    ctx.fillStyle = "rgba(15,23,42,0.86)";
+    ctx.strokeStyle = "rgba(125,211,252,0.22)";
+    ctx.lineWidth = Math.max(1, 1.5 * this.dpr);
+    roundRect(ctx, centerX - padWidth / 2, baseY + 12 * this.dpr, padWidth, 14 * this.dpr, 6 * this.dpr);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(226,232,240,0.2)";
+    ctx.beginPath();
+    ctx.moveTo(centerX + padWidth * 0.48, baseY + 12 * this.dpr);
+    ctx.lineTo(centerX + padWidth * 0.48, baseY - 110 * this.dpr);
+    ctx.moveTo(centerX + padWidth * 0.48, baseY - 96 * this.dpr);
+    ctx.lineTo(centerX + width * 0.7, baseY - 76 * this.dpr);
+    ctx.moveTo(centerX + padWidth * 0.48, baseY - 54 * this.dpr);
+    ctx.lineTo(centerX + width * 0.66, baseY - 42 * this.dpr);
+    ctx.stroke();
+    ctx.restore();
   }
 
   drawCenterLine(ctx, centerX, top, height) {

@@ -1,4 +1,4 @@
-import { PLANET, RENDER } from "./config.js";
+import { PHYSICS, PLANET, RENDER } from "./config.js";
 import { getGravityVector, predictTrajectory } from "./physics.js";
 import { getPartWorldLength, getPartWorldWidth, ROCKET_WORLD_LINE } from "./dimensions.js";
 
@@ -9,11 +9,15 @@ function makeStars(count) {
     return (seed - 1) / 2147483646;
   };
 
-  return Array.from({ length: count }, () => ({
+  return Array.from({ length: count }, (_, index) => ({
     x: random(),
     y: random(),
-    radius: 0.45 + random() * 1.35,
-    alpha: 0.28 + random() * 0.62
+    radius: 0.42 + random() * 1.65,
+    alpha: 0.24 + random() * 0.66,
+    depth: 0.16 + random() * 0.84,
+    twinkle: 0.6 + random() * 2.2,
+    phase: random() * Math.PI * 2,
+    tint: index % 9 === 0 ? "#bfdbfe" : index % 13 === 0 ? "#ddd6fe" : "#ffffff"
   }));
 }
 
@@ -367,42 +371,86 @@ export class Renderer {
   }
 
   drawBackground(ctx) {
-    const gradient = ctx.createRadialGradient(
+    const base = ctx.createRadialGradient(
       this.width * 0.5,
-      this.height * 0.42,
+      this.height * 0.34,
       0,
       this.width * 0.5,
-      this.height * 0.5,
-      Math.max(this.width, this.height) * 0.72
+      this.height * 0.55,
+      Math.max(this.width, this.height) * 0.78
     );
-    gradient.addColorStop(0, "#172554");
-    gradient.addColorStop(0.42, "#050816");
-    gradient.addColorStop(1, "#020617");
-    ctx.fillStyle = gradient;
+    base.addColorStop(0, "#172554");
+    base.addColorStop(0.38, "#071126");
+    base.addColorStop(0.76, "#030712");
+    base.addColorStop(1, "#01040d");
+    ctx.fillStyle = base;
     ctx.fillRect(0, 0, this.width, this.height);
 
+    this.drawNebulaGlow(ctx, this.width * 0.12, this.height * 0.22, this.width * 0.72, "rgba(124, 58, 237, 0.16)");
+    this.drawNebulaGlow(ctx, this.width * 0.9, this.height * 0.08, this.width * 0.58, "rgba(14, 165, 233, 0.13)");
+    this.drawNebulaGlow(ctx, this.width * 0.72, this.height * 0.78, this.width * 0.54, "rgba(45, 212, 191, 0.08)");
+
+    const time = performance.now() * 0.001;
+    const parallaxX = this.camera.x * this.camera.scale * 0.018;
+    const parallaxY = this.camera.y * this.camera.scale * 0.018;
+
     for (const star of this.stars) {
+      const sx = wrap(star.x * this.width - parallaxX * star.depth, this.width);
+      const sy = wrap(star.y * this.height - parallaxY * star.depth, this.height);
+      const twinkle = 0.82 + Math.sin(time * star.twinkle + star.phase) * 0.18;
       ctx.beginPath();
-      ctx.globalAlpha = star.alpha;
-      ctx.fillStyle = "#ffffff";
-      ctx.arc(star.x * this.width, star.y * this.height, star.radius * this.dpr, 0, Math.PI * 2);
+      ctx.globalAlpha = star.alpha * twinkle;
+      ctx.fillStyle = star.tint;
+      ctx.arc(sx, sy, star.radius * this.dpr * (0.75 + star.depth * 0.55), 0, Math.PI * 2);
       ctx.fill();
+
+      if (star.depth > 0.74 && star.radius > 1.15) {
+        ctx.globalAlpha = star.alpha * 0.18;
+        ctx.beginPath();
+        ctx.arc(sx, sy, star.radius * this.dpr * 3.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     ctx.globalAlpha = 1;
+  }
+
+  drawNebulaGlow(ctx, x, y, radius, color) {
+    const glow = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    glow.addColorStop(0, color);
+    glow.addColorStop(0.42, color.replace(/0\.\d+\)/, "0.045)"));
+    glow.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, this.width, this.height);
   }
 
   drawPlanet(ctx, planet) {
     const center = this.worldToScreen(planet.x, planet.y);
     const radius = planet.radius * this.camera.scale;
     const atmosphereRadius = (planet.radius + planet.atmosphereHeight) * this.camera.scale;
+    if (radius <= 0) return;
 
+    const glow = ctx.createRadialGradient(center.x, center.y, radius * 0.92, center.x, center.y, atmosphereRadius);
+    glow.addColorStop(0, "rgba(125, 211, 252, 0.22)");
+    glow.addColorStop(0.55, planet.atmosphereColor ?? "rgba(125, 211, 252, 0.12)");
+    glow.addColorStop(1, "rgba(125, 211, 252, 0)");
+    ctx.fillStyle = glow;
     ctx.beginPath();
-    ctx.fillStyle = planet.atmosphereColor;
     ctx.arc(center.x, center.y, atmosphereRadius, 0, Math.PI * 2);
     ctx.fill();
 
+    const ocean = ctx.createRadialGradient(
+      center.x - radius * 0.35,
+      center.y - radius * 0.42,
+      radius * 0.12,
+      center.x,
+      center.y,
+      radius * 1.12
+    );
+    ocean.addColorStop(0, "#38bdf8");
+    ocean.addColorStop(0.36, planet.color);
+    ocean.addColorStop(1, "#0f2f87");
+    ctx.fillStyle = ocean;
     ctx.beginPath();
-    ctx.fillStyle = planet.color;
     ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
     ctx.fill();
 
@@ -410,39 +458,88 @@ export class Renderer {
     ctx.beginPath();
     ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
     ctx.clip();
+
     ctx.fillStyle = planet.landColor;
-    for (let i = 0; i < 9; i++) {
-      const angle = i * 0.8;
-      const landX = center.x + Math.cos(angle) * radius * 0.48;
-      const landY = center.y + Math.sin(angle * 1.7) * radius * 0.43;
+    for (let i = 0; i < 13; i += 1) {
+      const angle = i * 0.74 + 0.35;
+      const landX = center.x + Math.cos(angle * 1.13) * radius * (0.18 + (i % 4) * 0.1);
+      const landY = center.y + Math.sin(angle * 1.71) * radius * (0.16 + (i % 5) * 0.07);
       ctx.beginPath();
-      ctx.ellipse(landX, landY, radius * 0.22, radius * 0.08, angle, 0, Math.PI * 2);
+      ctx.ellipse(landX, landY, radius * (0.12 + (i % 3) * 0.035), radius * (0.035 + (i % 4) * 0.016), angle, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.lineWidth = Math.max(1, radius * 0.004);
+    for (let i = 0; i < 7; i += 1) {
+      const angle = -0.65 + i * 0.22;
+      ctx.beginPath();
+      ctx.ellipse(
+        center.x + Math.cos(i * 1.4) * radius * 0.2,
+        center.y + Math.sin(i * 1.1) * radius * 0.34,
+        radius * (0.28 + (i % 2) * 0.08),
+        radius * 0.025,
+        angle,
+        0,
+        Math.PI * 2
+      );
+      ctx.stroke();
+    }
+
+    const shadow = ctx.createLinearGradient(center.x - radius * 0.65, center.y - radius * 0.2, center.x + radius * 0.86, center.y + radius * 0.32);
+    shadow.addColorStop(0, "rgba(255,255,255,0.07)");
+    shadow.addColorStop(0.46, "rgba(255,255,255,0)");
+    shadow.addColorStop(0.78, "rgba(2,6,23,0.18)");
+    shadow.addColorStop(1, "rgba(2,6,23,0.52)");
+    ctx.fillStyle = shadow;
+    ctx.fillRect(center.x - radius, center.y - radius, radius * 2, radius * 2);
     ctx.restore();
 
     ctx.beginPath();
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.16)";
-    ctx.lineWidth = 2 * this.dpr;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.20)";
+    ctx.lineWidth = Math.max(1, 2 * this.dpr);
     ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(125, 211, 252, 0.22)";
+    ctx.lineWidth = Math.max(1, 1.2 * this.dpr);
+    ctx.arc(center.x, center.y, radius + Math.max(2, 6 * this.dpr), 0, Math.PI * 2);
     ctx.stroke();
   }
 
   drawLaunchPad(ctx, planet) {
     const surface = this.worldToScreen(0, -planet.radius);
     const scale = this.camera.scale;
+    if (scale <= 0) return;
 
     ctx.save();
     ctx.translate(surface.x, surface.y);
-    ctx.strokeStyle = "rgba(255,255,255,0.35)";
     ctx.lineWidth = Math.max(1, 2 * this.dpr);
+    ctx.fillStyle = "rgba(15, 23, 42, 0.82)";
+    ctx.strokeStyle = "rgba(226,232,240,0.46)";
+    roundRect(ctx, -72 * scale, -10 * scale, 144 * scale, 18 * scale, 6 * scale);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(125,211,252,0.42)";
     ctx.beginPath();
-    ctx.moveTo(-32 * scale, 0);
-    ctx.lineTo(32 * scale, 0);
-    ctx.moveTo(-22 * scale, 0);
-    ctx.lineTo(-10 * scale, 13 * scale);
-    ctx.moveTo(22 * scale, 0);
-    ctx.lineTo(10 * scale, 13 * scale);
+    ctx.moveTo(-52 * scale, 8 * scale);
+    ctx.lineTo(-18 * scale, 50 * scale);
+    ctx.moveTo(52 * scale, 8 * scale);
+    ctx.lineTo(18 * scale, 50 * scale);
+    ctx.moveTo(-42 * scale, 28 * scale);
+    ctx.lineTo(42 * scale, 28 * scale);
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.beginPath();
+    ctx.moveTo(82 * scale, -4 * scale);
+    ctx.lineTo(82 * scale, -126 * scale);
+    ctx.moveTo(82 * scale, -126 * scale);
+    ctx.lineTo(38 * scale, -102 * scale);
+    ctx.moveTo(82 * scale, -92 * scale);
+    ctx.lineTo(42 * scale, -72 * scale);
     ctx.stroke();
     ctx.restore();
   }
@@ -450,11 +547,14 @@ export class Renderer {
   drawTrajectory(ctx, points) {
     if (points.length < 2) return;
 
+    const style = getTrajectoryStyle(points, PLANET);
     ctx.save();
-    ctx.strokeStyle = "rgba(125, 211, 252, 0.72)";
-    ctx.lineWidth = Math.max(1, 1.65 * this.dpr);
-    ctx.setLineDash([3 * this.dpr, 8 * this.dpr]);
+    ctx.strokeStyle = style.color;
+    ctx.lineWidth = Math.max(1, style.width * this.dpr);
+    ctx.setLineDash(style.dash.map((value) => value * this.dpr));
     ctx.lineCap = "round";
+    ctx.shadowColor = style.glow;
+    ctx.shadowBlur = 8 * this.dpr;
     ctx.beginPath();
     points.forEach((point, index) => {
       const screen = this.worldToScreen(point.x, point.y);
@@ -559,11 +659,14 @@ export class Renderer {
 
   drawObjectSelectionRing(ctx, object) {
     ctx.save();
+    const pulse = 1 + Math.sin(performance.now() / 260) * 0.06;
     ctx.strokeStyle = object.kind === "payload" ? "rgba(134, 239, 172, 0.95)" : "rgba(251, 191, 36, 0.95)";
     ctx.lineWidth = Math.max(ROCKET_WORLD_LINE, 2 / Math.max(this.camera.scale, 0.001));
     ctx.setLineDash([12, 10]);
+    ctx.shadowColor = object.kind === "payload" ? "rgba(134,239,172,0.72)" : "rgba(251,191,36,0.65)";
+    ctx.shadowBlur = 16 / Math.max(this.camera.scale, 0.001);
     ctx.beginPath();
-    ctx.arc(0, 0, Math.max(74, (object.collisionRadius ?? 12) * 1.6), 0, Math.PI * 2);
+    ctx.arc(0, 0, Math.max(74, (object.collisionRadius ?? 12) * 1.6) * pulse, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
   }
@@ -591,6 +694,15 @@ export class Renderer {
   drawDetachedPayload(ctx, object) {
     const online = object.online;
     const color = online ? "#86efac" : object.color ?? "#a78bfa";
+    if (online) {
+      ctx.save();
+      ctx.globalAlpha = 0.2 + Math.sin(performance.now() / 360) * 0.06;
+      ctx.fillStyle = "#86efac";
+      ctx.beginPath();
+      ctx.arc(0, 0, 132, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
     ctx.strokeStyle = "rgba(15, 23, 42, 0.85)";
     ctx.fillStyle = color;
 
@@ -628,9 +740,40 @@ export class Renderer {
     ctx.fill();
   }
 
+
+  drawAtmosphericStreaks(ctx, rocket) {
+    if (rocket.crashed || rocket.landed) return;
+    const density = rocket.lastDensity ?? 0;
+    const speed = Math.hypot(rocket.vx ?? 0, rocket.vy ?? 0);
+    if (density < 0.025 || speed < 135) return;
+
+    const screen = this.worldToScreen(rocket.x, rocket.y);
+    const travelAngle = Math.atan2(rocket.vy, rocket.vx);
+    const intensity = clamp((speed - 135) / 210, 0, 1) * clamp(density * 1.7, 0, 1);
+    const length = (58 + intensity * 120) * this.dpr;
+    const spread = (20 + intensity * 34) * this.dpr;
+
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineWidth = Math.max(1, (1.2 + intensity * 2.4) * this.dpr);
+    for (let i = -2; i <= 2; i += 1) {
+      const offset = i * spread * 0.42;
+      const nx = Math.cos(travelAngle + Math.PI / 2) * offset;
+      const ny = Math.sin(travelAngle + Math.PI / 2) * offset;
+      ctx.strokeStyle = `rgba(125, 211, 252, ${0.1 + intensity * (0.16 - Math.abs(i) * 0.018)})`;
+      ctx.beginPath();
+      ctx.moveTo(screen.x + nx, screen.y + ny);
+      ctx.lineTo(screen.x + nx - Math.cos(travelAngle) * length, screen.y + ny - Math.sin(travelAngle) * length);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   drawRocket(ctx, rocket, thrusting) {
     const screen = this.worldToScreen(rocket.x, rocket.y);
     const parts = Array.isArray(rocket.parts) && rocket.parts.length > 0 ? rocket.parts.filter((part) => part.active !== false) : null;
+
+    this.drawAtmosphericStreaks(ctx, rocket);
 
     ctx.save();
     ctx.translate(screen.x, screen.y);
@@ -951,9 +1094,13 @@ export class Renderer {
   }
 
   drawEngineFlame(ctx, tailX) {
-    const flameLength = 118 + Math.sin(performance.now() / 36) * 30;
+    const time = performance.now();
+    const flameLength = 118 + Math.sin(time / 36) * 30;
+    ctx.save();
+    ctx.shadowColor = "rgba(251, 146, 60, 0.68)";
+    ctx.shadowBlur = 30 / Math.max(this.camera.scale, 0.001);
     ctx.beginPath();
-    ctx.fillStyle = "rgba(251, 146, 60, 0.85)";
+    ctx.fillStyle = "rgba(251, 146, 60, 0.86)";
     ctx.moveTo(tailX, -35);
     ctx.lineTo(tailX - flameLength, 0);
     ctx.lineTo(tailX, 35);
@@ -961,14 +1108,56 @@ export class Renderer {
     ctx.fill();
 
     ctx.beginPath();
-    ctx.fillStyle = "rgba(254, 240, 138, 0.9)";
+    ctx.fillStyle = "rgba(254, 240, 138, 0.92)";
     ctx.moveTo(tailX, -19);
     ctx.lineTo(tailX - flameLength * 0.58, 0);
     ctx.lineTo(tailX, 19);
     ctx.closePath();
     ctx.fill();
+
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = "#fed7aa";
+    for (let i = 0; i < 5; i += 1) {
+      const drift = ((time / 18 + i * 43) % 150);
+      const y = Math.sin(time / 95 + i) * 18 + (i - 2) * 13;
+      ctx.beginPath();
+      ctx.arc(tailX - 28 - drift, y, 10 + i * 1.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
+}
+
+
+function getTrajectoryStyle(points, planet) {
+  const last = points[points.length - 1];
+  const altitude = Math.hypot(last.x - planet.x, last.y - planet.y) - planet.radius;
+  const distance = Math.hypot(last.x - planet.x, last.y - planet.y);
+  let angularTravel = 0;
+  let previous = Math.atan2(points[0].y - planet.y, points[0].x - planet.x);
+  for (let i = 1; i < points.length; i += 1) {
+    const angle = Math.atan2(points[i].y - planet.y, points[i].x - planet.x);
+    angularTravel += Math.abs(normalizeAngle(angle - previous));
+    previous = angle;
+  }
+
+  if (altitude <= 8) return { color: "rgba(251, 113, 133, 0.78)", glow: "rgba(251, 113, 133, 0.4)", width: 1.8, dash: [5, 7] };
+  if (distance > (planet.radius + planet.atmosphereHeight) * PHYSICS.trajectoryMaxDistanceMultiplier * 0.72) {
+    return { color: "rgba(196, 181, 253, 0.78)", glow: "rgba(167, 139, 250, 0.36)", width: 1.7, dash: [4, 9] };
+  }
+  if (angularTravel >= Math.PI * 1.65) return { color: "rgba(52, 211, 153, 0.82)", glow: "rgba(52, 211, 153, 0.38)", width: 1.8, dash: [4, 8] };
+  return { color: "rgba(251, 191, 36, 0.72)", glow: "rgba(251, 191, 36, 0.28)", width: 1.65, dash: [3, 8] };
+}
+
+function normalizeAngle(angle) {
+  while (angle > Math.PI) angle -= Math.PI * 2;
+  while (angle < -Math.PI) angle += Math.PI * 2;
+  return angle;
+}
+
+function wrap(value, max) {
+  return ((value % max) + max) % max;
 }
 
 function getPinchInfo(first, second) {
