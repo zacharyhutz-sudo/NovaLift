@@ -1,7 +1,7 @@
 {
   "name": "novalift",
-  "version": "0.6.1",
-  "description": "Vertical mobile-first 2D rocket company prototype with Research Lab progression, research-gated parts, exploration satellite foundations, and active-rocket camera tracking fixes.",
+  "version": "0.6.0",
+  "description": "Vertical mobile-first 2D rocket company prototype with Research Lab progression, research-gated parts, and exploration satellite foundations.",
   "type": "module",
   "private": true,
   "scripts": {

@@ -12,6 +12,7 @@ export const AVAILABLE_PARTS = [
     stageAction: "deployPayload",
     cost: 80000,
     incomeRate: 360,
+    researchRate: 0.28,
     dryMass: 2.2,
     fuelCapacity: 0,
     thrust: 0,
@@ -19,7 +20,7 @@ export const AVAILABLE_PARTS = [
     dragArea: 1.35,
     width: 1.35,
     color: "#a78bfa",
-    description: "A starter orbital payload. Stage it in orbit to detach it and generate recurring data-center revenue."
+    description: "A starter orbital payload. Stage it in orbit to detach it and generate recurring data-center revenue. After Orbital Telemetry research, it also produces research data."
   },
   {
     id: "satellite_basic",
@@ -29,6 +30,7 @@ export const AVAILABLE_PARTS = [
     stageAction: "deployPayload",
     cost: 44000,
     incomeRate: 140,
+    researchRate: 0.16,
     dryMass: 0.8,
     fuelCapacity: 0,
     thrust: 0,
@@ -36,7 +38,7 @@ export const AVAILABLE_PARTS = [
     dragArea: 0.85,
     width: 1.1,
     color: "#c4b5fd",
-    description: "A lighter detachable payload. It earns modest recurring revenue when deployed into stable orbit."
+    description: "A lighter detachable payload. It earns modest recurring revenue when deployed into stable orbit. After Orbital Telemetry research, it generates a small stream of research data."
   },
   {
     id: "nose_cone_basic",
@@ -133,6 +135,22 @@ export const AVAILABLE_PARTS = [
     description: "Balanced fuel storage with 25% more capacity for most early rockets."
   },
   {
+    id: "fuel_tank_composite",
+    name: "Composite Fuel Tank",
+    shortName: "Composite Tank",
+    type: "fuel",
+    requiresResearch: "composite_tanks",
+    cost: 52000,
+    dryMass: 0.92,
+    fuelCapacity: 625,
+    thrust: 0,
+    fuelUse: 0,
+    dragArea: 0.9,
+    width: 1.12,
+    color: "#67e8f9",
+    description: "Unlocked through Composite Tanks research. Holds significantly more fuel while staying lighter than a stack of smaller tanks."
+  },
+  {
     id: "decoupler_basic",
     name: "Basic Decoupler",
     shortName: "Decoupler",
@@ -147,6 +165,44 @@ export const AVAILABLE_PARTS = [
     width: 1.05,
     color: "#facc15",
     description: "Stage to drop this part and everything below it. Great for shedding empty tanks and engines."
+  },
+  {
+    id: "data_center_efficient",
+    name: "Efficient Data Center",
+    shortName: "Efficient DC",
+    type: "payload",
+    stageAction: "deployPayload",
+    requiresResearch: "cloud_processing",
+    cost: 160000,
+    incomeRate: 760,
+    researchRate: 0.55,
+    dryMass: 2.8,
+    fuelCapacity: 0,
+    thrust: 0,
+    fuelUse: 0,
+    dragArea: 1.45,
+    width: 1.42,
+    color: "#8b5cf6",
+    description: "Unlocked through Cloud Processing research. A better orbital data center with stronger income and research output."
+  },
+  {
+    id: "exploration_satellite_basic",
+    name: "Exploration Satellite",
+    shortName: "Explorer Sat",
+    type: "payload",
+    stageAction: "deployPayload",
+    requiresResearch: "orbital_surveying",
+    cost: 180000,
+    incomeRate: 80,
+    researchRate: 0.9,
+    dryMass: 1.15,
+    fuelCapacity: 0,
+    thrust: 0,
+    fuelUse: 0,
+    dragArea: 0.95,
+    width: 1.18,
+    color: "#22d3ee",
+    description: "Unlocked through Orbital Surveying research. This is the first planet-discovery payload and will power the next exploration milestone."
   },
   {
     id: "engine_vacuum",
@@ -192,6 +248,38 @@ export const AVAILABLE_PARTS = [
     width: 1.25,
     color: "#fb923c",
     description: "More thrust for heavy payloads, but burns fuel quickly."
+  },
+  {
+    id: "engine_skyburner",
+    name: "Skyburner Engine",
+    shortName: "Skyburner",
+    type: "engine",
+    requiresResearch: "vacuum_engine_design",
+    cost: 98000,
+    dryMass: 1.18,
+    fuelCapacity: 0,
+    thrust: 186,
+    fuelUse: 6.7,
+    dragArea: 0.72,
+    width: 1.04,
+    color: "#f59e0b",
+    description: "Unlocked through Vacuum Engine Design research. Efficient upper-stage thrust for cleaner circularization burns."
+  },
+  {
+    id: "engine_titan",
+    name: "Titan Engine",
+    shortName: "Titan",
+    type: "engine",
+    requiresResearch: "heavy_lift_engineering",
+    cost: 165000,
+    dryMass: 2.45,
+    fuelCapacity: 0,
+    thrust: 450,
+    fuelUse: 16.6,
+    dragArea: 1.15,
+    width: 1.34,
+    color: "#ea580c",
+    description: "Unlocked through Heavy Lift Engineering research. A premium high-thrust engine for large payloads and future interplanetary launchers."
   }
 ];
 

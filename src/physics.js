@@ -580,6 +580,7 @@ export function activateNextStage(rocket, planet = PLANET) {
       object.kind = "payload";
       object.payloadType = getPayloadTypeFromParts([part]);
       object.incomeRate = part.incomeRate ?? object.incomeRate ?? 0;
+      object.researchRate = part.researchRate ?? object.researchRate ?? 0;
       updateDetachedObjectStatus(object, planet);
       objects.push(object);
       if (object.online) {
@@ -726,6 +727,7 @@ export function makeDetachedObject(kind, parts, rocket, planet, name) {
   const separation = isDebris ? -18 : 18;
   const partCost = parts.reduce((total, part) => total + (part.cost ?? 0), 0);
   const incomeRate = parts.reduce((total, part) => total + (part.incomeRate ?? 0), 0);
+  const researchRate = parts.reduce((total, part) => total + (part.researchRate ?? 0), 0);
   const remainingFuel = parts.reduce((total, part) => total + (part.type === "fuel" ? getPartFuelRemaining(part) : 0), 0);
   const maxFuel = parts.reduce((total, part) => total + (part.type === "fuel" ? (part.maxFuelPart ?? part.fuelCapacity ?? 0) : 0), 0);
 
@@ -752,7 +754,9 @@ export function makeDetachedObject(kind, parts, rocket, planet, name) {
     cost: partCost,
     recoveryValue: partCost * 0.45,
     incomeRate,
+    researchRate,
     revenueEarned: 0,
+    researchEarned: 0,
     online: false,
     crashed: false,
     landed: false,
@@ -773,6 +777,7 @@ export function makeCommandVesselObject(parts, rocket, name = "Command Pod") {
 function getPayloadTypeFromParts(parts) {
   if (!Array.isArray(parts)) return "";
   if (parts.some((part) => part.id?.includes("data_center") || /data/i.test(part.name ?? ""))) return "data_center";
+  if (parts.some((part) => part.id?.includes("exploration_satellite") || /exploration/i.test(part.name ?? ""))) return "exploration_satellite";
   if (parts.some((part) => part.id?.includes("satellite") || /satellite/i.test(part.name ?? ""))) return "satellite";
   if (parts.some((part) => part.type === "payload")) return "payload";
   return "";

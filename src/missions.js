@@ -8,6 +8,7 @@ export const MISSIONS = [
     id: "first_launch",
     title: "First Launch",
     reward: 50000,
+    researchReward: 10,
     description: "Leave the launch pad with any controllable rocket.",
     objective: "Lift off from Homeworld.",
     progressLabel: (ctx) => ctx.flightStats?.hasLaunched ? "Launched" : "On pad",
@@ -17,6 +18,7 @@ export const MISSIONS = [
     id: "reach_sky",
     title: "Reach the Sky",
     reward: 100000,
+    researchReward: 15,
     description: "Reach 1,500 m above the surface.",
     objective: "Max altitude 1.50 km.",
     progressLabel: (ctx) => `${formatDistance(Math.min(ctx.flightStats?.maxAltitude ?? 0, 1500))} / 1.50 km`,
@@ -26,6 +28,7 @@ export const MISSIONS = [
     id: "touch_space",
     title: "Touch Space",
     reward: 240000,
+    researchReward: 25,
     description: "Climb above Homeworld's atmosphere.",
     objective: `Reach ${formatDistance(PLANET.atmosphereHeight)} altitude.`,
     progressLabel: (ctx) => `${formatDistance(Math.min(ctx.flightStats?.maxAltitude ?? 0, PLANET.atmosphereHeight))} / ${formatDistance(PLANET.atmosphereHeight)}`,
@@ -35,6 +38,7 @@ export const MISSIONS = [
     id: "first_orbit",
     title: "First Orbit",
     reward: 600000,
+    researchReward: 55,
     description: "Hold a stable orbit long enough for mission control to confirm it.",
     objective: "Achieve a stable orbit confirmation.",
     progressLabel: (ctx) => ctx.rocket?.missionComplete ? "Orbit confirmed" : `${(ctx.rocket?.orbitHoldTime ?? 0).toFixed(1)}s hold`,
@@ -44,6 +48,7 @@ export const MISSIONS = [
     id: "deploy_satellite",
     title: "Deploy Satellite",
     reward: 800000,
+    researchReward: 70,
     description: "Deploy a satellite into a stable orbit so it starts generating revenue.",
     objective: "Online satellite in orbit.",
     progressLabel: (ctx) => `${countOnlinePayloads(ctx, "satellite")} online`,
@@ -53,6 +58,7 @@ export const MISSIONS = [
     id: "deploy_datacenter",
     title: "Deploy Data Center",
     reward: 1500000,
+    researchReward: 110,
     description: "Deploy an orbital data center into a stable orbit for stronger recurring income.",
     objective: "Online data center in orbit.",
     progressLabel: (ctx) => `${countOnlinePayloads(ctx, "data_center")} online`,
@@ -62,6 +68,7 @@ export const MISSIONS = [
     id: "recover_rocket",
     title: "Recover Rocket",
     reward: 160000,
+    researchReward: 20,
     description: "Land a command pod safely using parachutes, legs, or careful flying.",
     objective: "Safely recover a rocket.",
     progressLabel: (ctx) => ctx.flightStats?.outcome === "Recovered" ? "Recovered" : "Not recovered yet",
@@ -71,6 +78,7 @@ export const MISSIONS = [
     id: "clean_orbit",
     title: "Clean Orbit",
     reward: 60000,
+    researchReward: 15,
     description: "Select orbital debris and explode it to keep space usable.",
     objective: "Destroy one debris object.",
     progressLabel: (ctx) => `${ctx.company?.totalDestroyed ?? 0} destroyed`,
@@ -151,7 +159,10 @@ function formatDistance(value) {
 }
 
 export function summarizeMissionReward(mission) {
-  return mission ? `$${Math.round(mission.reward).toLocaleString()}` : "$0";
+  if (!mission) return "$0";
+  const cash = `$${Math.round(mission.reward).toLocaleString()}`;
+  const research = mission.researchReward ? ` + ${Math.round(mission.researchReward).toLocaleString()} Research` : "";
+  return `${cash}${research}`;
 }
 
 export function getFlightEconomySummary(company = {}, flightStats = null) {

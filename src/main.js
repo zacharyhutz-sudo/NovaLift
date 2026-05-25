@@ -226,13 +226,10 @@ function bindBuilderEvents() {
   });
   bindActivation(closeObjectInspectorButton, () => {
     game.clearSelectedObject();
-    renderer.clearObjectTracking?.();
-    renderer.followRocket?.(game.rocket, { snap: false });
     updateObjectInspector(null);
   });
   bindActivation(explodeObjectButton, () => {
     game.explodeObject();
-    renderer.followRocket?.(game.rocket);
     updateObjectInspector(null);
   });
   bindActivation(cashInRecoveryButton, () => {
@@ -310,11 +307,7 @@ if (trackerListEl) {
     const id = button.dataset.trackObject;
     if (id === "current-rocket") {
       game.clearSelectedObject();
-      if (renderer.followRocket) {
-        renderer.followRocket(game.rocket);
-      } else {
-        renderer.recenterCamera?.(game.rocket, { forceRocket: true });
-      }
+      renderer.recenterCamera?.(game.rocket);
       updateObjectInspector(null);
       return;
     }
@@ -362,7 +355,6 @@ function showBuilder() {
   trackerOpen = false;
   game.paused = true;
   game.clearSelectedObject();
-  renderer.clearObjectTracking?.();
   updateObjectInspector(null);
   builderScreenEl.classList.remove("hidden");
   gameShellEl.classList.add("builder-open");
@@ -385,11 +377,7 @@ function showWorldView() {
   builderScreenEl.classList.add("hidden");
   gameShellEl.classList.remove("builder-open");
   gameShellEl.classList.add("world-view");
-  if (renderer.followRocket) {
-    renderer.followRocket(game.rocket);
-  } else {
-    renderer.recenterCamera?.(game.rocket, { forceRocket: true });
-  }
+  renderer.recenterCamera?.(game.rocket);
   updateTrackerPanel(game.getHudData().trackedObjects);
 }
 
@@ -413,11 +401,6 @@ function launchBuiltRocket() {
     return;
   }
   game.setRocketTemplate(rocket);
-  if (renderer.followRocket) {
-    renderer.followRocket(game.rocket);
-  } else {
-    renderer.recenterCamera?.(game.rocket, { forceRocket: true });
-  }
   lastShownFlightSummaryKey = "";
   hideFlightSummaryModal();
   game.paused = false;

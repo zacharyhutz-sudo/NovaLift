@@ -72,11 +72,7 @@ export class Game {
     this.stageMessageTimer = 4;
     this.flightStats = this.createFlightStats(this.rocket);
     this.accumulator = 0;
-    if (this.renderer.followRocket) {
-      this.renderer.followRocket(this.rocket);
-    } else {
-      this.renderer.recenterCamera?.(this.rocket, { forceRocket: true });
-    }
+    this.renderer.recenterCamera?.(this.rocket);
   }
 
   setRocketTemplate(rocketTemplate) {
