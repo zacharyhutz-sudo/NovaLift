@@ -790,67 +790,114 @@ function renderResearchLab(data) {
 
   if (researchGuideEl) {
     researchGuideEl.innerHTML = `
-      <article class="research-recommend-card">
-        <span>Recommended</span>
-        <strong>${escapeHtml(nextNode?.name ?? "All research complete")}</strong>
+      <article class="research-recommend-card research-recommend-card-hero">
+        <span>Recommended Next</span>
+        <strong>${escapeHtml(nextNode?.name ?? "Tree complete")}</strong>
         <p>${escapeHtml(getResearchRecommendationText(nextNode, researchPoints))}</p>
-        ${nextNode?.available ? `<button type="button" data-buy-research="${escapeHtml(nextNode.id)}">Research for ${formatResearch(nextNode.cost)}R</button>` : ""}
+        ${nextNode?.available ? `<button type="button" data-buy-research="${escapeHtml(nextNode.id)}">Unlock for ${formatResearch(nextNode.cost)}R</button>` : ""}
       </article>
       <div class="research-earn-strip" aria-label="How to earn Research">
         <div><span>Missions</span><strong>+${formatResearch(missionReward)}R next</strong></div>
-        <div><span>Telemetry</span><strong>${telemetryComplete ? "Online" : "Unlock R/sec"}</strong></div>
+        <div><span>Telemetry</span><strong>${telemetryComplete ? "Online" : "Unlock first"}</strong></div>
         <div><span>Payloads</span><strong>${formatResearchRate(researchRate)}R/s</strong></div>
       </div>
     `;
   }
 
-  const byCategory = new Map();
+  const laneConfig = [
+    { id: "propulsion", label: "Propulsion", icon: "🚀", summary: "Engines and lift" },
+    { id: "orbital", label: "Orbital Ops", icon: "📡", summary: "Income and infrastructure" },
+    { id: "exploration", label: "Exploration", icon: "🛰️", summary: "Survey new worlds" }
+  ];
+
+  const nodesByLane = new Map(laneConfig.map((lane) => [lane.id, []]));
   nodes.forEach((node) => {
-    if (!byCategory.has(node.category)) byCategory.set(node.category, []);
-    byCategory.get(node.category).push(node);
+    const laneId = node.lane && nodesByLane.has(node.lane) ? node.lane : "orbital";
+    nodesByLane.get(laneId).push(node);
+  });
+  laneConfig.forEach((lane) => {
+    nodesByLane.get(lane.id).sort((a, b) => (a.laneOrder ?? 0) - (b.laneOrder ?? 0) || a.cost - b.cost);
   });
 
-  researchTreeEl.innerHTML = [...byCategory.entries()].map(([category, categoryNodes]) => `
-    <section class="research-category">
-      <h3>${escapeHtml(category)}</h3>
-      <div class="research-node-list">
-        ${categoryNodes.map((node) => {
-          const statusClass = node.complete ? "complete" : node.locked ? "locked" : node.available ? "available" : "waiting";
-          const statusText = node.complete
-            ? "Complete"
-            : node.locked
-              ? `Needs ${node.missingPrerequisiteNames.join(", ")}`
-              : node.waitingForPoints
-                ? `${formatResearch(Math.max(0, node.cost - researchPoints))}R short`
-                : "Ready";
-          const buttonText = node.complete
-            ? "Done"
-            : node.available
-              ? `${formatResearch(node.cost)}R`
-              : node.locked
-                ? "Locked"
-                : "Need R";
-          return `
-            <article class="research-node ${statusClass}">
-              <div class="research-node-top">
-                <div>
-                  <strong>${escapeHtml(node.name)}</strong>
-                  <span>${escapeHtml(statusText)}</span>
-                </div>
-                <b>${node.complete ? "✓" : `${formatResearch(node.cost)}R`}</b>
-              </div>
-              <p>${escapeHtml(node.unlockText ?? node.description)}</p>
-              <div class="research-node-actions">
-                <button type="button" data-buy-research="${escapeHtml(node.id)}" ${node.available ? "" : "disabled"}>${escapeHtml(buttonText)}</button>
-              </div>
-            </article>
-          `;
-        }).join("")}
+  researchTreeEl.innerHTML = `
+    <section class="research-map-card">
+      <div class="research-map-top">
+        <span class="eyebrow">Research Path</span>
+        <strong>Unlock one node to reach the next.</strong>
+        <p>Follow the three lanes below. Completed upgrades glow. Locked upgrades tell you what to finish first.</p>
+      </div>
+      <div class="research-root">
+        <span class="research-root-kicker">Program Start</span>
+        <article class="research-root-node">
+          <div class="research-root-icon">✦</div>
+          <strong>Rocket Program</strong>
+          <span>${completed}/${total} upgrades online</span>
+        </article>
+        <div class="research-root-links" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+      <div class="research-lane-grid">
+        ${laneConfig.map((lane) => renderResearchLane(lane, nodesByLane.get(lane.id) ?? [], researchPoints)).join("")}
       </div>
     </section>
-  `).join("");
+  `;
 }
 
+function renderResearchLane(lane, nodes = [], researchPoints = 0) {
+  const completeCount = nodes.filter((node) => node.complete).length;
+  return `
+    <section class="research-flow-lane">
+      <div class="research-flow-lane-head">
+        <div class="research-flow-lane-icon">${escapeHtml(lane.icon)}</div>
+        <div>
+          <h3>${escapeHtml(lane.label)}</h3>
+          <p>${escapeHtml(lane.summary)}</p>
+        </div>
+        <span>${completeCount}/${nodes.length}</span>
+      </div>
+      <div class="research-flow-stack">
+        ${nodes.map((node, index) => renderResearchFlowNode(node, researchPoints, index < nodes.length - 1)).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderResearchFlowNode(node, researchPoints = 0, showConnector = false) {
+  const statusClass = node.complete ? "complete" : node.locked ? "locked" : node.available ? "available" : "waiting";
+  const statusText = getResearchNodeStatusText(node, researchPoints);
+  const buttonText = getResearchNodeButtonText(node);
+  return `
+    <article class="research-flow-node ${statusClass} ${showConnector ? "has-connector" : ""}">
+      <div class="research-flow-node-top">
+        <div class="research-flow-node-icon">${escapeHtml(node.icon ?? "✦")}</div>
+        <div class="research-flow-node-copy">
+          <strong>${escapeHtml(node.treeName ?? node.name)}</strong>
+          <span>${escapeHtml(statusText)}</span>
+        </div>
+        <b>${node.complete ? "✓" : `${formatResearch(node.cost)}R`}</b>
+      </div>
+      <small>${escapeHtml(node.shortUnlockText ?? node.unlockText ?? node.description ?? "")}</small>
+      <div class="research-flow-node-actions">
+        <button type="button" data-buy-research="${escapeHtml(node.id)}" ${node.available ? "" : "disabled"}>${escapeHtml(buttonText)}</button>
+      </div>
+    </article>
+  `;
+}
+
+function getResearchNodeStatusText(node, researchPoints = 0) {
+  if (node.complete) return "Complete";
+  if (node.locked) return `Needs ${node.missingPrerequisiteNames.join(", ")}`;
+  if (node.available) return "Ready to unlock";
+  return `${formatResearch(Math.max(0, node.cost - researchPoints))}R short`;
+}
+
+function getResearchNodeButtonText(node) {
+  if (node.complete) return "Done";
+  if (node.locked) return "Locked";
+  if (node.available) return `Unlock`;
+  return "Need R";
+}
 
 function getRecommendedResearchNode(nodes = []) {
   return nodes.find((node) => node.available)
@@ -862,9 +909,9 @@ function getRecommendedResearchNode(nodes = []) {
 function getResearchRecommendationText(node, researchPoints = 0) {
   if (!node) return "You have finished the current research tree.";
   if (node.complete) return "Already complete.";
-  if (node.locked) return `Requires ${node.missingPrerequisiteNames.join(", ")}.`;
-  if (node.available) return "You can buy this upgrade now.";
-  return `Complete missions or generate passive data until you have ${formatResearch(node.cost)}R. You need ${formatResearch(Math.max(0, node.cost - researchPoints))}R more.`;
+  if (node.locked) return `Finish ${node.missingPrerequisiteNames.join(", ")} first.`;
+  if (node.available) return `${node.unlockText ?? "This upgrade is ready."}`;
+  return `Earn ${formatResearch(Math.max(0, node.cost - researchPoints))} more R from missions or payload data.`;
 }
 
 function getPartResearchMetric(part) {

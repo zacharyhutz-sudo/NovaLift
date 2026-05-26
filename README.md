@@ -1,10 +1,10 @@
-# NovaLift v0.6.5 — Mobile Launchpad + Research Simplification
+# NovaLift v0.6.6 — Mobile Launchpad + Research Simplification
 
 NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version simplifies the Launchpad and Research Lab so the game feels more like a tap-first mobile game and less like a document to read.
 
 
 
-## What is new in v0.6.5
+## What is new in v0.6.6
 
 - Renamed the builder experience into a simpler **Launchpad** flow.
 - Reworked the top navigation into four short actions: Mission, Rocket, Research, and World.
