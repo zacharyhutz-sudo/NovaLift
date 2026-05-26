@@ -60,6 +60,7 @@ const nextStageActionEl = document.querySelector("#nextStageAction");
 const companyCashHudEl = document.querySelector("#companyCashHud");
 const companyIncomeHudEl = document.querySelector("#companyIncomeHud");
 const companyResearchHudEl = document.querySelector("#companyResearchHud");
+const companyScanHudEl = document.querySelector("#companyScanHud");
 const builderCashEl = document.querySelector("#builderCash");
 const builderModeLabelEl = document.querySelector("#builderModeLabel");
 const toggleEconomyModeButton = document.querySelector("#toggleEconomyMode");
@@ -84,6 +85,8 @@ const stageFuelPanelEl = document.querySelector("#stageFuelPanel");
 const objectNameEl = document.querySelector("#objectName");
 const objectDetailsEl = document.querySelector("#objectDetails");
 const explodeObjectButton = document.querySelector("#explodeObject");
+const controlObjectButton = document.querySelector("#controlObject");
+const sellObjectButton = document.querySelector("#sellObject");
 const closeObjectInspectorButton = document.querySelector("#closeObjectInspector");
 const builderWorldViewButton = document.querySelector("#builderWorldView");
 const builderJumpToPreviewButton = document.querySelector("#builderJumpToPreview");
@@ -112,6 +115,13 @@ const toggleAdvancedBuilderButton = document.querySelector("#toggleAdvancedBuild
 const advancedBuilderPanelEl = document.querySelector("#advancedBuilderPanel");
 const advancedBuilderLabelEl = document.querySelector("#advancedBuilderLabel");
 const simpleRocketSummaryEl = document.querySelector("#simpleRocketSummary");
+const orbitalNetworkStatusEl = document.querySelector("#orbitalNetworkStatus");
+const orbitalNetworkPayloadsEl = document.querySelector("#orbitalNetworkPayloads");
+const orbitalNetworkIncomeEl = document.querySelector("#orbitalNetworkIncome");
+const orbitalNetworkResearchEl = document.querySelector("#orbitalNetworkResearch");
+const orbitalNetworkScanEl = document.querySelector("#orbitalNetworkScan");
+const orbitalNetworkSignalEl = document.querySelector("#orbitalNetworkSignal");
+const orbitalNetworkSignalBarEl = document.querySelector("#orbitalNetworkSignalBar");
 
 const EARTH_MINE_COST = 100000;
 const EARTH_MINE_INCOME_RATE = 1;
@@ -265,10 +275,31 @@ function bindBuilderEvents() {
     renderer.followRocket?.(game.rocket, { snap: false });
     updateObjectInspector(null);
   });
+  bindActivation(controlObjectButton, () => {
+    const id = game.selectedObjectId;
+    if (id && id !== "current-rocket") {
+      game.controlObject(id);
+      renderer.followRocket?.(game.rocket);
+      updateObjectInspector(null);
+      updateTrackerPanel(game.getHudData().trackedObjects);
+    }
+  });
+  bindActivation(sellObjectButton, () => {
+    const id = game.selectedObjectId;
+    if (id) {
+      game.sellObject(id);
+      renderer.followRocket?.(game.rocket);
+      updateObjectInspector(null);
+      updateTrackerPanel(game.getHudData().trackedObjects);
+      renderBuilder();
+    }
+  });
   bindActivation(explodeObjectButton, () => {
-    game.explodeObject();
+    const id = game.selectedObjectId;
+    game.explodeObject(id);
     renderer.followRocket?.(game.rocket);
     updateObjectInspector(null);
+    updateTrackerPanel(game.getHudData().trackedObjects);
   });
   bindActivation(cashInRecoveryButton, () => {
     game.cashInRecovery();
@@ -344,13 +375,14 @@ if (trackerListEl) {
   bindDelegatedActivation(trackerListEl, "[data-track-object]", (button) => {
     const id = button.dataset.trackObject;
     if (id === "current-rocket") {
-      game.clearSelectedObject();
+      game.selectedObjectId = "current-rocket";
       if (renderer.followRocket) {
         renderer.followRocket(game.rocket);
       } else {
         renderer.recenterCamera?.(game.rocket, { forceRocket: true });
       }
-      updateObjectInspector(null);
+      const info = game.getHudData().trackedObjects.find((object) => object.id === "current-rocket") ?? null;
+      updateObjectInspector(info);
       return;
     }
     const object = game.selectObject(id);
@@ -533,6 +565,7 @@ function renderBuilder(highlightErrors = false) {
   renderMissionBoard(hudData);
   renderEarthMines(hudData);
   renderResearchLab(hudData);
+  renderOrbitalNetwork(hudData);
   renderValidation(validation, highlightErrors, canAfford, stats.cost, lockedParts);
 
   launchBuiltRocketButton.disabled = !validation.valid || !canAfford || lockedParts.length > 0;
@@ -811,6 +844,28 @@ function renderEarthMines(data = game.getHudData()) {
       : `Buy Mine for ${formatMoney(EARTH_MINE_COST)}`;
 }
 
+function renderOrbitalNetwork(data = game.getHudData()) {
+  if (!orbitalNetworkStatusEl || !orbitalNetworkPayloadsEl || !orbitalNetworkIncomeEl || !orbitalNetworkResearchEl || !orbitalNetworkScanEl || !orbitalNetworkSignalEl || !orbitalNetworkSignalBarEl) return;
+  const payloads = (data.trackedObjects ?? []).filter((object) => object.kind === "payload" && object.online);
+  const scan = Number(data.company?.totalScanGenerated ?? 0);
+  const scanRate = Number(data.company?.scanPerSecond ?? 0);
+  const target = 500;
+  const progress = Math.max(0, Math.min(1, scan / target));
+  orbitalNetworkPayloadsEl.textContent = String(payloads.length);
+  orbitalNetworkIncomeEl.textContent = `${formatMoneyRate(data.company?.orbitalIncomePerSecond ?? 0)}/s`;
+  orbitalNetworkResearchEl.textContent = `${formatResearchRate(data.company?.researchPerSecond ?? 0)}R/s`;
+  orbitalNetworkScanEl.textContent = `${formatScanRate(scanRate)}/s`;
+  orbitalNetworkSignalEl.textContent = `${Math.floor(scan).toLocaleString()} / ${target.toLocaleString()} Scan`;
+  orbitalNetworkSignalBarEl.style.width = `${Math.round(progress * 100)}%`;
+  orbitalNetworkStatusEl.textContent = scan >= target
+    ? "Signal locked"
+    : scanRate > 0
+      ? `Scanning +${formatScanRate(scanRate)}/s`
+      : payloads.some((object) => object.payloadType === "exploration_satellite")
+        ? "Explorer offline"
+        : "Needs Explorer";
+}
+
 function renderResearchLab(data) {
   const company = data.company ?? game.company;
   const researchPoints = company.researchPoints ?? 0;
@@ -978,6 +1033,7 @@ function updateHud(data) {
   if (companyCashHudEl) companyCashHudEl.textContent = data.company?.mode === "sandbox" ? "∞" : formatMoney(data.company?.money ?? 0);
   if (companyIncomeHudEl) companyIncomeHudEl.textContent = `${formatMoneyRate(data.company?.incomePerSecond ?? 0)}/s`;
   if (companyResearchHudEl) companyResearchHudEl.textContent = `${formatResearch(data.company?.researchPoints ?? 0, 0)}R`;
+  if (companyScanHudEl) companyScanHudEl.textContent = `${Math.floor(data.company?.totalScanGenerated ?? 0).toLocaleString()}`;
   if (screenMode === "builder" && researchScreenEl && !researchScreenEl.classList.contains("hidden") && performance.now() - lastResearchLiveRenderAt > 500) {
     lastResearchLiveRenderAt = performance.now();
     renderResearchLab(data);
@@ -985,7 +1041,10 @@ function updateHud(data) {
   gameShellEl.classList.toggle("income-active", (data.company?.incomePerSecond ?? 0) > 0);
   if (builderCashEl) builderCashEl.textContent = data.company?.mode === "sandbox" ? "∞" : formatMoney(data.company?.money ?? 0);
   if (builderModeLabelEl) builderModeLabelEl.textContent = data.company?.mode === "sandbox" ? "Sandbox Mode" : "Career Mode";
-  if (screenMode === "builder") renderEarthMines(data);
+  if (screenMode === "builder") {
+    renderEarthMines(data);
+    renderOrbitalNetwork(data);
+  }
   if (nextStageActionEl) nextStageActionEl.textContent = screenMode === "builder" ? "Build a rocket first" : screenMode === "world" ? "Viewing persistent orbit network" : data.nextStageDescription;
   updateStageFuelPanel(data.stageFuel ?? []);
   updateObjectInspector(data.selectedObject);
@@ -997,7 +1056,7 @@ function updateHud(data) {
     missionResultEl.textContent = next ? `Next mission: ${next.title} — ${next.objective}` : "All starter missions complete. Keep expanding your orbital network.";
     missionResultEl.classList.remove("success");
   } else if (screenMode === "world") {
-    missionResultEl.textContent = `World view: ${data.savedOrbitalObjects} payloads · ${data.debrisCount} debris · ${formatMoneyRate(data.company?.incomePerSecond ?? 0)}/s income. Use Track to inspect objects.`;
+    missionResultEl.textContent = `World view: ${data.savedOrbitalObjects} payloads · ${data.debrisCount} debris · ${formatMoneyRate(data.company?.incomePerSecond ?? 0)}/s · ${formatScanRate(data.company?.scanPerSecond ?? 0)}/s Scan. Use Track to inspect objects.`;
     missionResultEl.classList.toggle("success", (data.company?.incomePerSecond ?? 0) > 0);
   } else if (data.stageMessage) {
     missionResultEl.textContent = data.stageMessage;
@@ -1065,8 +1124,9 @@ function updateTrackerPanel(objects = []) {
   const debris = objects.filter((object) => object.kind === "debris");
   const income = payloads.reduce((total, object) => total + (object.incomeRate ?? 0), 0);
   const research = payloads.reduce((total, object) => total + (object.researchRate ?? 0), 0);
+  const scan = payloads.reduce((total, object) => total + (object.scanRate ?? 0), 0);
 
-  trackerSummaryEl.textContent = `${payloads.length} payloads · ${vessels.length} command pods · ${debris.length} debris · ${formatMoneyRate(income)}/s · ${formatResearchRate(research)}R/s`;
+  trackerSummaryEl.textContent = `${payloads.length} payloads · ${vessels.length} command pods · ${debris.length} debris · ${formatMoneyRate(income)}/s · ${formatResearchRate(research)}R/s · ${formatScanRate(scan)}/s Scan`;
 
   if (!objects.length) {
     trackerListEl.innerHTML = `<div class="tracker-empty">No orbital objects yet. Deploy a satellite or data center to start earning income.</div>`;
@@ -1082,7 +1142,8 @@ function updateTrackerPanel(objects = []) {
       : object.baseResearchRate > 0 && !object.researchUnlocked
         ? "Telemetry locked"
         : "—";
-    const actionText = object.isCurrentRocket ? "Center" : "Select";
+    const scan = object.scanRate > 0 ? `${formatScanRate(object.scanRate)}/s Scan` : "—";
+    const actionText = object.canControl && !object.isCurrentRocket ? "Inspect" : object.isCurrentRocket ? "Inspect" : "Select";
     return `
       <article class="tracker-item ${escapeHtml(object.kind)}${onlineClass}${selectedClass}">
         <div class="tracker-main">
@@ -1094,6 +1155,7 @@ function updateTrackerPanel(objects = []) {
           <span>${object.speed.toFixed(0)} m/s</span>
           <span>${income}</span>
           <span>${research}</span>
+          <span>${scan}</span>
         </div>
         <button type="button" class="mini-button" data-track-object="${escapeHtml(object.id)}">${actionText}</button>
       </article>
@@ -1165,12 +1227,21 @@ function updateObjectInspector(info) {
     ["Speed", `${info.speed.toFixed(1)} m/s`],
     ["Income", info.incomeRate > 0 ? `${formatMoneyRate(info.incomeRate)}/s` : "—"],
     ["Research", info.researchRate > 0 ? `${formatResearchRate(info.researchRate)}R/s` : info.baseResearchRate > 0 && !info.researchUnlocked ? "Needs Orbital Telemetry" : "—"],
+    ["Scan", info.scanRate > 0 ? `${formatScanRate(info.scanRate)}/s` : "—"],
     ["Earned", formatMoney(info.revenueEarned ?? 0)],
-    ["Data", `${formatResearch(info.researchEarned ?? 0, 1)}R`]
+    ["Data", `${formatResearch(info.researchEarned ?? 0, 1)}R`],
+    ["Survey", `${Math.floor(info.scanEarned ?? 0).toLocaleString()} Scan`],
+    ["Sale", info.canSell ? formatMoney(info.saleValue ?? 0) : "—"]
   ]
     .map(([label, value]) => `<div class="object-detail"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`)
     .join("");
+  if (controlObjectButton) controlObjectButton.classList.toggle("hidden", !info.canControl || info.isCurrentRocket);
+  if (sellObjectButton) {
+    sellObjectButton.classList.toggle("hidden", !info.canSell);
+    sellObjectButton.textContent = info.canSell ? `Sell for ${formatMoney(info.saleValue ?? 0)}` : "Sell";
+  }
   explodeObjectButton.classList.toggle("hidden", !info.canExplode);
+  explodeObjectButton.textContent = info.isCurrentRocket || info.kind === "vessel" ? "Destroy Craft" : info.kind === "payload" ? "Destroy Payload" : "Destroy Debris";
 }
 
 function titleCase(value) {
@@ -1229,6 +1300,14 @@ function getDefaultStageForPart(part) {
   if (part.stageAction === "decoupleBelow") return 1;
   if (part.stageAction === "deployPayload") return 2;
   return 3;
+}
+
+function formatScanRate(value) {
+  const amount = Number(value ?? 0);
+  if (!Number.isFinite(amount) || Math.abs(amount) < 0.0001) return "0";
+  if (Math.abs(amount) < 1) return amount.toFixed(2);
+  if (Math.abs(amount) < 10) return amount.toFixed(1);
+  return Math.round(amount).toLocaleString();
 }
 
 function formatMoneyRate(value) {

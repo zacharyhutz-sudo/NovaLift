@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050816" />
-    <title>NovaLift v0.7.2</title>
+    <title>NovaLift v0.8.0</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -15,7 +15,7 @@
         <section id="hud" class="compact-hud" aria-label="Flight status">
           <div class="brand-chip">
             <strong>NovaLift</strong>
-            <span>v0.7.2</span>
+            <span>v0.8.0</span>
           </div>
           <div class="hud-stats">
             <div class="hud-stat"><span>Alt</span><strong id="altitude">0 m</strong></div>
@@ -28,6 +28,7 @@
             <span>Cash <strong id="companyCashHud">$0</strong></span>
             <span>Income <strong id="companyIncomeHud">$0/s</strong></span>
             <span>Research <strong id="companyResearchHud">0R</strong></span>
+            <span>Scan <strong id="companyScanHud">0</strong></span>
           </div>
         </section>
 
@@ -98,6 +99,23 @@
               <p>Complete missions for R. Orbital Telemetry turns payloads into passive R/sec.</p>
             </div>
             <button id="openResearchLab" type="button" class="research-open-button">Open Research Lab</button>
+          </div>
+        </section>
+
+        <section class="builder-card orbital-network-card" id="builderNetworkSection" aria-label="Orbital network">
+          <div class="builder-section-title">
+            <h2>Orbital Network</h2>
+            <span id="orbitalNetworkStatus">No signal</span>
+          </div>
+          <div class="orbital-network-grid">
+            <div><span>Payloads</span><strong id="orbitalNetworkPayloads">0</strong></div>
+            <div><span>Cash</span><strong id="orbitalNetworkIncome">$0/s</strong></div>
+            <div><span>Research</span><strong id="orbitalNetworkResearch">0R/s</strong></div>
+            <div><span>Scan</span><strong id="orbitalNetworkScan">0/s</strong></div>
+          </div>
+          <div class="scan-progress-card">
+            <div><span>Unknown Signal</span><strong id="orbitalNetworkSignal">0 / 500 Scan</strong></div>
+            <div class="scan-progress-track" aria-hidden="true"><span id="orbitalNetworkSignalBar"></span></div>
           </div>
         </section>
 
@@ -252,7 +270,11 @@
           <button id="closeObjectInspector" class="mini-button" type="button">Close</button>
         </div>
         <div id="objectDetails" class="object-details"></div>
-        <button id="explodeObject" class="danger-button" type="button">Explode Debris</button>
+        <div class="object-actions">
+          <button id="controlObject" class="mini-button object-control-button" type="button">Control</button>
+          <button id="sellObject" class="mini-button object-sell-button" type="button">Sell</button>
+          <button id="explodeObject" class="danger-button" type="button">Destroy</button>
+        </div>
       </section>
 
       <section id="flightSummaryModal" class="flight-summary-modal hidden" aria-live="polite" aria-label="Flight result summary">

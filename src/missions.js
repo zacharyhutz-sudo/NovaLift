@@ -152,6 +152,48 @@ export const MISSIONS = [
     objective: "Online exploration satellite in orbit.",
     progressLabel: (ctx) => `${countOnlinePayloads(ctx, "exploration_satellite")} online`,
     isComplete: (ctx) => countOnlinePayloads(ctx, "exploration_satellite") > 0
+  },
+  {
+    id: "build_orbital_network",
+    chapter: "exploration_program",
+    chapterOrder: 2,
+    title: "Build Orbital Network",
+    reward: 700000,
+    researchReward: 20,
+    recommendedTemplateId: "sat_launcher",
+    recommendedTemplateLabel: "Satellite Launcher",
+    description: "Keep multiple payloads online so the company has a real orbital network.",
+    objective: "Have 3 online payloads.",
+    progressLabel: (ctx) => `${countOnlinePayloads(ctx)} / 3 online`,
+    isComplete: (ctx) => countOnlinePayloads(ctx) >= 3
+  },
+  {
+    id: "generate_scan_data",
+    chapter: "exploration_program",
+    chapterOrder: 3,
+    title: "Generate Scan Data",
+    reward: 900000,
+    researchReward: 25,
+    recommendedTemplateId: "explorer_sat",
+    recommendedTemplateLabel: "Explorer Probe",
+    description: "Let exploration satellites gather the first useful survey data.",
+    objective: "Generate 100 total Scan.",
+    progressLabel: (ctx) => `${Math.floor(ctx.company?.totalScanGenerated ?? 0)} / 100 Scan`,
+    isComplete: (ctx) => (ctx.company?.totalScanGenerated ?? 0) >= 100
+  },
+  {
+    id: "detect_unknown_signal",
+    chapter: "exploration_program",
+    chapterOrder: 4,
+    title: "Detect Unknown Signal",
+    reward: 1200000,
+    researchReward: 40,
+    recommendedTemplateId: "explorer_sat",
+    recommendedTemplateLabel: "Explorer Probe",
+    description: "Accumulate enough scan data to identify a future planet-discovery target.",
+    objective: "Reach 500 total Scan.",
+    progressLabel: (ctx) => `${Math.floor(ctx.company?.totalScanGenerated ?? 0)} / 500 Scan`,
+    isComplete: (ctx) => (ctx.company?.totalScanGenerated ?? 0) >= 500
   }
 ];
 
@@ -234,11 +276,11 @@ export function getMissionChapterProgress(context) {
   });
 }
 
-function countOnlinePayloads(ctx, payloadType) {
+function countOnlinePayloads(ctx, payloadType = "") {
   return (ctx.objects ?? []).filter((object) =>
     object &&
     object.kind === "payload" &&
-    object.payloadType === payloadType &&
+    (!payloadType || object.payloadType === payloadType) &&
     object.online &&
     !object.crashed &&
     !object.exploded

@@ -3900,3 +3900,114 @@ body {
     font-size: 11px;
   }
 }
+
+/* v0.8 orbital network + command vessel controls */
+.orbital-network-card {
+  border-color: rgba(34, 211, 238, 0.22);
+}
+
+.orbital-network-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.orbital-network-grid div,
+.scan-progress-card {
+  border-radius: 16px;
+  padding: 9px 10px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.orbital-network-grid span,
+.scan-progress-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.orbital-network-grid strong,
+.scan-progress-card strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.scan-progress-card {
+  margin-top: 10px;
+}
+
+.scan-progress-card > div:first-child {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.scan-progress-track {
+  height: 8px;
+  margin-top: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.scan-progress-track span {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.95), rgba(167, 139, 250, 0.95));
+  transition: width 220ms ease;
+}
+
+.object-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.object-actions .mini-button,
+.object-actions .danger-button {
+  min-height: 38px;
+  border-radius: 14px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.object-sell-button {
+  color: var(--success);
+  border-color: rgba(134, 239, 172, 0.22);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.object-control-button {
+  color: var(--accent);
+  border-color: rgba(103, 232, 249, 0.24);
+  background: rgba(34, 211, 238, 0.08);
+}
+
+.object-actions .hidden {
+  display: none;
+}
+
+@media (max-width: 430px) {
+  .orbital-network-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .object-actions {
+    grid-template-columns: 1fr;
+  }
+}

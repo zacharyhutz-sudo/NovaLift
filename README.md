@@ -1,10 +1,14 @@
-# NovaLift v0.7.2 — Mobile Launchpad + Research Simplification
+# NovaLift v0.8.0 — Satellite Roles + Orbital Network
+
+This patch adds scan-producing exploration satellites, an Orbital Network dashboard, scan-based campaign objectives, and command-vessel control from World View.
+
+# NovaLift v0.8.0 — Mobile Launchpad + Research Simplification
 
 NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version simplifies the Launchpad and Research Lab so the game feels more like a tap-first mobile game and less like a document to read.
 
 
 
-## What is new in v0.7.2
+## What is new in v0.8.0
 
 - Renamed the builder experience into a simpler **Launchpad** flow.
 - Reworked the top navigation into four short actions: Mission, Rocket, Research, and World.

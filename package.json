@@ -1,7 +1,7 @@
 {
   "name": "novalift",
-  "version": "0.7.2",
-  "description": "Vertical mobile-first 2D rocket company prototype with campaign progression with improved aerodynamic physics, rotational inertia, and an atmosphere boundary marker.",
+  "version": "0.8.0",
+  "description": "Vertical mobile-first 2D rocket company prototype with campaign progression with satellite roles, orbital network scanning, and controllable command vessels.",
   "type": "module",
   "private": true,
   "scripts": {

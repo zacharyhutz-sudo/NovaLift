@@ -616,6 +616,8 @@ export function activateNextStage(rocket, planet = PLANET) {
       object.payloadType = getPayloadTypeFromParts([part]);
       object.incomeRate = part.incomeRate ?? object.incomeRate ?? 0;
       object.researchRate = part.researchRate ?? object.researchRate ?? 0;
+      object.scanRate = part.scanRate ?? object.scanRate ?? 0;
+      object.payloadRole = part.payloadRole ?? object.payloadRole ?? object.payloadType;
       updateDetachedObjectStatus(object, planet);
       objects.push(object);
       if (object.online) {
@@ -763,6 +765,8 @@ export function makeDetachedObject(kind, parts, rocket, planet, name) {
   const partCost = parts.reduce((total, part) => total + (part.cost ?? 0), 0);
   const incomeRate = parts.reduce((total, part) => total + (part.incomeRate ?? 0), 0);
   const researchRate = parts.reduce((total, part) => total + (part.researchRate ?? 0), 0);
+  const scanRate = parts.reduce((total, part) => total + (part.scanRate ?? 0), 0);
+  const payloadRole = parts.find((part) => part.payloadRole)?.payloadRole ?? payloadType;
   const remainingFuel = parts.reduce((total, part) => total + (part.type === "fuel" ? getPartFuelRemaining(part) : 0), 0);
   const maxFuel = parts.reduce((total, part) => total + (part.type === "fuel" ? (part.maxFuelPart ?? part.fuelCapacity ?? 0) : 0), 0);
 
@@ -790,6 +794,8 @@ export function makeDetachedObject(kind, parts, rocket, planet, name) {
     recoveryValue: partCost * 0.45,
     incomeRate,
     researchRate,
+    scanRate,
+    payloadRole,
     revenueEarned: 0,
     researchEarned: 0,
     online: false,
