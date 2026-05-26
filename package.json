@@ -1,10 +1,10 @@
 {
   "name": "novalift",
-  "version": "0.6.3",
-  "description": "Vertical mobile-first 2D rocket company prototype with Research Lab progression with fixed early-game Research pacing, compact mobile flight controls, a dedicated Research Lab page, clearer Research earning guidance, and active-rocket camera tracking fixes.",
+  "version": "0.9.4.1",
+  "description": "Vertical mobile-first 2D rocket company prototype with a title screen, polished progression presentation, and a no-sideways-scroll research roadmap.",
   "type": "module",
   "private": true,
   "scripts": {
-    "check": "node --check src/*.js"
+    "check": "for file in src/*.js; do node --check \"$file\"; done"
   }
 }

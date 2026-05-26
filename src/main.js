@@ -288,6 +288,9 @@ function bindBuilderEvents() {
     game.purchaseResearch(button.dataset.buyResearch);
     renderBuilder();
   });
+  bindDelegatedActivation(researchTreeEl, "[data-research-lane-jump]", (button) => {
+    scrollToResearchLane(button.dataset.researchLaneJump);
+  });
   bindDelegatedActivation(researchGuideEl, "[data-buy-research]", (button) => {
     game.purchaseResearch(button.dataset.buyResearch);
     renderBuilder();
@@ -1125,6 +1128,9 @@ function renderResearchLab(data) {
         <strong>Unlock one node to reach the next.</strong>
         <p>Follow the four lanes below. Completed upgrades glow. Locked upgrades tell you what to finish first.</p>
       </div>
+      <div class="research-lane-jumps" aria-label="Jump to a research lane">
+        ${laneConfig.map((lane) => renderResearchLaneJump(lane, nodesByLane.get(lane.id) ?? [])).join("")}
+      </div>
       <div class="research-root">
         <span class="research-root-kicker">Program Start</span>
         <article class="research-root-node">
@@ -1143,10 +1149,21 @@ function renderResearchLab(data) {
   `;
 }
 
+function renderResearchLaneJump(lane, nodes = []) {
+  const completeCount = nodes.filter((node) => node.complete).length;
+  return `
+    <button type="button" class="research-lane-jump" data-research-lane-jump="${escapeHtml(lane.id)}">
+      <span>${escapeHtml(lane.icon)}</span>
+      <strong>${escapeHtml(lane.label)}</strong>
+      <em>${completeCount}/${nodes.length}</em>
+    </button>
+  `;
+}
+
 function renderResearchLane(lane, nodes = [], researchPoints = 0) {
   const completeCount = nodes.filter((node) => node.complete).length;
   return `
-    <section class="research-flow-lane">
+    <section id="research-lane-${escapeHtml(lane.id)}" class="research-flow-lane" tabindex="-1">
       <div class="research-flow-lane-head">
         <div class="research-flow-lane-icon">${escapeHtml(lane.icon)}</div>
         <div>
@@ -1160,6 +1177,15 @@ function renderResearchLane(lane, nodes = [], researchPoints = 0) {
       </div>
     </section>
   `;
+}
+
+function scrollToResearchLane(laneId) {
+  if (!laneId) return;
+  const lane = document.getElementById(`research-lane-${laneId}`);
+  if (!lane) return;
+  lane.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+  lane.classList.add("research-lane-pulse");
+  window.setTimeout(() => lane.classList.remove("research-lane-pulse"), 900);
 }
 
 function renderResearchFlowNode(node, researchPoints = 0, showConnector = false) {

@@ -1,5 +1,5 @@
 import { PHYSICS, PLANET, ROCKET } from "./config.js";
-import { MISSIONS, STARTING_CASH, evaluateMissions, getMissionView, getNextMission, normalizeMissionState } from "./missions.js";
+import { MISSIONS, STARTING_CASH, evaluateMissions, getMissionChapterProgress, getMissionView, getNextMission, normalizeMissionState } from "./missions.js";
 import {
   STARTING_RESEARCH,
   getResearchView,
@@ -7,6 +7,14 @@ import {
   normalizeResearchState,
   purchaseResearch as purchaseResearchNode
 } from "./research.js";
+import {
+  PLANET_DISCOVERY_VERSION,
+  getDiscoveredPhysicalPlanets,
+  getNextPlanetSignal,
+  getPlanetRegistryView,
+  normalizePlanetState,
+  processPlanetDiscovery
+} from "./planets.js";
 import {
   activateNextStage,
   cloneRocket,
@@ -26,6 +34,7 @@ import {
   getTangentialSpeed,
   makeCommandVesselObject,
   rotateRocket,
+  recalculateRocketStats,
   stepDetachedObject,
   stepRocket,
   updateDetachedObjectStatus
@@ -41,6 +50,11 @@ const CAREER_LAUNCHES_CHARGE_MONEY = true;
 const MAX_PERSISTENT_OBJECTS = 80;
 const ECONOMY_SCALE_VERSION = "v0.5.3-20x";
 const LEGACY_ECONOMY_MULTIPLIER = 20;
+const PAYLOAD_RATE_VERSION = "v0.9.1-physical-planets";
+const EARTH_MINE_COST = 100000;
+const EARTH_MINE_INCOME_RATE = 1;
+const EARTH_MINE_MAX = 10;
+const SIGNAL_SCAN_TARGET = 500;
 
 export class Game {
   constructor(input, renderer, rocketTemplate = ROCKET) {
@@ -60,8 +74,50 @@ export class Game {
     this.fpsSmoothed = 60;
     this.stageMessage = "Stage system ready.";
     this.stageMessageTimer = 4;
+    this.feedbackEvents = [];
     this.flightStats = this.createFlightStats(this.rocket);
   }
+
+  emitFeedback(event = {}) {
+    this.feedbackEvents.push({ ...event, createdAt: Date.now() });
+  }
+
+  consumeFeedbackEvents() {
+    const events = this.feedbackEvents;
+    this.feedbackEvents = [];
+    return events;
+  }
+
+  getRocketWorldEffectPoint(offset = -80) {
+    const angle = this.rocket?.angle ?? -Math.PI / 2;
+    return {
+      x: (this.rocket?.x ?? 0) + Math.cos(angle) * offset,
+      y: (this.rocket?.y ?? 0) + Math.sin(angle) * offset
+    };
+  }
+
+  getActivePlanets() {
+    return getDiscoveredPhysicalPlanets(this.company);
+  }
+
+  getDominantPlanetFor(body = this.rocket) {
+    const planets = this.getActivePlanets();
+    if (!planets.length) return PLANET;
+    let best = planets[0];
+    let bestStrength = -Infinity;
+    for (const planet of planets) {
+      const dx = (body.x ?? 0) - planet.x;
+      const dy = (body.y ?? 0) - planet.y;
+      const distanceSq = Math.max(dx * dx + dy * dy, 1);
+      const strength = (planet.mu ?? 0) / distanceSq;
+      if (strength > bestStrength) {
+        bestStrength = strength;
+        best = planet;
+      }
+    }
+    return best;
+  }
+
 
   reset() {
     this.rocket = cloneRocket(this.rocketTemplate);
@@ -88,6 +144,14 @@ export class Game {
     this.reset();
     this.company.lastMissionReward = 0;
     this.company.lastLaunchCost = launchCost;
+    this.emitFeedback({
+      title: "Launch committed",
+      message: launchCost > 0 ? `Launch cost: ${formatMoney(launchCost)}.` : "Sandbox launch ready.",
+      tone: "launch",
+      sound: "launch",
+      haptic: "medium",
+      worldEffect: { type: "launch", x: this.rocket.x, y: this.rocket.y }
+    });
     this.saveCompany();
   }
 
@@ -118,17 +182,23 @@ export class Game {
     this.setEconomyMode(this.company.mode === "sandbox" ? "career" : "sandbox");
   }
 
-  persistActiveCommandVessel(reason = "left flight") {
-    if (!this.rocket || this.rocket.archived || this.rocket.crashed || this.rocket.landed) return false;
-    if (!this.flightStats?.hasLaunched && getSpeed(this.rocket) < 1) return false;
+  persistActiveCommandVessel(reason = "left flight", options = {}) {
+    if (!this.rocket || this.rocket.archived) return false;
+    const keepLanded = Boolean(options.includeLanded);
+    if ((this.rocket.crashed || this.rocket.landed) && !keepLanded) return false;
+    if (!keepLanded && !this.flightStats?.hasLaunched && getSpeed(this.rocket) < 1) return false;
     const activeParts = Array.isArray(this.rocket.parts)
       ? this.rocket.parts.filter((part) => part.active !== false)
       : [];
     const hasCommandPod = activeParts.some((part) => part.type === "command");
     if (!hasCommandPod) return false;
 
-    const object = makeCommandVesselObject(activeParts, this.rocket, `Command Pod ${this.objects.filter((candidate) => candidate.kind === "vessel").length + 1}`);
+    const object = makeCommandVesselObject(activeParts, this.rocket, options.name ?? `Command Pod ${this.objects.filter((candidate) => candidate.kind === "vessel").length + 1}`);
     object.statusReason = reason;
+    object.landed = Boolean(this.rocket.landed);
+    object.crashed = Boolean(this.rocket.crashed);
+    if (object.landed) object.status = "landed";
+    if (object.crashed) object.status = "crashed";
     this.objects.push(object);
     this.rocket.archived = true;
     this.trimObjects();
@@ -171,7 +241,7 @@ export class Game {
   }
 
   activateStage() {
-    const result = activateNextStage(this.rocket, PLANET);
+    const result = activateNextStage(this.rocket, this.getDominantPlanetFor(this.rocket));
     if (result.objects?.length) {
       this.objects.push(...result.objects);
       this.trimObjects();
@@ -179,6 +249,15 @@ export class Game {
     }
     this.stageMessage = result.message;
     this.stageMessageTimer = 6;
+    const effectPoint = this.getRocketWorldEffectPoint(-90);
+    this.emitFeedback({
+      title: "Stage fired",
+      message: result.message,
+      tone: result.ok === false ? "warning" : "info",
+      sound: result.ok === false ? "error" : "stage",
+      haptic: result.ok === false ? "error" : "medium",
+      worldEffect: { type: "stage", x: effectPoint.x, y: effectPoint.y }
+    });
   }
 
   createFlightStats(rocket = this.rocket) {
@@ -186,7 +265,7 @@ export class Game {
       hasLaunched: false,
       ended: false,
       outcome: "",
-      maxAltitude: Math.max(0, getAltitude(rocket, PLANET)),
+      maxAltitude: Math.max(0, getAltitude(rocket, this.getDominantPlanetFor(rocket))),
       maxSpeed: 0,
       fuelStart: rocket.maxFuel ?? 0,
       fuelUsed: 0,
@@ -202,7 +281,11 @@ export class Game {
 
   update(dt) {
     const turn = (this.input.isHeld("right") ? 1 : 0) - (this.input.isHeld("left") ? 1 : 0);
-    if (turn !== 0) rotateRocket(this.rocket, turn, dt);
+    rotateRocket(this.rocket, turn, dt);
+
+    const activePlanet = this.getDominantPlanetFor(this.rocket);
+    this.rocket.primaryPlanetId = activePlanet.id ?? "homeworld";
+    this.rocket.primaryPlanetName = activePlanet.name ?? "Homeworld";
 
     stepRocket(
       this.rocket,
@@ -210,10 +293,15 @@ export class Game {
         thrusting: this.input.isHeld("thrust")
       },
       dt,
-      PLANET
+      activePlanet
     );
 
-    this.objects.forEach((object) => stepDetachedObject(object, dt, PLANET));
+    this.objects.forEach((object) => {
+      const objectPlanet = this.getDominantPlanetFor(object);
+      object.primaryPlanetId = objectPlanet.id ?? "homeworld";
+      object.primaryPlanetName = objectPlanet.name ?? "Homeworld";
+      stepDetachedObject(object, dt, objectPlanet);
+    });
     this.trimObjects();
     this.updateEconomy(dt);
     this.updateFlightStats();
@@ -250,16 +338,20 @@ export class Game {
   }
 
   updateEconomy(dt) {
-    let incomeRate = 0;
+    const mineCount = clampMineCount(this.company.earthMineCount);
+    const mineIncomeRate = mineCount * EARTH_MINE_INCOME_RATE;
+    let orbitalIncomeRate = 0;
     let researchRate = 0;
+    let scanRate = 0;
     const telemetryOnline = isResearchComplete(this.company, "orbital_telemetry");
+
     for (const object of this.objects) {
       if (!object || object.crashed || object.exploded) continue;
-      updateDetachedObjectStatus(object, PLANET);
+      updateDetachedObjectStatus(object, this.getDominantPlanetFor(object));
       if (object.kind === "payload" && object.online) {
         const rate = Number(object.incomeRate ?? 0);
         if (rate > 0) {
-          incomeRate += rate;
+          orbitalIncomeRate += rate;
           const earned = rate * dt;
           object.revenueEarned = (object.revenueEarned ?? 0) + earned;
         }
@@ -270,21 +362,104 @@ export class Game {
           const dataEarned = dataRate * dt;
           object.researchEarned = (object.researchEarned ?? 0) + dataEarned;
         }
+
+        const surveyRate = Number(object.scanRate ?? 0);
+        if (surveyRate > 0) {
+          scanRate += surveyRate;
+          const scanEarned = surveyRate * dt;
+          object.scanEarned = (object.scanEarned ?? 0) + scanEarned;
+        }
       }
     }
 
+    const incomeRate = mineIncomeRate + orbitalIncomeRate;
+    this.company.earthMineCount = mineCount;
+    this.company.earthMineIncomePerSecond = mineIncomeRate;
+    this.company.orbitalIncomePerSecond = orbitalIncomeRate;
     this.company.incomePerSecond = incomeRate;
     this.company.researchPerSecond = researchRate;
+    this.company.scanPerSecond = scanRate;
     if (incomeRate > 0) {
       const earned = incomeRate * dt;
       this.company.money += earned;
       this.company.totalRevenue += earned;
+      this.company.totalMineRevenue = (this.company.totalMineRevenue ?? 0) + mineIncomeRate * dt;
     }
     if (researchRate > 0) {
       const dataEarned = researchRate * dt;
       this.company.researchPoints = (this.company.researchPoints ?? 0) + dataEarned;
       this.company.totalResearchEarned = (this.company.totalResearchEarned ?? 0) + dataEarned;
     }
+    if (scanRate > 0) {
+      const scanEarned = scanRate * dt;
+      this.company.scanPoints = (this.company.scanPoints ?? 0) + scanEarned;
+      this.company.totalScanGenerated = (this.company.totalScanGenerated ?? 0) + scanEarned;
+    }
+
+    const discoveries = processPlanetDiscovery(this.company);
+    if (discoveries.length) {
+      const names = discoveries.map((planet) => planet.name).join(", ");
+      this.stageMessage = discoveries.length === 1 ? `Planet discovered: ${names}.` : `Planets discovered: ${names}.`;
+      this.stageMessageTimer = 10;
+      this.emitFeedback({
+        title: discoveries.length === 1 ? "Planet discovered" : "Planets discovered",
+        message: names,
+        tone: "reward",
+        sound: "unlock",
+        haptic: "success",
+        reward: {
+          title: discoveries.length === 1 ? `Planet Discovered: ${names}` : "New Planets Discovered",
+          subtitle: "Your orbital network revealed a new destination.",
+          stats: discoveries.map((planet) => `${planet.name}: ${Math.round((planet.gravity ?? 0) * 100) / 100}g`),
+          tone: "reward",
+          kicker: "Discovery",
+          icon: "◐"
+        },
+        worldEffect: { type: "unlock", x: this.rocket.x, y: this.rocket.y }
+      });
+      this.saveCompany();
+    }
+  }
+
+  canBuyEarthMine() {
+    if (clampMineCount(this.company.earthMineCount) >= EARTH_MINE_MAX) return false;
+    if (this.company.mode === "sandbox") return true;
+    return Number(this.company.money ?? 0) >= EARTH_MINE_COST;
+  }
+
+  buyEarthMine() {
+    const current = clampMineCount(this.company.earthMineCount);
+    if (current >= EARTH_MINE_MAX) {
+      this.stageMessage = "Earth mine limit reached.";
+      this.stageMessageTimer = 5;
+      this.emitFeedback({ title: "Mine limit reached", message: "All Earth mine slots are already built.", tone: "warning", sound: "error", haptic: "error" });
+      return { ok: false, reason: "Mine limit reached." };
+    }
+
+    if (this.company.mode !== "sandbox" && Number(this.company.money ?? 0) < EARTH_MINE_COST) {
+      this.stageMessage = `Need ${formatMoney(EARTH_MINE_COST)} to buy another Earth mine.`;
+      this.stageMessageTimer = 5;
+      this.emitFeedback({ title: "Not enough cash", message: `Need ${formatMoney(EARTH_MINE_COST)} to buy another Earth mine.`, tone: "warning", sound: "error", haptic: "error" });
+      return { ok: false, reason: "Not enough cash." };
+    }
+
+    if (this.company.mode !== "sandbox") {
+      this.company.money = Math.max(0, Number(this.company.money ?? 0) - EARTH_MINE_COST);
+      this.company.totalMineBuildCosts = (this.company.totalMineBuildCosts ?? 0) + EARTH_MINE_COST;
+    }
+    this.company.earthMineCount = current + 1;
+    this.company.earthMineIncomePerSecond = this.company.earthMineCount * EARTH_MINE_INCOME_RATE;
+    this.stageMessage = `Earth mine purchased. Mines now produce ${formatMoney(this.company.earthMineIncomePerSecond)}/sec.`;
+    this.stageMessageTimer = 7;
+    this.emitFeedback({
+      title: "Earth mine purchased",
+      message: `Mines now produce ${formatMoney(this.company.earthMineIncomePerSecond)}/sec.`,
+      tone: "success",
+      sound: "reward",
+      haptic: "success"
+    });
+    this.saveCompany();
+    return { ok: true, mineCount: this.company.earthMineCount };
   }
 
   updateMissions() {
@@ -312,6 +487,25 @@ export class Game {
         })
         .join(" ");
       this.stageMessageTimer = 9;
+      const completedTitles = newlyCompleted.map((mission) => mission.title).join(", ");
+      const stats = [`+${formatMoney(reward)}`];
+      if (researchReward > 0) stats.push(`+${Math.round(researchReward).toLocaleString()}R`);
+      this.emitFeedback({
+        title: newlyCompleted.length === 1 ? "Mission complete" : `${newlyCompleted.length} missions complete`,
+        message: completedTitles,
+        tone: "reward",
+        sound: "reward",
+        haptic: "success",
+        reward: {
+          title: newlyCompleted.length === 1 ? newlyCompleted[0].title : "Mission Chain Complete",
+          subtitle: "Rewards added to your space program.",
+          stats,
+          tone: "success",
+          kicker: newlyCompleted.length === 1 ? "Mission Complete" : "Campaign Progress",
+          icon: "★"
+        },
+        worldEffect: { type: "reward", x: this.rocket.x, y: this.rocket.y }
+      });
       this.saveCompany();
     }
   }
@@ -328,7 +522,7 @@ export class Game {
   updateFlightStats() {
     if (!this.flightStats) this.flightStats = this.createFlightStats(this.rocket);
 
-    const altitude = Math.max(0, getAltitude(this.rocket, PLANET));
+    const altitude = Math.max(0, getAltitude(this.rocket, this.getDominantPlanetFor(this.rocket)));
     const speed = getSpeed(this.rocket);
     const inFlight = !this.rocket.landed || speed > 0.1 || this.flightStats.hasLaunched;
 
@@ -349,6 +543,14 @@ export class Game {
         this.flightStats.recoveredParts = recovery.parts;
       }
       this.flightStats.tip = this.getFlightTip();
+      this.emitFeedback({
+        title: this.rocket.crashed ? "Vehicle lost" : "Rocket recovered",
+        message: this.rocket.crashed ? "Review the flight result and rebuild." : `Recovery value: ${formatMoney(this.flightStats.recoveryAvailable ?? 0)}.`,
+        tone: this.rocket.crashed ? "danger" : "success",
+        sound: this.rocket.crashed ? "crash" : "reward",
+        haptic: this.rocket.crashed ? "heavy" : "success",
+        worldEffect: { type: this.rocket.crashed ? "crash" : "landing", x: this.rocket.x, y: this.rocket.y }
+      });
     }
   }
 
@@ -376,6 +578,7 @@ export class Game {
       this.company.lastRecoveryRefund = amount;
       this.stageMessage = `Recovered parts cashed in: ${formatMoney(amount)}.`;
       this.stageMessageTimer = 8;
+      this.emitFeedback({ title: "Recovery cashed in", message: `+${formatMoney(amount)} returned to cash.`, tone: "success", sound: "reward", haptic: "success" });
       this.saveCompany();
     }
     this.flightStats.recoveryCashedIn = true;
@@ -385,12 +588,13 @@ export class Game {
 
   getFlightTip() {
     const maxAltitude = this.flightStats?.maxAltitude ?? 0;
-    const tangential = getTangentialSpeed(this.rocket, PLANET);
-    const circular = getCircularOrbitSpeed(this.rocket, PLANET);
+    const activePlanet = this.getDominantPlanetFor(this.rocket);
+    const tangential = getTangentialSpeed(this.rocket, activePlanet);
+    const circular = getCircularOrbitSpeed(this.rocket, activePlanet);
 
     if (this.rocket.missionComplete || (this.rocket.payloadsOnline ?? 0) > 0) return "Great launch. Payload/orbit objective completed.";
     if (this.rocket.landed && !this.rocket.crashed) return "Nice recovery. Cash in the recovered parts from the flight results popup.";
-    if (maxAltitude < PLANET.atmosphereHeight * 0.65) return "Add fuel/thrust or reduce drag to climb out of the lower atmosphere.";
+    if (maxAltitude < activePlanet.atmosphereHeight * 0.65) return "Add fuel/thrust or reduce drag to climb out of the lower atmosphere.";
     if (tangential < circular * 0.68) return "You reached space, but need more sideways speed. Start tilting earlier.";
     if (this.rocket.parachuteState === "failed") return "The parachute ripped off. Wait until speed drops before staging recovery.";
     if (this.rocket.crashed && this.rocket.parachuteState !== "deployed") return "Use a parachute and landing legs before touchdown for recovery attempts.";
@@ -413,6 +617,18 @@ export class Game {
   }
 
   explodeObject(objectId = this.selectedObjectId) {
+    if (objectId === "current-rocket") {
+      this.stageMessage = "Current craft destroyed.";
+      this.stageMessageTimer = 6;
+      this.emitFeedback({ title: "Craft destroyed", message: "Current craft removed from the world.", tone: "danger", sound: "crash", haptic: "heavy", worldEffect: { type: "crash", x: this.rocket.x, y: this.rocket.y } });
+      this.company.totalDestroyed = (this.company.totalDestroyed ?? 0) + 1;
+      this.rocket = cloneRocket(this.rocketTemplate);
+      this.flightStats = this.createFlightStats(this.rocket);
+      this.selectedObjectId = null;
+      this.renderer.followRocket?.(this.rocket);
+      this.saveCompany();
+      return true;
+    }
     const object = this.objects.find((candidate) => candidate.id === objectId);
     if (!object) return false;
 
@@ -421,10 +637,105 @@ export class Game {
     this.company.totalDestroyed = (this.company.totalDestroyed ?? 0) + 1;
     this.stageMessage = `${object.name ?? "Object"} destroyed.`;
     this.stageMessageTimer = 6;
+    this.emitFeedback({ title: "Object destroyed", message: `${object.name ?? "Object"} removed from the world.`, tone: "danger", sound: "crash", haptic: "heavy", worldEffect: { type: "crash", x: object.x, y: object.y } });
     this.trimObjects();
     this.updateMissions();
     this.selectedObjectId = null;
     this.saveWorldObjects();
+    this.saveCompany();
+    return true;
+  }
+
+  controlObject(objectId = this.selectedObjectId) {
+    const object = this.objects.find((candidate) => candidate.id === objectId && !candidate.exploded);
+    if (!object || normalizeObjectKind(object) !== "vessel" || !objectContainsPartType(object, "command")) {
+      this.stageMessage = "Select a command module to control it.";
+      this.stageMessageTimer = 5;
+      this.emitFeedback({ title: "Command required", message: "Select a command module to control it.", tone: "warning", sound: "error", haptic: "error" });
+      return false;
+    }
+
+    this.persistActiveCommandVessel("switched control", { includeLanded: true, name: this.rocket?.landed ? "Launch Pad Rocket" : "Command Pod" });
+    this.objects = this.objects.filter((candidate) => candidate.id !== object.id);
+
+    const parts = Array.isArray(object.parts) ? object.parts.map((part) => ({ ...part, active: part.active !== false })) : [];
+    this.rocket = cloneRocket({
+      ...ROCKET,
+      ...object,
+      parts,
+      landed: Boolean(object.landed),
+      crashed: Boolean(object.crashed),
+      archived: false,
+      parachuteState: object.parachuteState ?? "packed",
+      landingLegsDeployed: Boolean(object.landingLegsDeployed),
+      nextStage: Number(object.nextStage ?? findNextStage(parts)),
+      maxStage: Number(object.maxStage ?? findMaxStage(parts)),
+      stageEvents: [],
+      lastStageMessage: "Control switched to saved command module.",
+      buildStats: {
+        cost: Number(object.cost ?? 0),
+        partCount: parts.length,
+        launchMass: Number(object.mass ?? object.dryMass ?? 0),
+        stageCount: Number(object.maxStage ?? findMaxStage(parts))
+      }
+    });
+    recalculateRocketStats(this.rocket);
+    this.flightStats = this.createFlightStats(this.rocket);
+    this.flightStats.hasLaunched = !this.rocket.landed || getSpeed(this.rocket) > 1;
+    this.selectedObjectId = null;
+    this.paused = false;
+    this.stageMessage = `Control switched to ${object.name ?? "command module"}.`;
+    this.stageMessageTimer = 7;
+    this.emitFeedback({ title: "Control switched", message: object.name ?? "Command module", tone: "info", sound: "select", haptic: "medium" });
+    this.trimObjects();
+    this.saveWorldObjects();
+    this.saveCompany();
+    this.renderer.followRocket?.(this.rocket);
+    return true;
+  }
+
+  sellObject(objectId = this.selectedObjectId) {
+    if (objectId === "current-rocket") return this.sellActiveRocket();
+    const object = this.objects.find((candidate) => candidate.id === objectId && !candidate.exploded);
+    if (!object) return false;
+    if (!object.landed && !object.crashed) {
+      this.stageMessage = "Only landed or crashed craft can be sold.";
+      this.stageMessageTimer = 5;
+      this.emitFeedback({ title: "Cannot sell in flight", message: "Only landed or crashed craft can be sold.", tone: "warning", sound: "error", haptic: "error" });
+      return false;
+    }
+    const refund = getObjectSaleValue(object);
+    if (refund > 0 && this.company.mode !== "sandbox") {
+      this.company.money = (this.company.money ?? 0) + refund;
+      this.company.totalRecovery = (this.company.totalRecovery ?? 0) + refund;
+    }
+    object.exploded = true;
+    this.company.totalSoldObjects = (this.company.totalSoldObjects ?? 0) + 1;
+    this.stageMessage = `${object.name ?? "Craft"} sold for ${formatMoney(refund)}.`;
+    this.stageMessageTimer = 7;
+    this.emitFeedback({ title: "Craft sold", message: `Recovered ${formatMoney(refund)}.`, tone: "success", sound: "reward", haptic: "success" });
+    this.selectedObjectId = null;
+    this.trimObjects();
+    this.saveWorldObjects();
+    this.saveCompany();
+    return true;
+  }
+
+  sellActiveRocket() {
+    if (!this.rocket || (!this.rocket.landed && !this.rocket.crashed)) return false;
+    const refund = getObjectSaleValue(this.rocket);
+    if (refund > 0 && this.company.mode !== "sandbox") {
+      this.company.money = (this.company.money ?? 0) + refund;
+      this.company.totalRecovery = (this.company.totalRecovery ?? 0) + refund;
+    }
+    this.company.totalSoldObjects = (this.company.totalSoldObjects ?? 0) + 1;
+    this.stageMessage = `Current craft sold for ${formatMoney(refund)}.`;
+    this.stageMessageTimer = 7;
+    this.emitFeedback({ title: "Craft sold", message: `Recovered ${formatMoney(refund)}.`, tone: "success", sound: "reward", haptic: "success" });
+    this.rocket = cloneRocket(this.rocketTemplate);
+    this.flightStats = this.createFlightStats(this.rocket);
+    this.selectedObjectId = null;
+    this.renderer.followRocket?.(this.rocket);
     this.saveCompany();
     return true;
   }
@@ -435,10 +746,26 @@ export class Game {
       const unlocked = result.node.unlockText ? ` ${result.node.unlockText}` : "";
       this.stageMessage = `Research complete: ${result.node.name}.${unlocked}`;
       this.stageMessageTimer = 9;
+      this.emitFeedback({
+        title: "Research complete",
+        message: result.node.name,
+        tone: "reward",
+        sound: "unlock",
+        haptic: "success",
+        reward: {
+          title: result.node.name,
+          subtitle: result.node.unlockText ?? "New program capability unlocked.",
+          stats: [`-${formatResearch(result.node.cost ?? 0)}R`],
+          tone: "reward",
+          kicker: "Program Unlock",
+          icon: "✦"
+        }
+      });
       this.saveCompany();
     } else {
       this.stageMessage = result.reason ?? "Research unavailable.";
       this.stageMessageTimer = 6;
+      this.emitFeedback({ title: "Research unavailable", message: result.reason ?? "Research unavailable.", tone: "warning", sound: "error", haptic: "error" });
     }
     return result;
   }
@@ -464,17 +791,31 @@ export class Game {
         totalDestroyed: Number(parsed.totalDestroyed ?? 0),
         totalMissionRewards: scaleLegacyMoney(Number(parsed.totalMissionRewards ?? 0), isLegacyEconomy),
         totalLaunchCosts: scaleLegacyMoney(Number(parsed.totalLaunchCosts ?? 0), isLegacyEconomy),
+        earthMineCount: clampMineCount(parsed.earthMineCount),
+        earthMineIncomePerSecond: clampMineCount(parsed.earthMineCount) * EARTH_MINE_INCOME_RATE,
+        totalMineRevenue: Number(parsed.totalMineRevenue ?? 0),
+        totalMineBuildCosts: scaleLegacyMoney(Number(parsed.totalMineBuildCosts ?? 0), isLegacyEconomy),
         researchPoints: Number(parsed.researchPoints ?? STARTING_RESEARCH),
         totalResearchEarned: Number(parsed.totalResearchEarned ?? 0),
         completedResearch: normalizeResearchState(parsed.completedResearch),
         lastResearchReward: Number(parsed.lastResearchReward ?? 0),
         lastResearchPurchase: parsed.lastResearchPurchase ?? "",
+        scanPoints: Number(parsed.scanPoints ?? 0),
+        totalScanGenerated: Number(parsed.totalScanGenerated ?? 0),
+        scanPerSecond: 0,
+        discoveredPlanets: normalizePlanetState(parsed.discoveredPlanets),
+        totalPlanetsDiscovered: normalizePlanetState(parsed.discoveredPlanets).length,
+        lastDiscoveredPlanet: parsed.lastDiscoveredPlanet ?? "",
+        planetDiscoveryVersion: PLANET_DISCOVERY_VERSION,
         lastRecoveryRefund: scaleLegacyMoney(Number(parsed.lastRecoveryRefund ?? 0), isLegacyEconomy),
         lastMissionReward: scaleLegacyMoney(Number(parsed.lastMissionReward ?? 0), isLegacyEconomy),
         lastLaunchCost: scaleLegacyMoney(Number(parsed.lastLaunchCost ?? 0), isLegacyEconomy),
         missions: normalizeMissionState(parsed.missions),
         incomePerSecond: 0,
-        researchPerSecond: 0
+        earthMineIncomePerSecond: clampMineCount(parsed.earthMineCount) * EARTH_MINE_INCOME_RATE,
+        orbitalIncomePerSecond: 0,
+        researchPerSecond: 0,
+        scanPerSecond: 0
       };
       return backfillMissionResearchRewards(company);
     } catch (error) {
@@ -496,11 +837,20 @@ export class Game {
         totalDestroyed: this.company.totalDestroyed,
         totalMissionRewards: this.company.totalMissionRewards ?? 0,
         totalLaunchCosts: this.company.totalLaunchCosts ?? 0,
+        earthMineCount: clampMineCount(this.company.earthMineCount),
+        totalMineRevenue: this.company.totalMineRevenue ?? 0,
+        totalMineBuildCosts: this.company.totalMineBuildCosts ?? 0,
         researchPoints: this.company.researchPoints ?? 0,
         totalResearchEarned: this.company.totalResearchEarned ?? 0,
         completedResearch: normalizeResearchState(this.company.completedResearch),
         lastResearchReward: this.company.lastResearchReward ?? 0,
         lastResearchPurchase: this.company.lastResearchPurchase ?? "",
+        scanPoints: this.company.scanPoints ?? 0,
+        totalScanGenerated: this.company.totalScanGenerated ?? 0,
+        discoveredPlanets: normalizePlanetState(this.company.discoveredPlanets),
+        totalPlanetsDiscovered: normalizePlanetState(this.company.discoveredPlanets).length,
+        lastDiscoveredPlanet: this.company.lastDiscoveredPlanet ?? "",
+        planetDiscoveryVersion: PLANET_DISCOVERY_VERSION,
         lastRecoveryRefund: this.company.lastRecoveryRefund ?? 0,
         lastMissionReward: this.company.lastMissionReward ?? 0,
         lastLaunchCost: this.company.lastLaunchCost ?? 0,
@@ -544,9 +894,12 @@ export class Game {
   }
 
   getRenderState() {
+    const activePlanet = this.getDominantPlanetFor(this.rocket);
     return {
       rocket: this.rocket,
       objects: this.objects,
+      planets: this.getActivePlanets(),
+      activePlanet,
       selectedObjectId: this.selectedObjectId,
       paused: this.paused,
       debug: this.debug,
@@ -557,12 +910,14 @@ export class Game {
   }
 
   getHudData() {
-    const altitude = getAltitude(this.rocket, PLANET);
+    const activePlanet = this.getDominantPlanetFor(this.rocket);
+    const altitude = getAltitude(this.rocket, activePlanet);
     const speed = getSpeed(this.rocket);
     const fuelPercent = this.rocket.maxFuel > 0 ? (this.rocket.fuel / this.rocket.maxFuel) * 100 : 0;
-    const status = this.paused ? `Paused — ${getOrbitStatus(this.rocket, PLANET)}` : getOrbitStatus(this.rocket, PLANET);
-    const density = getAtmosphereDensity(this.rocket, PLANET);
-    const drag = getDragVector(this.rocket, PLANET);
+    const orbitStatus = getOrbitStatus(this.rocket, activePlanet);
+    const status = this.paused ? `Paused — ${orbitStatus}` : orbitStatus;
+    const density = getAtmosphereDensity(this.rocket, activePlanet);
+    const drag = getDragVector(this.rocket, activePlanet);
     const onlinePayloads = this.objects.filter((object) => object.kind === "payload" && object.online && !object.crashed).length + (this.rocket.payloadsOnline ?? 0);
     const debrisCount = this.objects.filter((object) => object.kind === "debris" && !object.exploded).length;
 
@@ -571,6 +926,7 @@ export class Game {
       speed,
       fuelPercent,
       stageFuel: getStageFuelSummary(this.rocket),
+      activePlanet,
       status,
       fps: this.fps,
       orbitHoldTime: this.rocket.orbitHoldTime,
@@ -590,7 +946,10 @@ export class Game {
       company: { ...this.company },
       research: getResearchView(this.company),
       missions: getMissionView(this.getMissionContext()),
+      missionChapters: getMissionChapterProgress(this.getMissionContext()),
       nextMission: getNextMission(this.getMissionContext()),
+      planets: getPlanetRegistryView(this.company),
+      nextPlanetSignal: getNextPlanetSignal(this.company),
       flightSummary: this.getFlightSummary(),
       selectedObject: this.getSelectedObjectInfo(),
       trackedObjects: this.getTrackedObjects(),
@@ -601,21 +960,30 @@ export class Game {
   getTrackedObjects() {
     const tracked = [];
 
-    if (this.rocket && !this.rocket.crashed && !this.rocket.landed && Array.isArray(this.rocket.parts)) {
+    if (this.rocket && Array.isArray(this.rocket.parts)) {
       const hasCommandPod = this.rocket.parts.some((part) => part.active !== false && part.type === "command");
-      if (hasCommandPod && (this.flightStats?.hasLaunched || getSpeed(this.rocket) > 1)) {
+      if (hasCommandPod && (this.flightStats?.hasLaunched || getSpeed(this.rocket) > 1 || this.rocket.landed || this.rocket.crashed)) {
+        const saleValue = getObjectSaleValue(this.rocket);
         tracked.push({
           id: "current-rocket",
-          name: "Current Command Pod",
+          name: this.rocket.landed ? "Current Rocket on Pad" : this.rocket.crashed ? "Crashed Current Rocket" : "Current Command Pod",
           kind: "vessel",
           category: "command",
-          status: getOrbitStatus(this.rocket, PLANET),
-          altitude: getAltitude(this.rocket, PLANET),
+          status: getOrbitStatus(this.rocket, this.getDominantPlanetFor(this.rocket)),
+          altitude: getAltitude(this.rocket, this.getDominantPlanetFor(this.rocket)),
           speed: getSpeed(this.rocket),
           incomeRate: 0,
+          researchRate: 0,
+          baseResearchRate: 0,
+          scanRate: 0,
           revenueEarned: 0,
+          researchEarned: 0,
+          scanEarned: 0,
           online: false,
-          canExplode: false,
+          canControl: true,
+          canSell: Boolean((this.rocket.landed || this.rocket.crashed) && saleValue > 0),
+          saleValue,
+          canExplode: true,
           isCurrentRocket: true
         });
       }
@@ -623,7 +991,7 @@ export class Game {
 
     for (const object of this.objects) {
       if (!object || object.exploded) continue;
-      const info = objectToInfo(object, this.company);
+      const info = objectToInfo(object, this.company, this.getDominantPlanetFor(object));
       tracked.push(info);
     }
 
@@ -634,9 +1002,12 @@ export class Game {
   }
 
   getSelectedObjectInfo() {
+    if (this.selectedObjectId === "current-rocket") {
+      return this.getTrackedObjects().find((object) => object.id === "current-rocket") ?? null;
+    }
     const object = this.getSelectedObject();
     if (!object) return null;
-    return objectToInfo(object, this.company);
+    return objectToInfo(object, this.company, this.getDominantPlanetFor(object));
   }
 
   getFlightSummary() {
@@ -659,23 +1030,25 @@ export class Game {
   }
 
   getDebugText() {
-    const gravity = getGravityVector(this.rocket, PLANET);
-    const drag = getDragVector(this.rocket, PLANET);
+    const activePlanet = this.getDominantPlanetFor(this.rocket);
+    const gravity = getGravityVector(this.rocket, activePlanet);
+    const drag = getDragVector(this.rocket, activePlanet);
     const stageEvents = (this.rocket.stageEvents ?? []).map((event) => `- ${event.message}`).join("\n") || "None";
 
     return [
+      `Primary body:  ${activePlanet.name ?? "Homeworld"}`,
       `Position:      x ${fmt(this.rocket.x)}   y ${fmt(this.rocket.y)}`,
       `Velocity:      x ${fmt(this.rocket.vx)}   y ${fmt(this.rocket.vy)}`,
       `Angle:         ${fmt((this.rocket.angle * 180) / Math.PI)}°`,
-      `Distance:      ${fmt(getDistanceToPlanet(this.rocket, PLANET))}`,
-      `Altitude:      ${fmt(getAltitude(this.rocket, PLANET))}`,
+      `Distance:      ${fmt(getDistanceToPlanet(this.rocket, activePlanet))}`,
+      `Altitude:      ${fmt(getAltitude(this.rocket, activePlanet))}`,
       `Speed:         ${fmt(getSpeed(this.rocket))}`,
-      `Radial vel:    ${fmt(getRadialVelocity(this.rocket, PLANET))}`,
-      `Tangential:    ${fmt(getTangentialSpeed(this.rocket, PLANET))}`,
-      `Circular req:  ${fmt(getCircularOrbitSpeed(this.rocket, PLANET))}`,
-      `Escape req:    ${fmt(getEscapeSpeed(this.rocket, PLANET))}`,
+      `Radial vel:    ${fmt(getRadialVelocity(this.rocket, activePlanet))}`,
+      `Tangential:    ${fmt(getTangentialSpeed(this.rocket, activePlanet))}`,
+      `Circular req:  ${fmt(getCircularOrbitSpeed(this.rocket, activePlanet))}`,
+      `Escape req:    ${fmt(getEscapeSpeed(this.rocket, activePlanet))}`,
       `Gravity:       ${fmt(gravity.strength)}`,
-      `Atmosphere:    ${fmt(getAtmosphereDensity(this.rocket, PLANET) * 100)}%`,
+      `Atmosphere:    ${fmt(getAtmosphereDensity(this.rocket, activePlanet) * 100)}%`,
       `Drag accel:    ${fmt(drag.strength)}`,
       `Drag area:     ${fmt(this.rocket.dragArea)}`,
       `Mass:          ${fmt(getRocketMass(this.rocket))}`,
@@ -687,7 +1060,11 @@ export class Game {
       `Payloads:      ${this.objects.filter((object) => object.kind === "payload" && object.online).length}`,
       `Debris:        ${this.objects.filter((object) => object.kind === "debris").length}`,
       `Income:        ${formatMoney(this.company.incomePerSecond)}/sec`,
+      `Earth mines:   ${clampMineCount(this.company.earthMineCount)} / ${EARTH_MINE_MAX} (${formatMoney(this.company.earthMineIncomePerSecond ?? 0)}/sec)`,
+      `Orbital income:${formatMoney(this.company.orbitalIncomePerSecond ?? 0)}/sec`,
       `Research:      ${fmt(this.company.researchPoints ?? 0)} (${fmt(this.company.researchPerSecond ?? 0)}/sec)`,
+      `Scan:          ${fmt(this.company.scanPoints ?? 0)} (${fmt(this.company.scanPerSecond ?? 0)}/sec)`,
+      `Planets:       ${normalizePlanetState(this.company.discoveredPlanets).length} discovered`,
       `Cash:          ${formatMoney(this.company.money)}`,
       `Mode:          ${this.company.mode}`,
       `Mission rewards: ${formatMoney(this.company.totalMissionRewards ?? 0)}`,
@@ -729,11 +1106,25 @@ function createDefaultCompany() {
     totalDestroyed: 0,
     totalMissionRewards: 0,
     totalLaunchCosts: 0,
+    earthMineCount: 0,
+    earthMineIncomePerSecond: 0,
+    orbitalIncomePerSecond: 0,
+    totalMineRevenue: 0,
+    totalMineBuildCosts: 0,
     researchPoints: STARTING_RESEARCH,
     totalResearchEarned: 0,
     completedResearch: normalizeResearchState(),
     incomePerSecond: 0,
+    earthMineIncomePerSecond: 0,
+    orbitalIncomePerSecond: 0,
     researchPerSecond: 0,
+    scanPoints: 0,
+    totalScanGenerated: 0,
+    scanPerSecond: 0,
+    discoveredPlanets: normalizePlanetState(),
+    totalPlanetsDiscovered: 0,
+    lastDiscoveredPlanet: "",
+    planetDiscoveryVersion: PLANET_DISCOVERY_VERSION,
     lastRecoveryRefund: 0,
     lastMissionReward: 0,
     lastResearchReward: 0,
@@ -748,8 +1139,16 @@ function scaleLegacyMoney(value, shouldScale) {
   return shouldScale ? value * LEGACY_ECONOMY_MULTIPLIER : value;
 }
 
+function clampMineCount(value) {
+  const count = Math.floor(Number(value ?? 0));
+  if (!Number.isFinite(count)) return 0;
+  return Math.max(0, Math.min(EARTH_MINE_MAX, count));
+}
+
 function normalizeStoredObject(object) {
   const isLegacyEconomy = object?.economyScaleVersion !== ECONOMY_SCALE_VERSION;
+  const payloadRates = getCurrentPayloadRates(object);
+  const shouldRefreshPayloadRates = normalizeObjectKind(object) === "payload" && object?.payloadRateVersion !== PAYLOAD_RATE_VERSION;
   const normalized = {
     ...object,
     kind: normalizeObjectKind(object),
@@ -759,21 +1158,29 @@ function normalizeStoredObject(object) {
     vy: Number(object.vy ?? 0),
     angle: Number(object.angle ?? 0),
     dryMass: Number(object.dryMass ?? object.mass ?? 1),
-    fuel: 0,
-    maxFuel: 0,
+    fuel: Number(object.fuel ?? 0),
+    maxFuel: Number(object.maxFuel ?? 0),
     fuelMassPerUnit: Number(object.fuelMassPerUnit ?? ROCKET.fuelMassPerUnit),
     mass: Number(object.mass ?? object.dryMass ?? 1),
     dragArea: Number(object.dragArea ?? 1),
     collisionRadius: Number(object.collisionRadius ?? 10),
     economyScaleVersion: ECONOMY_SCALE_VERSION,
+    payloadRateVersion: PAYLOAD_RATE_VERSION,
     cost: scaleLegacyMoney(Number(object.cost ?? 0), isLegacyEconomy),
     recoveryValue: scaleLegacyMoney(Number(object.recoveryValue ?? 0), isLegacyEconomy),
-    incomeRate: object.incomeRate == null
-      ? inferIncomeRate(object)
-      : scaleLegacyMoney(Number(object.incomeRate), isLegacyEconomy),
-    researchRate: object.researchRate == null ? inferResearchRate(object) : Number(object.researchRate),
+    incomeRate: shouldRefreshPayloadRates || object.incomeRate == null
+      ? payloadRates.incomeRate
+      : Number(object.incomeRate),
+    researchRate: shouldRefreshPayloadRates || object.researchRate == null
+      ? payloadRates.researchRate
+      : Number(object.researchRate),
+    scanRate: shouldRefreshPayloadRates || object.scanRate == null
+      ? payloadRates.scanRate
+      : Number(object.scanRate),
+    payloadRole: object.payloadRole ?? payloadRates.payloadRole ?? inferPayloadType(object),
     revenueEarned: Number(object.revenueEarned ?? 0),
     researchEarned: Number(object.researchEarned ?? 0),
+    scanEarned: Number(object.scanEarned ?? 0),
     parts: Array.isArray(object.parts) ? object.parts.map((part) => ({ ...part, active: part.active !== false })) : [],
     online: Boolean(object.online),
     crashed: Boolean(object.crashed),
@@ -794,6 +1201,7 @@ function normalizeStoredObject(object) {
 function serializeObject(object) {
   return {
     economyScaleVersion: ECONOMY_SCALE_VERSION,
+    payloadRateVersion: PAYLOAD_RATE_VERSION,
     id: object.id,
     name: object.name,
     kind: object.kind,
@@ -804,8 +1212,8 @@ function serializeObject(object) {
     vy: object.vy,
     angle: object.angle,
     dryMass: object.dryMass,
-    fuel: 0,
-    maxFuel: 0,
+    fuel: Number(object.fuel ?? 0),
+    maxFuel: Number(object.maxFuel ?? 0),
     fuelMassPerUnit: object.fuelMassPerUnit,
     mass: object.mass,
     dragArea: object.dragArea,
@@ -818,8 +1226,11 @@ function serializeObject(object) {
     recoveryValue: object.recoveryValue ?? 0,
     incomeRate: object.incomeRate ?? 0,
     researchRate: object.researchRate ?? 0,
+    scanRate: object.scanRate ?? 0,
+    payloadRole: object.payloadRole ?? "",
     revenueEarned: object.revenueEarned ?? 0,
     researchEarned: object.researchEarned ?? 0,
+    scanEarned: object.scanEarned ?? 0,
     online: Boolean(object.online),
     crashed: Boolean(object.crashed),
     landed: Boolean(object.landed),
@@ -868,31 +1279,45 @@ function defaultObjectName(kind, payloadType) {
 }
 
 function inferIncomeRate(object) {
-  if (normalizeObjectKind(object) !== "payload") return 0;
-  const payloadType = inferPayloadType(object);
-  const name = `${object.name ?? ""} ${object.payloadType ?? ""}`.toLowerCase();
-  if (payloadType === "data_center" || name.includes("data")) return 360;
-  if (payloadType === "exploration_satellite" || name.includes("exploration")) return 80;
-  if (payloadType === "satellite" || name.includes("satellite")) return 140;
-  return 100;
+  return getCurrentPayloadRates(object).incomeRate;
 }
 
 function inferResearchRate(object) {
-  if (normalizeObjectKind(object) !== "payload") return 0;
-  const payloadType = inferPayloadType(object);
-  const name = `${object.name ?? ""} ${object.payloadType ?? ""}`.toLowerCase();
-  if (payloadType === "data_center" || name.includes("data")) return 0.28;
-  if (payloadType === "exploration_satellite" || name.includes("exploration")) return 0.9;
-  if (payloadType === "satellite" || name.includes("satellite")) return 0.16;
-  return 0.1;
+  return getCurrentPayloadRates(object).researchRate;
 }
 
-function objectToInfo(object, company = {}) {
+function getCurrentPayloadRates(object) {
+  const partId = inferPayloadPartId(object);
+  if (partId === "data_center_efficient") return { incomeRate: 15.2, researchRate: 0.011, scanRate: 0, payloadRole: "data" };
+  if (partId === "exploration_satellite_basic") return { incomeRate: 1.6, researchRate: 0.018, scanRate: 0.18, payloadRole: "exploration" };
+  if (partId === "satellite_basic") return { incomeRate: 2.8, researchRate: 0.0032, scanRate: 0, payloadRole: "comms" };
+  if (partId === "data_center_basic") return { incomeRate: 7.2, researchRate: 0.0056, scanRate: 0, payloadRole: "data" };
+  return normalizeObjectKind(object) === "payload" ? { incomeRate: 2, researchRate: 0.002, scanRate: 0, payloadRole: "payload" } : { incomeRate: 0, researchRate: 0, scanRate: 0, payloadRole: "" };
+}
+
+function inferPayloadPartId(object) {
+  const parts = Array.isArray(object?.parts) ? object.parts : [];
+  const ids = parts.map((part) => String(part.id ?? "").toLowerCase());
+  if (ids.includes("data_center_efficient")) return "data_center_efficient";
+  if (ids.includes("exploration_satellite_basic")) return "exploration_satellite_basic";
+  if (ids.includes("satellite_basic")) return "satellite_basic";
+  if (ids.includes("data_center_basic")) return "data_center_basic";
+
+  const text = `${object?.name ?? ""} ${object?.id ?? ""} ${object?.payloadType ?? ""}`.toLowerCase();
+  if (text.includes("efficient") || text.includes("cloud")) return "data_center_efficient";
+  if (text.includes("exploration") || text.includes("explorer")) return "exploration_satellite_basic";
+  if (text.includes("data") || text.includes("center") || text.includes("dc")) return "data_center_basic";
+  if (text.includes("satellite") || text.includes("sat")) return "satellite_basic";
+  return "";
+}
+
+function objectToInfo(object, company = {}, planet = PLANET) {
   const kind = normalizeObjectKind(object);
   const payloadType = inferPayloadType(object);
   const onlinePayload = kind === "payload" && object.online;
   const telemetryOnline = company.mode === "sandbox" || isResearchComplete(company, "orbital_telemetry");
   const baseResearchRate = onlinePayload ? Number(object.researchRate ?? 0) : 0;
+  const scanRate = onlinePayload ? Number(object.scanRate ?? 0) : 0;
   return {
     id: object.id,
     name: object.name ?? defaultObjectName(kind, payloadType),
@@ -900,19 +1325,41 @@ function objectToInfo(object, company = {}) {
     payloadType,
     category: kind === "payload" ? payloadType : kind === "vessel" ? "command" : "debris",
     status: object.status ?? "unknown",
+    primaryPlanetName: object.primaryPlanetName ?? planet.name ?? "Homeworld",
     offlineReason: object.offlineReason ?? "",
-    altitude: getAltitude(object, PLANET),
+    altitude: getAltitude(object, planet),
     speed: getSpeed(object),
     incomeRate: onlinePayload ? Number(object.incomeRate ?? 0) : 0,
     researchRate: telemetryOnline ? baseResearchRate : 0,
     baseResearchRate,
     researchUnlocked: telemetryOnline,
+    scanRate,
+    payloadRole: object.payloadRole ?? payloadType,
     revenueEarned: Number(object.revenueEarned ?? 0),
     researchEarned: Number(object.researchEarned ?? 0),
+    scanEarned: Number(object.scanEarned ?? 0),
     cost: Number(object.cost ?? 0),
     online: Boolean(object.online),
-    canExplode: kind === "debris" && !object.crashed && !object.exploded
+    canControl: kind === "vessel" && objectContainsPartType(object, "command") && !object.exploded,
+    canSell: Boolean((object.landed || object.crashed) && getObjectSaleValue(object) > 0),
+    saleValue: getObjectSaleValue(object),
+    canExplode: kind === "debris" || kind === "vessel" || kind === "payload"
   };
+}
+
+function findMaxStage(parts = []) {
+  return parts.reduce((max, part) => Math.max(max, Number(part.stage ?? 0)), 0);
+}
+
+function findNextStage(parts = []) {
+  const stages = [...new Set(parts.map((part) => Number(part.stage ?? 0)).filter((stage) => stage > 0))].sort((a, b) => a - b);
+  return stages[0] ?? 1;
+}
+
+function getObjectSaleValue(object = {}) {
+  const base = Number(object.recoveryValue ?? 0) || (Array.isArray(object.parts) ? object.parts.reduce((total, part) => total + Number(part.cost ?? 0), 0) * 0.45 : Number(object.cost ?? 0) * 0.35);
+  if (!Number.isFinite(base) || base <= 0) return 0;
+  return Math.round(base * (object.crashed ? 0.35 : 0.7));
 }
 
 function fmt(value) {
