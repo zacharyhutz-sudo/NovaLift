@@ -93,6 +93,7 @@ const controlObjectButton = document.querySelector("#controlObject");
 const sellObjectButton = document.querySelector("#sellObject");
 const closeObjectInspectorButton = document.querySelector("#closeObjectInspector");
 const builderWorldViewButton = document.querySelector("#builderWorldView");
+const builderWorldViewHeroButton = document.querySelector("#builderWorldViewHero");
 const builderJumpToPreviewButton = document.querySelector("#builderJumpToPreview");
 const builderJumpToMissionsButton = document.querySelector("#builderJumpToMissions");
 const builderJumpToResearchButton = document.querySelector("#builderJumpToResearch");
@@ -236,6 +237,14 @@ function bindBuilderEvents() {
   bindDelegatedActivation(missionBoardEl, "[data-template]", (button) => {
     applyRocketTemplate(button.dataset.template, { scrollToRocket: true });
   });
+  bindDelegatedActivation(missionBoardEl, "[data-edit-rocket]", () => {
+    builderAdvancedOpen = true;
+    renderBuilder();
+    setTimeout(() => advancedBuilderPanelEl?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  });
+  bindDelegatedActivation(missionBoardEl, "[data-launch-now]", () => {
+    launchBuiltRocket();
+  });
   bindDelegatedActivation(partCategoryTabsEl, "[data-part-category]", (button) => {
     activePartCategory = button.dataset.partCategory || "all";
     renderBuilder();
@@ -245,6 +254,7 @@ function bindBuilderEvents() {
     renderBuilder();
   });
   bindActivation(builderWorldViewButton, showWorldView);
+  bindActivation(builderWorldViewHeroButton, showWorldView);
   bindActivation(builderJumpToPreviewButton, () => scrollBuilderSection(builderRocketSectionEl));
   bindActivation(builderJumpToMissionsButton, () => scrollBuilderSection(builderMissionsSectionEl));
   bindActivation(builderJumpToResearchButton, showResearchLab);
@@ -472,12 +482,34 @@ function showWorldView() {
   builderScreenEl.classList.add("hidden");
   gameShellEl.classList.remove("builder-open");
   gameShellEl.classList.add("world-view");
-  if (renderer.followRocket) {
-    renderer.followRocket(game.rocket);
-  } else {
-    renderer.recenterCamera?.(game.rocket, { forceRocket: true });
-  }
+  focusBestWorldViewTarget();
   updateTrackerPanel(game.getHudData().trackedObjects);
+}
+
+function focusBestWorldViewTarget() {
+  const data = game.getHudData();
+  const selected = data.selectedObject;
+  const objects = data.trackedObjects ?? [];
+  const target = selected
+    ?? objects.find((object) => object.id === "current-rocket")
+    ?? objects.find((object) => object.kind === "payload" && object.online)
+    ?? objects[0]
+    ?? null;
+
+  if (!target) {
+    renderer.followRocket?.(game.rocket);
+    return;
+  }
+
+  game.selectedObjectId = target.id;
+  if (target.id === "current-rocket") {
+    renderer.followRocket?.(game.rocket);
+    renderer.recenterCamera?.(game.rocket, { forceRocket: true });
+  } else {
+    const object = game.selectObject(target.id);
+    if (object) renderer.centerOnWorldObject?.(object);
+  }
+  updateObjectInspector(game.getHudData().selectedObject);
 }
 
 function showResearchLab() {
@@ -587,6 +619,8 @@ function renderBuilder(highlightErrors = false) {
 
   launchBuiltRocketButton.disabled = !validation.valid || !canAfford || lockedParts.length > 0;
   launchBuiltRocketButton.textContent = lockedParts.length ? "Unlock Parts to Launch" : !validation.valid ? "Fix Rocket to Launch" : !canAfford ? "Not Enough Cash" : game.company.mode === "sandbox" ? "Launch Rocket" : `Launch for ${formatMoney(stats.cost)}`;
+  builderScreenEl?.classList.toggle("rocket-ready", validation.valid && canAfford && lockedParts.length === 0);
+  builderScreenEl?.classList.toggle("rocket-needs-work", !validation.valid || lockedParts.length > 0);
   partCountLabelEl.textContent = `${builderStack.length}/${MAX_STACK_PARTS} parts`;
 }
 
@@ -790,6 +824,11 @@ function renderMissionBoard(data) {
     const template = ROCKET_TEMPLATES.find((candidate) => candidate.id === nextMission.recommendedTemplateId);
     const templateLocked = template?.requiresResearch && !game.company.completedResearch?.includes(template.requiresResearch) && game.company.mode !== "sandbox";
     const chapterText = chapter ? `${chapter.title} · ${chapter.completed}/${chapter.total}` : "Campaign";
+    const progressPercent = getMissionProgressPercent(nextMission);
+    const currentValidation = validateBuild(builderStack);
+    const currentLockedParts = getLockedStackParts();
+    const canAffordCurrent = game.canAffordLaunch(currentValidation.stats.cost);
+    const launchReady = currentValidation.valid && canAffordCurrent && currentLockedParts.length === 0;
     missionBoardEl.innerHTML = `
       <article class="mission-card current-objective">
         <div class="campaign-chip-row">
@@ -803,13 +842,21 @@ function renderMissionBoard(data) {
             <span>${escapeHtml(nextMission.objective)}</span>
           </div>
         </div>
-        <div class="mission-progress current-progress">${escapeHtml(nextMission.progress)}</div>
-        <div class="mission-action-row">
-          <button type="button" data-template="${escapeHtml(nextMission.recommendedTemplateId ?? "")}" ${!template || templateLocked ? "disabled" : ""}>
-            Use ${escapeHtml(nextMission.recommendedTemplateLabel ?? template?.name ?? "Recommended Rocket")}
-          </button>
-          <span>${templateLocked ? "Research required" : "Recommended build"}</span>
+        <div class="mission-progress-block" aria-label="Mission progress">
+          <div class="mission-progress-copy">
+            <span>${escapeHtml(nextMission.progress)}</span>
+            <strong>${Math.round(progressPercent)}%</strong>
+          </div>
+          <div class="mission-progress-track"><span style="width: ${progressPercent.toFixed(1)}%"></span></div>
         </div>
+        <div class="mission-action-row objective-actions">
+          <button type="button" data-template="${escapeHtml(nextMission.recommendedTemplateId ?? "")}" ${!template || templateLocked ? "disabled" : ""}>
+            Use ${escapeHtml(nextMission.recommendedTemplateLabel ?? template?.name ?? "Suggested Build")}
+          </button>
+          <button type="button" data-edit-rocket>Edit Rocket</button>
+          <button type="button" data-launch-now ${launchReady ? "" : "disabled"}>${launchReady ? "Launch Now" : "Build First"}</button>
+        </div>
+        <p class="objective-hint">${templateLocked ? "Unlock the suggested build through research, or edit your current rocket below." : launchReady ? "Your rocket is ready. Launch when you are." : "Use the suggested build or edit your rocket to meet this goal."}</p>
       </article>
     `;
     return;
@@ -1202,34 +1249,56 @@ function updateTrackerPanel(objects = []) {
     return;
   }
 
-  trackerListEl.innerHTML = objects.map((object) => {
-    const onlineClass = object.online ? " online" : "";
-    const selectedClass = game.selectedObjectId === object.id ? " selected" : "";
-    const income = object.incomeRate > 0 ? `${formatMoneyRate(object.incomeRate)}/s` : "—";
-    const research = object.researchRate > 0
-      ? `${formatResearchRate(object.researchRate)}R/s`
-      : object.baseResearchRate > 0 && !object.researchUnlocked
-        ? "Telemetry locked"
-        : "—";
-    const scan = object.scanRate > 0 ? `${formatScanRate(object.scanRate)}/s Scan` : "—";
-    const actionText = object.canControl && !object.isCurrentRocket ? "Inspect" : object.isCurrentRocket ? "Inspect" : "Select";
-    return `
-      <article class="tracker-item ${escapeHtml(object.kind)}${onlineClass}${selectedClass}">
-        <div class="tracker-main">
-          <strong>${escapeHtml(object.name)}</strong>
-          <span>${escapeHtml(getTrackedTypeLabel(object))} · ${escapeHtml(titleCase(object.status))}</span>
-        </div>
-        <div class="tracker-metrics">
-          <span>${formatDistance(object.altitude)}</span>
-          <span>${object.speed.toFixed(0)} m/s</span>
-          <span>${income}</span>
-          <span>${research}</span>
-          <span>${scan}</span>
-        </div>
-        <button type="button" class="mini-button" data-track-object="${escapeHtml(object.id)}">${actionText}</button>
-      </article>
-    `;
-  }).join("");
+  const groups = [
+    { label: "Payloads", objects: payloads },
+    { label: "Command Pods", objects: vessels },
+    { label: "Debris", objects: debris }
+  ].filter((group) => group.objects.length);
+
+  trackerListEl.innerHTML = groups.map((group) => `
+    <div class="tracker-group">
+      <div class="tracker-group-title">${escapeHtml(group.label)}</div>
+      ${group.objects.map((object) => renderTrackerItem(object)).join("")}
+    </div>
+  `).join("");
+}
+
+function renderTrackerItem(object) {
+  const onlineClass = object.online ? " online" : "";
+  const selectedClass = game.selectedObjectId === object.id ? " selected" : "";
+  const income = object.incomeRate > 0 ? `${formatMoneyRate(object.incomeRate)}/s` : "—";
+  const research = object.researchRate > 0
+    ? `${formatResearchRate(object.researchRate)}R/s`
+    : object.baseResearchRate > 0 && !object.researchUnlocked
+      ? "Telemetry locked"
+      : "—";
+  const scan = object.scanRate > 0 ? `${formatScanRate(object.scanRate)}/s Scan` : "—";
+  const actionText = object.canControl && !object.isCurrentRocket ? "Track" : object.isCurrentRocket ? "Track" : "Select";
+  return `
+    <article class="tracker-item ${escapeHtml(object.kind)}${onlineClass}${selectedClass}">
+      <div class="tracker-icon" aria-hidden="true">${escapeHtml(getTrackedObjectIcon(object))}</div>
+      <div class="tracker-main">
+        <strong>${escapeHtml(object.name)}</strong>
+        <span>${escapeHtml(getTrackedTypeLabel(object))} · ${escapeHtml(titleCase(object.status))}</span>
+      </div>
+      <div class="tracker-metrics">
+        <span><b>Alt</b>${formatDistance(object.altitude)}</span>
+        <span><b>Spd</b>${object.speed.toFixed(0)} m/s</span>
+        <span><b>$</b>${income}</span>
+        <span><b>R</b>${research}</span>
+        <span><b>Scan</b>${scan}</span>
+      </div>
+      <button type="button" class="mini-button" data-track-object="${escapeHtml(object.id)}">${actionText}</button>
+    </article>
+  `;
+}
+
+function getTrackedObjectIcon(object) {
+  if (object.kind === "payload" && object.payloadType === "exploration_satellite") return "✦";
+  if (object.kind === "payload" && object.payloadType === "data_center") return "▣";
+  if (object.kind === "payload") return "◇";
+  if (object.kind === "vessel") return "◉";
+  return "◆";
 }
 
 function getTrackedTypeLabel(info) {
@@ -1311,6 +1380,37 @@ function updateObjectInspector(info) {
   }
   explodeObjectButton.classList.toggle("hidden", !info.canExplode);
   explodeObjectButton.textContent = info.isCurrentRocket || info.kind === "vessel" ? "Destroy Craft" : info.kind === "payload" ? "Destroy Payload" : "Destroy Debris";
+}
+
+
+function getMissionProgressPercent(mission) {
+  if (!mission) return 0;
+  if (mission.completed) return 100;
+  const progress = String(mission.progress ?? "").trim();
+  const lower = progress.toLowerCase();
+  if (["launched", "recovered", "orbit confirmed", "robotic landers ready"].some((token) => lower.includes(token))) return 100;
+
+  const fraction = progress.match(/([\d,.]+)\s*(km|m)?\s*\/\s*([\d,.]+)\s*(km|m|scan|online|destroyed|discovered)?/i);
+  if (fraction) {
+    let current = Number(fraction[1].replaceAll(",", ""));
+    let target = Number(fraction[3].replaceAll(",", ""));
+    const currentUnit = (fraction[2] ?? "").toLowerCase();
+    const targetUnit = (fraction[4] ?? "").toLowerCase();
+    if (Number.isFinite(current) && Number.isFinite(target) && target > 0) {
+      if (currentUnit === "km") current *= 1000;
+      if (targetUnit === "km") target *= 1000;
+      return clampNumber((current / target) * 100, 0, 100);
+    }
+  }
+
+  const count = progress.match(/([\d,.]+)\s+(online|destroyed|discovered)/i);
+  if (count) return Number(count[1].replaceAll(",", "")) > 0 ? 100 : 0;
+  return 0;
+}
+
+function clampNumber(value, min, max) {
+  if (!Number.isFinite(value)) return min;
+  return Math.max(min, Math.min(max, value));
 }
 
 function titleCase(value) {

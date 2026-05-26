@@ -518,8 +518,8 @@ export class Renderer {
     const isPortrait = this.height >= this.width;
     const baseScale = isPortrait ? 0.42 : 0.34;
     const objectRadius = Math.max(80, object.collisionRadius ?? 80);
-    const minVisibleScale = Math.min(RENDER.manualMaxScale, Math.max(RENDER.minScale, (56 * this.dpr) / objectRadius));
-    const scale = clamp(Math.max(this.camera.scale, baseScale, minVisibleScale), RENDER.manualMinScale, RENDER.manualMaxScale);
+    const minVisibleScale = Math.min(RENDER.manualMaxScale, Math.max(RENDER.minScale, (70 * this.dpr) / objectRadius));
+    const scale = clamp(Math.max(baseScale, minVisibleScale), RENDER.manualMinScale, RENDER.manualMaxScale);
     return {
       x: object.x,
       y: object.y,
@@ -895,7 +895,7 @@ export class Renderer {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     const textWidth = ctx.measureText(label).width;
-    const labelY = screen.y - radius - 22 * this.dpr;
+    const labelY = clamp(screen.y - radius - 22 * this.dpr, 18 * this.dpr, this.height - 18 * this.dpr);
     ctx.fillStyle = "rgba(2, 6, 23, 0.84)";
     roundRect(ctx, screen.x - textWidth / 2 - 10 * this.dpr, labelY - 13 * this.dpr, textWidth + 20 * this.dpr, 26 * this.dpr, 10 * this.dpr);
     ctx.fill();
@@ -908,14 +908,40 @@ export class Renderer {
   }
 
   drawActiveRocketOverlay(ctx, rocket) {
-    if (!rocket || rocket.crashed || rocket.landed) return;
+    if (!rocket) return;
+    const selected = this.selectedObjectId === "current-rocket";
+    if (!selected && (rocket.crashed || rocket.landed)) return;
     const screen = this.worldToScreen(rocket.x, rocket.y);
+    const pulse = selected ? 1 + Math.sin(performance.now() / 230) * 0.08 : 1;
+    const radius = Math.max(selected ? 38 * this.dpr : 22 * this.dpr, (rocket.collisionRadius ?? 80) * this.camera.scale * (selected ? 0.82 : 0.36)) * pulse;
     ctx.save();
-    ctx.strokeStyle = "rgba(125, 211, 252, 0.45)";
-    ctx.lineWidth = Math.max(1, 1.8 * this.dpr);
+    ctx.strokeStyle = selected ? "rgba(125, 211, 252, 0.96)" : "rgba(125, 211, 252, 0.45)";
+    ctx.lineWidth = Math.max(1.4, (selected ? 3 : 1.8) * this.dpr);
+    if (selected) {
+      ctx.setLineDash([9 * this.dpr, 7 * this.dpr]);
+      ctx.shadowColor = "rgba(125, 211, 252, 0.76)";
+      ctx.shadowBlur = 20 * this.dpr;
+    }
     ctx.beginPath();
-    ctx.arc(screen.x, screen.y, Math.max(22 * this.dpr, (rocket.collisionRadius ?? 80) * this.camera.scale * 0.36), 0, Math.PI * 2);
+    ctx.arc(screen.x, screen.y, radius, 0, Math.PI * 2);
     ctx.stroke();
+    ctx.setLineDash([]);
+    if (selected) {
+      const label = rocket.crashed ? "Crashed Current Rocket" : rocket.landed ? "Current Rocket" : "Current Command Pod";
+      ctx.font = `${Math.round(12 * this.dpr)}px system-ui, -apple-system, BlinkMacSystemFont, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const textWidth = ctx.measureText(label).width;
+      const labelY = clamp(screen.y - radius - 22 * this.dpr, 18 * this.dpr, this.height - 18 * this.dpr);
+      ctx.fillStyle = "rgba(2, 6, 23, 0.84)";
+      roundRect(ctx, screen.x - textWidth / 2 - 10 * this.dpr, labelY - 13 * this.dpr, textWidth + 20 * this.dpr, 26 * this.dpr, 10 * this.dpr);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(125, 211, 252, 0.96)";
+      ctx.lineWidth = Math.max(1, 1.2 * this.dpr);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(248, 250, 252, 0.96)";
+      ctx.fillText(label, screen.x, labelY);
+    }
     ctx.restore();
   }
 

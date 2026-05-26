@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050816" />
-    <title>NovaLift v0.9.1</title>
+    <title>NovaLift v0.9.3</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -15,7 +15,7 @@
         <section id="hud" class="compact-hud" aria-label="Flight status">
           <div class="brand-chip">
             <strong>NovaLift</strong>
-            <span>v0.9.1</span>
+            <span>v0.9.3</span>
           </div>
           <div class="hud-stats">
             <div class="hud-stat"><span>Alt</span><strong id="altitude">0 m</strong></div>
@@ -46,18 +46,24 @@
             <h1>Ready to fly</h1>
             <p class="builder-copy">Follow the campaign objective, use the suggested rocket, and grow your space program.</p>
           </div>
-          <div class="budget-chip">
-            <span>Cash</span>
-            <strong id="builderCash">$0</strong>
-            <small id="builderModeLabel">Career Mode</small>
-            <button id="toggleEconomyMode" type="button" class="mini-button budget-mode-button">Toggle Mode</button>
+          <div class="builder-header-actions">
+            <button id="builderWorldViewHero" type="button" class="world-view-hero-button">
+              <strong>World View</strong>
+              <span>Track craft</span>
+            </button>
+            <div class="budget-chip">
+              <span>Cash</span>
+              <strong id="builderCash">$0</strong>
+              <small id="builderModeLabel">Career Mode</small>
+              <button id="toggleEconomyMode" type="button" class="mini-button budget-mode-button">Toggle Mode</button>
+            </div>
           </div>
         </div>
 
         <nav class="builder-top-actions" aria-label="Builder navigation and quick actions">
-          <button id="builderJumpToMissions" type="button" class="nav-pill primary">Mission</button>
+          <button id="builderJumpToMissions" type="button" class="nav-pill primary">Goal</button>
           <button id="builderJumpToPreview" type="button" class="nav-pill">Rocket</button>
-          <button id="builderJumpToResearch" type="button" class="nav-pill">Research</button>
+          <button id="builderJumpToResearch" type="button" class="nav-pill">Upgrades</button>
           <button id="builderWorldView" type="button" class="nav-pill">World</button>
         </nav>
 
@@ -72,24 +78,47 @@
           <div id="missionBoard" class="mission-board"></div>
         </section>
 
-        <section class="builder-card earth-mines-card" id="builderMinesSection" aria-label="Earth mines">
+        <section class="builder-primary-grid" aria-label="Rocket launch flow">
+          <section class="builder-card builder-preview-card" id="builderRocketSection" aria-label="Live rocket preview">
           <div class="builder-section-title">
-            <h2>Earth Mines</h2>
-            <span id="earthMineMiniStatus">$1/s each</span>
+            <h2>Rocket</h2>
+            <span id="simpleRocketSummary">Ready</span>
           </div>
-          <div class="earth-mines-grid">
-            <div class="earth-mine-stat"><span>Mines</span><strong id="earthMineCount">0/10</strong></div>
-            <div class="earth-mine-stat"><span>Mine Income</span><strong id="earthMineIncome">$0/s</strong></div>
-            <div class="earth-mine-stat"><span>Earned</span><strong id="earthMineTotalIncome">$0</strong></div>
-          </div>
-          
-          <div class="earth-mines-actions">
-            <span id="earthMineStatus">Each mine costs $100,000 and produces $1/s.</span>
-            <button id="buyEarthMine" type="button" class="mini-button earth-mine-button">Buy Mine for $100,000</button>
+          <canvas id="builderPreview" class="builder-preview-canvas" aria-label="Preview of the current rocket design"></canvas>
+          <p id="builderPreviewEmpty" class="preview-empty-note">No parts yet. Add parts below to design your rocket.</p>
+        </section>
+
+          <div class="builder-launch-stack" aria-label="Rocket readiness and launch controls">
+            <section class="builder-card builder-stats-card" aria-label="Rocket stats">
+          <div class="builder-stat"><span>Cost</span><strong id="buildCost">$0</strong></div>
+          <div class="builder-stat"><span>Mass</span><strong id="buildMass">0.0t</strong></div>
+          <div class="builder-stat"><span>Fuel</span><strong id="buildFuel">0</strong></div>
+          <div class="builder-stat"><span>TWR</span><strong id="buildTwr">0.00</strong></div>
+          <div class="builder-stat"><span>Burn</span><strong id="buildBurn">0s</strong></div>
+          <div class="builder-stat"><span>Drag</span><strong id="buildDrag">0.0</strong></div>
+          <div class="builder-stat"><span>Stages</span><strong id="buildStages">0</strong></div>
+        </section>
+
+            <section class="builder-card validation-card" aria-live="polite">
+          <div id="buildValidation" class="validation-list"></div>
+        </section>
+
+            <button id="launchBuiltRocket" type="button" class="launch-button">Launch Rocket</button>
           </div>
         </section>
 
-        <section class="builder-card research-teaser-card" id="builderResearchSection" aria-label="Research overview">
+        <button id="toggleAdvancedBuilder" type="button" class="builder-editor-toggle" aria-expanded="false">
+          <span>Edit Rocket</span>
+          <strong id="advancedBuilderLabel">Optional</strong>
+        </button>
+
+        <section class="builder-program-section" aria-label="Company systems">
+          <div class="builder-section-title program-section-title">
+            <h2>Program Systems</h2>
+            <span>Optional upgrades, income, and discovery</span>
+          </div>
+          <div class="program-card-grid">
+            <section class="builder-card research-teaser-card" id="builderResearchSection" aria-label="Research overview">
           <div class="builder-section-title">
             <h2>Research</h2>
             <span id="builderResearchMiniStatus">0R · 0R/sec</span>
@@ -103,7 +132,7 @@
           </div>
         </section>
 
-        <section class="builder-card orbital-network-card" id="builderNetworkSection" aria-label="Orbital network">
+            <section class="builder-card orbital-network-card" id="builderNetworkSection" aria-label="Orbital network">
           <div class="builder-section-title">
             <h2>Orbital Network</h2>
             <span id="orbitalNetworkStatus">No signal</span>
@@ -120,7 +149,7 @@
           </div>
         </section>
 
-        <section class="builder-card planet-registry-card" id="builderPlanetSection" aria-label="Planet registry">
+            <section class="builder-card planet-registry-card" id="builderPlanetSection" aria-label="Planet registry">
           <div class="builder-section-title">
             <h2>Planet Registry</h2>
             <span id="planetRegistryStatus">Homeworld only</span>
@@ -133,43 +162,32 @@
           </div>
         </section>
 
-        <section class="builder-card template-card-wrap" aria-label="Quick rocket templates">
+            <section class="builder-card earth-mines-card" id="builderMinesSection" aria-label="Earth mines">
+          <div class="builder-section-title">
+            <h2>Earth Mines</h2>
+            <span id="earthMineMiniStatus">$1/s each</span>
+          </div>
+          <div class="earth-mines-grid">
+            <div class="earth-mine-stat"><span>Mines</span><strong id="earthMineCount">0/10</strong></div>
+            <div class="earth-mine-stat"><span>Mine Income</span><strong id="earthMineIncome">$0/s</strong></div>
+            <div class="earth-mine-stat"><span>Earned</span><strong id="earthMineTotalIncome">$0</strong></div>
+          </div>
+          
+          <div class="earth-mines-actions">
+            <span id="earthMineStatus">Each mine costs $100,000 and produces $1/s.</span>
+            <button id="buyEarthMine" type="button" class="mini-button earth-mine-button">Buy Mine for $100,000</button>
+          </div>
+        </section>
+
+            <section class="builder-card template-card-wrap" aria-label="Quick rocket templates">
           <div class="builder-section-title">
             <h2>Rocket Presets</h2>
             <span>Tap to swap</span>
           </div>
           <div id="templateDeck" class="template-deck"></div>
         </section>
-
-        <section class="builder-card builder-preview-card" id="builderRocketSection" aria-label="Live rocket preview">
-          <div class="builder-section-title">
-            <h2>Rocket</h2>
-            <span id="simpleRocketSummary">Ready</span>
           </div>
-          <canvas id="builderPreview" class="builder-preview-canvas" aria-label="Preview of the current rocket design"></canvas>
-          <p id="builderPreviewEmpty" class="preview-empty-note">No parts yet. Add parts below to design your rocket.</p>
         </section>
-
-        <section class="builder-card builder-stats-card" aria-label="Rocket stats">
-          <div class="builder-stat"><span>Cost</span><strong id="buildCost">$0</strong></div>
-          <div class="builder-stat"><span>Mass</span><strong id="buildMass">0.0t</strong></div>
-          <div class="builder-stat"><span>Fuel</span><strong id="buildFuel">0</strong></div>
-          <div class="builder-stat"><span>TWR</span><strong id="buildTwr">0.00</strong></div>
-          <div class="builder-stat"><span>Burn</span><strong id="buildBurn">0s</strong></div>
-          <div class="builder-stat"><span>Drag</span><strong id="buildDrag">0.0</strong></div>
-          <div class="builder-stat"><span>Stages</span><strong id="buildStages">0</strong></div>
-        </section>
-
-        <section class="builder-card validation-card" aria-live="polite">
-          <div id="buildValidation" class="validation-list"></div>
-        </section>
-
-        <button id="launchBuiltRocket" type="button" class="launch-button">Launch Rocket</button>
-
-        <button id="toggleAdvancedBuilder" type="button" class="builder-editor-toggle" aria-expanded="false">
-          <span>Edit Rocket</span>
-          <strong id="advancedBuilderLabel">Optional</strong>
-        </button>
 
         <section id="advancedBuilderPanel" class="advanced-builder hidden" aria-label="Advanced rocket editor">
         <section class="builder-card part-inspector" aria-live="polite" aria-label="Selected part explanation">

@@ -1,8 +1,29 @@
-# NovaLift v0.9.2 — Juice + Feedback Pass
+# NovaLift v0.9.3 — Launchpad + Mobile UI Simplification
 
-NovaLift is a portrait/mobile-first 2D rocket company game prototype. This patch focuses on perceived polish: stronger tap feedback, milestone celebration, optional sound, haptics, launch/crash/recovery toasts, and more lively flight effects.
+NovaLift is a portrait/mobile-first 2D rocket company game prototype. This patch reorganizes the builder into a clearer Goal → Rocket → Launch flow, pushes secondary company systems below the primary action path, and improves World View access and object tracking clarity.
 
-## What is new in v0.9.2
+## What is new in v0.9.3
+
+- Reordered the Launchpad around the player’s next action:
+  - Current Objective
+  - Rocket Preview
+  - Rocket Readiness
+  - Launch
+  - Optional Editor
+  - Program Systems
+- Added a more prominent World View entry button in the Launchpad header.
+- Changed the sticky Launchpad navigation to Goal, Rocket, Upgrades, and World.
+- Added a mission progress bar and clearer objective CTA buttons.
+- Added quick objective actions for suggested builds, editing, and launching when ready.
+- Moved Research, Orbital Network, Planet Registry, Earth Mines, and Rocket Presets into a secondary Program Systems area.
+- Improved mobile spacing, tap targets, and card hierarchy.
+- Improved World View focus so it automatically centers a useful tracked object when available.
+- Grouped the object tracker into Payloads, Command Pods, and Debris.
+- Added stronger selected-object tracker styling, icons, labels, and current-rocket selection rings.
+- Adjusted object camera framing so selected tracked objects are larger and easier to see.
+
+## Previous v0.9.2 features retained
+
 
 - Added a reusable feedback event pipeline from game logic to the UI.
 - Added stacked toast notifications for:
