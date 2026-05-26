@@ -2803,3 +2803,484 @@ body {
     min-height: 84px;
   }
 }
+
+/* v0.6.5 Mobile UX simplification */
+.builder-screen {
+  padding: calc(12px + var(--safe-top)) 10px calc(86px + var(--safe-bottom));
+}
+
+.builder-header {
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.builder-header h1 {
+  font-size: clamp(26px, 7.4vw, 38px);
+  letter-spacing: -0.045em;
+}
+
+.builder-copy {
+  display: none;
+}
+
+.budget-chip {
+  min-width: 104px;
+  padding: 8px 9px;
+  border-radius: 17px;
+}
+
+.budget-chip strong {
+  font-size: clamp(18px, 5vw, 25px);
+}
+
+.budget-chip small,
+.budget-mode-button {
+  display: none;
+}
+
+.builder-top-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  margin: 4px 0 9px;
+}
+
+.nav-pill {
+  min-height: 40px;
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.builder-card {
+  border-radius: 20px;
+  padding: 10px;
+  margin-bottom: 9px;
+}
+
+.builder-section-title {
+  margin-bottom: 7px;
+}
+
+.builder-section-title h2 {
+  font-size: 15px;
+}
+
+.mission-board-card {
+  padding: 11px;
+}
+
+.mission-board {
+  max-height: none;
+  overflow: visible;
+  gap: 0;
+}
+
+.mission-board:not(.expanded) .mission-card p {
+  display: none;
+}
+
+.mission-card {
+  padding: 10px;
+}
+
+.mission-card strong {
+  font-size: 15px;
+}
+
+.mission-card span {
+  margin-top: 4px;
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.mission-card b {
+  font-size: 10px;
+  min-width: 58px;
+}
+
+.mission-progress {
+  margin-top: 8px;
+}
+
+.earth-mines-card,
+.research-teaser-card {
+  padding: 10px;
+}
+
+.earth-mines-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.earth-mine-stat {
+  padding: 8px;
+  border-radius: 14px;
+}
+
+.earth-mines-actions {
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.earth-mines-actions span {
+  display: none;
+}
+
+.earth-mine-button,
+.research-open-button {
+  width: 100%;
+  min-height: 38px;
+}
+
+.research-teaser-grid {
+  grid-template-columns: 1fr auto;
+}
+
+.research-teaser-copy p {
+  display: none;
+}
+
+.research-teaser-copy strong {
+  font-size: 13px;
+}
+
+.template-deck {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.template-card {
+  min-height: 60px;
+  padding: 10px;
+  border-radius: 16px;
+}
+
+.template-card strong {
+  font-size: 13px;
+}
+
+.template-card span {
+  font-size: 10px;
+  line-height: 1.15;
+}
+
+.builder-preview-card {
+  padding-bottom: 8px;
+}
+
+.builder-preview-canvas {
+  min-height: 240px;
+  max-height: 33vh;
+}
+
+.builder-stats-card {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  padding: 9px;
+}
+
+.builder-stats-card .builder-stat:nth-child(2),
+.builder-stats-card .builder-stat:nth-child(5),
+.builder-stats-card .builder-stat:nth-child(6) {
+  display: none;
+}
+
+.builder-stat strong {
+  font-size: 14px;
+}
+
+.validation-card {
+  padding: 8px;
+}
+
+.validation-message {
+  padding: 7px 9px;
+  font-size: 11px;
+}
+
+.builder-editor-toggle {
+  width: 100%;
+  min-height: 52px;
+  margin: 0 0 9px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 20px;
+  background: rgba(15, 23, 42, 0.72);
+  color: var(--text);
+  font: inherit;
+  font-weight: 950;
+  touch-action: manipulation;
+}
+
+.builder-editor-toggle span {
+  font-size: 14px;
+}
+
+.builder-editor-toggle strong {
+  color: var(--accent);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.builder-editor-toggle.open {
+  border-color: rgba(125, 211, 252, 0.46);
+  background: rgba(14, 116, 144, 0.24);
+}
+
+.advanced-builder.hidden {
+  display: none;
+}
+
+.part-inspector {
+  display: none;
+}
+
+.stack-card,
+.parts-card {
+  margin-bottom: 9px;
+}
+
+.stack-note,
+.recommended-parts,
+.part-description {
+  display: none;
+}
+
+.stack-item {
+  grid-template-columns: 34px 14px minmax(0, 1fr) auto;
+  gap: 7px;
+  min-height: 46px;
+  padding: 6px;
+}
+
+.stack-info strong {
+  font-size: 12px;
+}
+
+.stack-info span {
+  font-size: 10px;
+}
+
+.stage-buttons button,
+.stack-buttons button {
+  width: 26px;
+  height: 26px;
+}
+
+.part-category-tabs {
+  margin-bottom: 4px;
+}
+
+.parts-catalog {
+  gap: 7px;
+}
+
+.part-card {
+  gap: 7px;
+  padding: 9px;
+  border-radius: 16px;
+}
+
+.part-card-top {
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.part-card h3 {
+  font-size: 13px;
+}
+
+.part-card-top p {
+  font-size: 10px;
+}
+
+.compact-metrics span:nth-child(n+3) {
+  display: none;
+}
+
+.part-card-actions button {
+  min-height: 34px;
+  font-size: 12px;
+}
+
+.launch-button {
+  position: fixed;
+  z-index: 28;
+  left: 10px;
+  right: 10px;
+  bottom: calc(8px + var(--safe-bottom));
+  width: auto;
+  min-height: 54px;
+  border-radius: 22px;
+}
+
+.research-screen {
+  padding: calc(12px + var(--safe-top)) 10px calc(20px + var(--safe-bottom));
+}
+
+.research-screen-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.research-back-button {
+  min-width: 86px;
+}
+
+.research-screen-header h1 {
+  max-width: none;
+  font-size: clamp(28px, 8vw, 42px);
+}
+
+.research-screen-header p:not(.eyebrow) {
+  display: none;
+}
+
+.research-guide {
+  gap: 8px;
+}
+
+.research-recommend-card {
+  border: 1px solid rgba(125, 211, 252, 0.34);
+  border-radius: 22px;
+  padding: 12px;
+  background:
+    linear-gradient(135deg, rgba(14, 116, 144, 0.26), transparent 70%),
+    rgba(15, 23, 42, 0.76);
+}
+
+.research-recommend-card span,
+.research-earn-strip span {
+  display: block;
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.research-recommend-card strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 22px;
+  line-height: 1.05;
+}
+
+.research-recommend-card p {
+  margin: 7px 0 0;
+  color: rgba(226, 232, 240, 0.82);
+  font-size: 12px;
+  line-height: 1.28;
+}
+
+.research-recommend-card button {
+  width: 100%;
+  min-height: 40px;
+  margin-top: 10px;
+  border: 1px solid rgba(125, 211, 252, 0.44);
+  border-radius: 999px;
+  color: #ecfeff;
+  background: rgba(14, 165, 233, 0.22);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.research-earn-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.research-earn-strip div,
+.research-screen .research-summary div {
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 16px;
+  padding: 8px;
+  background: rgba(15, 23, 42, 0.62);
+}
+
+.research-earn-strip strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.research-screen .research-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin: 9px 0;
+}
+
+.research-node-list {
+  gap: 7px;
+}
+
+.research-node {
+  padding: 10px;
+  border-radius: 18px;
+}
+
+.research-node p {
+  margin: 7px 0 0;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.research-node-actions {
+  grid-template-columns: 1fr;
+  margin-top: 8px;
+}
+
+.research-node-actions button {
+  width: 100%;
+  min-height: 34px;
+}
+
+@media (max-width: 430px) {
+  .builder-top-actions {
+    gap: 5px;
+  }
+
+  .nav-pill {
+    min-height: 36px;
+    padding-inline: 5px;
+    font-size: 9px;
+  }
+
+  .template-deck {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .earth-mines-grid,
+  .research-earn-strip,
+  .research-screen .research-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .earth-mine-stat strong,
+  .research-screen .research-summary strong {
+    font-size: 13px;
+  }
+
+  .research-teaser-grid {
+    grid-template-columns: 1fr;
+  }
+}

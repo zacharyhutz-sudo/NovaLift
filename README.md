@@ -1,7 +1,22 @@
-# NovaLift v0.6.4 — Mines + Orbital Revenue Rebalance
+# NovaLift v0.6.5 — Mobile Launchpad + Research Simplification
 
-NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version lowers orbital payload revenue, adds low-cost Earth mines for early cash flow, and keeps Research progression intact.
+NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version simplifies the Launchpad and Research Lab so the game feels more like a tap-first mobile game and less like a document to read.
 
+
+
+## What is new in v0.6.5
+
+- Renamed the builder experience into a simpler **Launchpad** flow.
+- Reworked the top navigation into four short actions: Mission, Rocket, Research, and World.
+- Reduced build-page reading by hiding advanced stack/part editing behind an **Edit Rocket** button.
+- Simplified mission display to show one current mission by default, with View All still available.
+- Simplified rocket preset cards to show only name, cost, and part count.
+- Simplified part catalog cards to show short stats instead of paragraph descriptions.
+- Made the Research Lab more tap-first:
+  - A large Recommended card appears first.
+  - A compact earn strip explains Research: Missions, Telemetry, and Payloads.
+  - Research nodes now show title, status, price, and one short unlock line.
+- Kept all underlying v0.6.4 mines/research/economy logic intact.
 
 
 ## What is new in v0.6.4

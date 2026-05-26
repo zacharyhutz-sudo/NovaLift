@@ -1,7 +1,7 @@
 {
   "name": "novalift",
-  "version": "0.6.4",
-  "description": "Vertical mobile-first 2D rocket company prototype with Research Lab progression, lower orbital payload revenue, and starter Earth mines for stable early cash income.",
+  "version": "0.6.5",
+  "description": "Vertical mobile-first 2D rocket company prototype with simplified Launchpad and tap-first Research UI.",
   "type": "module",
   "private": true,
   "scripts": {

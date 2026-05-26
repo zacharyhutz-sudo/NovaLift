@@ -107,6 +107,11 @@ const earthMineIncomeEl = document.querySelector("#earthMineIncome");
 const earthMineTotalIncomeEl = document.querySelector("#earthMineTotalIncome");
 const earthMineStatusEl = document.querySelector("#earthMineStatus");
 const buyEarthMineButton = document.querySelector("#buyEarthMine");
+const earthMineMiniStatusEl = document.querySelector("#earthMineMiniStatus");
+const toggleAdvancedBuilderButton = document.querySelector("#toggleAdvancedBuilder");
+const advancedBuilderPanelEl = document.querySelector("#advancedBuilderPanel");
+const advancedBuilderLabelEl = document.querySelector("#advancedBuilderLabel");
+const simpleRocketSummaryEl = document.querySelector("#simpleRocketSummary");
 
 const EARTH_MINE_COST = 100000;
 const EARTH_MINE_INCOME_RATE = 1;
@@ -118,6 +123,7 @@ let trackerOpen = false;
 let selectedPartId = AVAILABLE_PARTS[0]?.id ?? null;
 let activePartCategory = "all";
 let missionsExpanded = false;
+let builderAdvancedOpen = false;
 let lastShownFlightSummaryKey = "";
 let lastResearchLiveRenderAt = 0;
 const PART_CATEGORIES = [
@@ -223,6 +229,11 @@ function bindBuilderEvents() {
   bindActivation(builderJumpToMissionsButton, () => scrollBuilderSection(builderMissionsSectionEl));
   bindActivation(builderJumpToResearchButton, showResearchLab);
   bindActivation(openResearchLabButton, showResearchLab);
+  bindActivation(toggleAdvancedBuilderButton, () => {
+    builderAdvancedOpen = !builderAdvancedOpen;
+    renderBuilder();
+    if (builderAdvancedOpen) setTimeout(() => advancedBuilderPanelEl?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  });
   bindActivation(closeResearchLabButton, hideResearchLab);
   bindActivation(buyEarthMineButton, () => {
     game.buyEarthMine();
@@ -233,6 +244,10 @@ function bindBuilderEvents() {
     renderBuilder();
   });
   bindDelegatedActivation(researchTreeEl, "[data-buy-research]", (button) => {
+    game.purchaseResearch(button.dataset.buyResearch);
+    renderBuilder();
+  });
+  bindDelegatedActivation(researchGuideEl, "[data-buy-research]", (button) => {
     game.purchaseResearch(button.dataset.buyResearch);
     renderBuilder();
   });
@@ -384,6 +399,7 @@ function showBuilder() {
   game.persistActiveCommandVessel?.("builder opened");
   screenMode = "builder";
   trackerOpen = false;
+  builderAdvancedOpen = false;
   game.paused = true;
   game.clearSelectedObject();
   renderer.clearObjectTracking?.();
@@ -447,6 +463,7 @@ function launchBuiltRocket() {
   const { valid } = validateBuild(builderStack);
   const lockedParts = getLockedStackParts();
   if (!valid || lockedParts.length) {
+    builderAdvancedOpen = true;
     renderBuilder(true);
     return;
   }
@@ -485,6 +502,16 @@ function renderBuilder(highlightErrors = false) {
   buildBurnEl.textContent = stats.burnTime > 0 ? `${formatStatNumber(stats.burnTime, 0)}s` : "0s";
   buildDragEl.textContent = formatStatNumber(stats.dragArea, 1);
   buildStagesEl.textContent = String(stats.stageCount);
+  if (simpleRocketSummaryEl) {
+    const twrLabel = stats.twr >= 1.6 ? "Strong" : stats.twr >= 1.05 ? "Good" : stats.twr > 0 ? "Weak" : "No thrust";
+    simpleRocketSummaryEl.textContent = `${stats.count} parts · ${twrLabel} TWR`;
+  }
+  if (advancedBuilderPanelEl) advancedBuilderPanelEl.classList.toggle("hidden", !builderAdvancedOpen);
+  if (toggleAdvancedBuilderButton) {
+    toggleAdvancedBuilderButton.setAttribute("aria-expanded", String(builderAdvancedOpen));
+    toggleAdvancedBuilderButton.classList.toggle("open", builderAdvancedOpen);
+  }
+  if (advancedBuilderLabelEl) advancedBuilderLabelEl.textContent = builderAdvancedOpen ? "Hide" : `${builderStack.length}/${MAX_STACK_PARTS} parts`;
 
   renderStackList(stats.parts);
   builderPreview.render(stats.parts);
@@ -541,10 +568,12 @@ function renderTemplateDeck() {
   if (!templateDeckEl) return;
   templateDeckEl.innerHTML = ROCKET_TEMPLATES.map((template) => {
     const locked = template.requiresResearch && !game.company.completedResearch?.includes(template.requiresResearch) && game.company.mode !== "sandbox";
+    const stats = calculateBuildStats(template.stack.map((id) => ({ id, stage: 0 })));
+    const label = locked ? "Locked" : `${formatMoney(stats.cost)} · ${stats.count} parts`;
     return `
     <button type="button" class="template-card ${locked ? "locked" : ""}" data-template="${escapeHtml(template.id)}" ${locked ? "disabled" : ""}>
       <strong>${escapeHtml(template.name)}</strong>
-      <span>${escapeHtml(locked ? `${template.description} Unlock through research first.` : template.description)}</span>
+      <span>${escapeHtml(label)}</span>
     </button>`;
   }).join("");
 }
@@ -590,28 +619,39 @@ function renderPartsCatalog(nextMission = null) {
         <div class="part-card-top">
           <div class="part-icon ${getPartIconClass(part)}" aria-hidden="true"><span></span></div>
           <div>
-            <h3>${escapeHtml(part.name)}</h3>
-            <p>${getPartTypeLabel(part.type)} · ${formatMoney(part.cost)}${isRecommended ? " · Recommended" : ""}${unlocked ? "" : " · Locked"}</p>
+            <h3>${escapeHtml(part.shortName ?? part.name)}</h3>
+            <p>${escapeHtml(getCompactPartLine(part, unlocked, isRecommended, lockText))}</p>
           </div>
         </div>
-        <p class="part-description">${escapeHtml(unlocked ? part.description : lockText)}</p>
-        <div class="part-metrics">
-          <span>Mass ${formatStatNumber(part.dryMass)}t</span>
-          ${part.fuelCapacity ? `<span>Fuel ${Math.round(part.fuelCapacity)}</span>` : ""}
-          ${part.thrust ? `<span>Thrust ${Math.round(part.thrust)}</span>` : ""}
-          ${part.incomeRate ? `<span>Income ${formatMoneyRate(part.incomeRate)}/s</span>` : ""}
-          ${part.researchRate ? `<span>${escapeHtml(getPartResearchMetric(part))}</span>` : ""}
-          <span>Drag ${formatStatNumber(part.dragArea ?? 0, 1)}</span>
-          ${part.stageAction ? `<span>Staged</span>` : ""}
+        <div class="part-metrics compact-metrics">
+          ${getCompactPartMetrics(part).map((metric) => `<span>${escapeHtml(metric)}</span>`).join("")}
         </div>
         <div class="part-card-actions">
-          <button type="button" data-add-part="${escapeHtml(part.id)}" data-add-count="1" ${!canAdd ? "disabled" : ""}>${unlocked ? "Add" : "Locked"}</button>
+          <button type="button" data-add-part="${escapeHtml(part.id)}" data-add-count="1" ${!canAdd ? "disabled" : ""}>${unlocked ? "+ Add" : "Locked"}</button>
           ${canAddThree ? `<button type="button" data-add-part="${escapeHtml(part.id)}" data-add-count="3">+3</button>` : ""}
         </div>
       </article>
     `;
     }
   ).join("");
+}
+
+function getCompactPartLine(part, unlocked, isRecommended, lockText) {
+  if (!unlocked) return lockText;
+  if (isRecommended) return `${formatMoney(part.cost)} · Recommended`;
+  return `${getPartTypeLabel(part.type)} · ${formatMoney(part.cost)}`;
+}
+
+function getCompactPartMetrics(part) {
+  if (part.incomeRate) return [`${formatMoneyRate(part.incomeRate)}/s`, part.researchRate ? getPartResearchMetric(part) : "Payload"];
+  if (part.thrust) return [`Thrust ${Math.round(part.thrust)}`, `Use ${formatStatNumber(part.fuelUse ?? 0, 1)}/s`];
+  if (part.fuelCapacity) return [`Fuel ${Math.round(part.fuelCapacity)}`, `${formatStatNumber(part.dryMass)}t`];
+  if (part.type === "parachute") return ["Recovery", `Safe ${Math.round(part.safeDeploySpeed ?? 0)} m/s`];
+  if (part.type === "legs") return ["Landing", `${formatMoney(part.cost)}`];
+  if (part.type === "aero") return ["Less drag", `${formatMoney(part.cost)}`];
+  if (part.type === "command") return ["Required", `${formatMoney(part.cost)}`];
+  if (part.type === "decoupler") return ["Stage split", `${formatMoney(part.cost)}`];
+  return [`${formatStatNumber(part.dryMass)}t`, `${formatMoney(part.cost)}`];
 }
 
 
@@ -676,29 +716,29 @@ function renderMissionBoard(data) {
   if (!missionBoardEl || !missionBoardSummaryEl) return;
   const missions = data.missions ?? [];
   const completed = missions.filter((mission) => mission.completed).length;
-  missionBoardSummaryEl.textContent = `${completed}/${missions.length} complete · Rewards ${formatMoney(data.company?.totalMissionRewards ?? 0)}`;
+  const nextMission = data.nextMission ?? missions.find((mission) => !mission.completed) ?? missions[0];
+  missionBoardSummaryEl.textContent = `${completed}/${missions.length} complete`;
 
   if (toggleMissionBoardViewButton) toggleMissionBoardViewButton.textContent = missionsExpanded ? "Show Less" : "View All";
-  const visibleMissions = missionsExpanded
-    ? missions
-    : [
-        ...missions.filter((mission) => !mission.completed).slice(0, 3),
-        ...missions.filter((mission) => mission.completed).slice(0, Math.max(0, 3 - missions.filter((mission) => !mission.completed).slice(0, 3).length))
-      ];
-  missionBoardEl.innerHTML = visibleMissions.map((mission) => `
+  missionBoardEl.classList.toggle("expanded", missionsExpanded);
+  const visibleMissions = missionsExpanded ? missions : nextMission ? [nextMission] : [];
+  missionBoardEl.innerHTML = visibleMissions.map((mission) => {
+    const reward = mission.completed ? "✓" : `${formatMoney(mission.reward)}${mission.researchReward ? ` + ${formatResearch(mission.researchReward)}R` : ""}`;
+    return `
     <article class="mission-card ${mission.completed ? "complete" : ""}">
       <div class="mission-card-top">
         <div>
           <strong>${escapeHtml(mission.title)}</strong>
           <span>${escapeHtml(mission.objective)}</span>
         </div>
-        <b>${mission.completed ? "✓" : `${formatMoney(mission.reward)}${mission.researchReward ? ` + ${formatResearch(mission.researchReward)}R` : ""}`}</b>
+        <b>${reward}</b>
       </div>
       <p>${escapeHtml(mission.description)}</p>
       <div class="mission-progress">${escapeHtml(mission.progress)}</div>
-    </article>
-  `).join("");
+    </article>`;
+  }).join("");
 }
+
 
 function renderEarthMines(data = game.getHudData()) {
   if (!earthMineCountEl || !earthMineIncomeEl || !earthMineTotalIncomeEl || !earthMineStatusEl || !buyEarthMineButton) return;
@@ -707,6 +747,7 @@ function renderEarthMines(data = game.getHudData()) {
   const mineIncome = count * EARTH_MINE_INCOME_RATE;
   const canBuy = count < EARTH_MINE_MAX && (company.mode === "sandbox" || Number(company.money ?? 0) >= EARTH_MINE_COST);
   const remaining = Math.max(0, EARTH_MINE_MAX - count);
+  if (earthMineMiniStatusEl) earthMineMiniStatusEl.textContent = `${formatMoneyRate(mineIncome)}/s · ${remaining} left`;
 
   earthMineCountEl.textContent = `${count}/${EARTH_MINE_MAX}`;
   earthMineIncomeEl.textContent = `${formatMoneyRate(mineIncome)}/s`;
@@ -714,7 +755,7 @@ function renderEarthMines(data = game.getHudData()) {
   earthMineStatusEl.textContent = count >= EARTH_MINE_MAX
     ? "Mine limit reached."
     : canBuy
-      ? `${remaining} mine${remaining === 1 ? "" : "s"} available. Each adds ${formatMoneyRate(EARTH_MINE_INCOME_RATE)}/s.`
+      ? `${remaining} left · +${formatMoneyRate(EARTH_MINE_INCOME_RATE)}/s each`
       : `Need ${formatMoney(Math.max(0, EARTH_MINE_COST - Number(company.money ?? 0)))} more cash.`;
   buyEarthMineButton.disabled = !canBuy;
   buyEarthMineButton.textContent = count >= EARTH_MINE_MAX
@@ -736,66 +777,59 @@ function renderResearchLab(data) {
   if (!researchSummaryEl || !researchTreeEl) return;
 
   researchSummaryEl.innerHTML = `
-    <div><span>Available R</span><strong>${formatResearch(researchPoints, researchPoints < 10 ? 1 : 0)}</strong></div>
+    <div><span>R</span><strong>${formatResearch(researchPoints, researchPoints < 10 ? 1 : 0)}</strong></div>
     <div><span>R/sec</span><strong>${formatResearchRate(researchRate)}</strong></div>
-    <div><span>Completed</span><strong>${completed}/${total}</strong></div>
+    <div><span>Done</span><strong>${completed}/${total}</strong></div>
   `;
 
+  const nodes = data.research ?? [];
+  const nextMission = data.nextMission;
+  const nextNode = getRecommendedResearchNode(nodes);
+  const telemetryComplete = Boolean(company.completedResearch?.includes("orbital_telemetry"));
+  const missionReward = nextMission?.researchReward ?? 0;
+
   if (researchGuideEl) {
-    const nextMission = data.nextMission;
-    const nextNode = getRecommendedResearchNode(data.research ?? []);
-    const telemetryComplete = Boolean(company.completedResearch?.includes("orbital_telemetry"));
-    const missionReward = nextMission?.researchReward ?? 0;
-    const autoResearchText = telemetryComplete
-      ? researchRate > 0
-        ? `Your online payloads are producing ${formatResearchRate(researchRate)}R/sec.`
-        : "Orbital Telemetry is researched. Deploy an online satellite or data center to start passive R/sec."
-      : "Buy Orbital Telemetry, then online satellites and data centers start producing R/sec.";
     researchGuideEl.innerHTML = `
-      <article class="research-guide-card primary">
-        <span>How to earn R</span>
-        <strong>Complete missions</strong>
-        <p>${nextMission ? `Next up: ${escapeHtml(nextMission.title)} pays +${formatResearch(missionReward)}R.` : "Starter missions are complete. Keep building orbital infrastructure for passive R/sec."}</p>
-      </article>
-      <article class="research-guide-card">
-        <span>Passive R/sec</span>
-        <strong>${telemetryComplete ? "Telemetry online" : "Unlock Orbital Telemetry"}</strong>
-        <p>${escapeHtml(autoResearchText)}</p>
-      </article>
-      <article class="research-guide-card">
+      <article class="research-recommend-card">
         <span>Recommended</span>
         <strong>${escapeHtml(nextNode?.name ?? "All research complete")}</strong>
         <p>${escapeHtml(getResearchRecommendationText(nextNode, researchPoints))}</p>
+        ${nextNode?.available ? `<button type="button" data-buy-research="${escapeHtml(nextNode.id)}">Research for ${formatResearch(nextNode.cost)}R</button>` : ""}
       </article>
+      <div class="research-earn-strip" aria-label="How to earn Research">
+        <div><span>Missions</span><strong>+${formatResearch(missionReward)}R next</strong></div>
+        <div><span>Telemetry</span><strong>${telemetryComplete ? "Online" : "Unlock R/sec"}</strong></div>
+        <div><span>Payloads</span><strong>${formatResearchRate(researchRate)}R/s</strong></div>
+      </div>
     `;
   }
 
   const byCategory = new Map();
-  (data.research ?? []).forEach((node) => {
+  nodes.forEach((node) => {
     if (!byCategory.has(node.category)) byCategory.set(node.category, []);
     byCategory.get(node.category).push(node);
   });
 
-  researchTreeEl.innerHTML = [...byCategory.entries()].map(([category, nodes]) => `
+  researchTreeEl.innerHTML = [...byCategory.entries()].map(([category, categoryNodes]) => `
     <section class="research-category">
       <h3>${escapeHtml(category)}</h3>
       <div class="research-node-list">
-        ${nodes.map((node) => {
+        ${categoryNodes.map((node) => {
           const statusClass = node.complete ? "complete" : node.locked ? "locked" : node.available ? "available" : "waiting";
           const statusText = node.complete
             ? "Complete"
             : node.locked
-              ? `Requires ${node.missingPrerequisiteNames.join(", ")}`
+              ? `Needs ${node.missingPrerequisiteNames.join(", ")}`
               : node.waitingForPoints
                 ? `${formatResearch(Math.max(0, node.cost - researchPoints))}R short`
-                : "Ready to buy";
+                : "Ready";
           const buttonText = node.complete
-            ? "Complete"
+            ? "Done"
             : node.available
-              ? `Buy for ${formatResearch(node.cost)}R`
+              ? `${formatResearch(node.cost)}R`
               : node.locked
                 ? "Locked"
-                : "Earn more R";
+                : "Need R";
           return `
             <article class="research-node ${statusClass}">
               <div class="research-node-top">
@@ -805,9 +839,8 @@ function renderResearchLab(data) {
                 </div>
                 <b>${node.complete ? "✓" : `${formatResearch(node.cost)}R`}</b>
               </div>
-              <p>${escapeHtml(node.description)}</p>
+              <p>${escapeHtml(node.unlockText ?? node.description)}</p>
               <div class="research-node-actions">
-                <small>${escapeHtml(node.unlockText ?? "Company capability upgrade.")}</small>
                 <button type="button" data-buy-research="${escapeHtml(node.id)}" ${node.available ? "" : "disabled"}>${escapeHtml(buttonText)}</button>
               </div>
             </article>
@@ -817,6 +850,7 @@ function renderResearchLab(data) {
     </section>
   `).join("");
 }
+
 
 function getRecommendedResearchNode(nodes = []) {
   return nodes.find((node) => node.available)

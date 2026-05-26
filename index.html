@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050816" />
-    <title>NovaLift v0.6.4</title>
+    <title>NovaLift v0.6.5</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -15,7 +15,7 @@
         <section id="hud" class="compact-hud" aria-label="Flight status">
           <div class="brand-chip">
             <strong>NovaLift</strong>
-            <span>v0.6.4</span>
+            <span>v0.6.5</span>
           </div>
           <div class="hud-stats">
             <div class="hud-stat"><span>Alt</span><strong id="altitude">0 m</strong></div>
@@ -40,9 +40,9 @@
       <section id="builderScreen" class="builder-screen" aria-label="Rocket builder">
         <div class="builder-header">
           <div>
-            <p class="eyebrow">Rocket Construction</p>
-            <h1>Build your NovaLift rocket</h1>
-            <p class="builder-copy">Start from scratch, stack parts from top to bottom, then assign staged parts. Tap any part for a quick explanation and usage tip.</p>
+            <p class="eyebrow">Launchpad</p>
+            <h1>Ready to fly</h1>
+            <p class="builder-copy">Pick a mission, choose a rocket, and launch. Advanced editing is optional.</p>
           </div>
           <div class="budget-chip">
             <span>Cash</span>
@@ -53,16 +53,15 @@
         </div>
 
         <nav class="builder-top-actions" aria-label="Builder navigation and quick actions">
-          <button id="builderWorldView" type="button" class="nav-pill primary">World View</button>
+          <button id="builderJumpToMissions" type="button" class="nav-pill primary">Mission</button>
           <button id="builderJumpToPreview" type="button" class="nav-pill">Rocket</button>
-          <button id="builderJumpToParts" type="button" class="nav-pill">Parts</button>
-          <button id="builderJumpToMissions" type="button" class="nav-pill">Missions</button>
           <button id="builderJumpToResearch" type="button" class="nav-pill">Research</button>
+          <button id="builderWorldView" type="button" class="nav-pill">World</button>
         </nav>
 
         <section class="builder-card mission-board-card" id="builderMissionsSection" aria-label="Company missions">
           <div class="builder-section-title">
-            <h2>Mission Board</h2>
+            <h2>Next Mission</h2>
             <div class="section-title-actions">
               <span id="missionBoardSummary">Career progression</span>
               <button id="toggleMissionBoardView" type="button" class="mini-button">View All</button>
@@ -74,14 +73,14 @@
         <section class="builder-card earth-mines-card" id="builderMinesSection" aria-label="Earth mines">
           <div class="builder-section-title">
             <h2>Earth Mines</h2>
-            <span>Stable starter income</span>
+            <span id="earthMineMiniStatus">$1/s each</span>
           </div>
           <div class="earth-mines-grid">
             <div class="earth-mine-stat"><span>Mines</span><strong id="earthMineCount">0/10</strong></div>
             <div class="earth-mine-stat"><span>Mine Income</span><strong id="earthMineIncome">$0/s</strong></div>
             <div class="earth-mine-stat"><span>Earned</span><strong id="earthMineTotalIncome">$0</strong></div>
           </div>
-          <p class="earth-mines-copy">Buy cheap Homeworld mines for a slow but reliable cash floor while orbital satellites and data centers become long-term infrastructure.</p>
+          
           <div class="earth-mines-actions">
             <span id="earthMineStatus">Each mine costs $100,000 and produces $1/s.</span>
             <button id="buyEarthMine" type="button" class="mini-button earth-mine-button">Buy Mine for $100,000</button>
@@ -95,8 +94,8 @@
           </div>
           <div class="research-teaser-grid">
             <div class="research-teaser-copy">
-              <strong>Earn R by completing missions.</strong>
-              <p>Mission cards show their R rewards. After you research Orbital Telemetry, online satellites and data centers also generate R/sec.</p>
+              <strong>Mission rewards + payload data</strong>
+              <p>Complete missions for R. Orbital Telemetry turns payloads into passive R/sec.</p>
             </div>
             <button id="openResearchLab" type="button" class="research-open-button">Open Research Lab</button>
           </div>
@@ -104,16 +103,16 @@
 
         <section class="builder-card template-card-wrap" aria-label="Quick rocket templates">
           <div class="builder-section-title">
-            <h2>Quick Builds</h2>
-            <span>Start fast, then customize</span>
+            <h2>Rocket Presets</h2>
+            <span>Tap to swap</span>
           </div>
           <div id="templateDeck" class="template-deck"></div>
         </section>
 
         <section class="builder-card builder-preview-card" id="builderRocketSection" aria-label="Live rocket preview">
           <div class="builder-section-title">
-            <h2>Live Rocket Preview</h2>
-            <span>Updates as you build</span>
+            <h2>Rocket</h2>
+            <span id="simpleRocketSummary">Ready</span>
           </div>
           <canvas id="builderPreview" class="builder-preview-canvas" aria-label="Preview of the current rocket design"></canvas>
           <p id="builderPreviewEmpty" class="preview-empty-note">No parts yet. Add parts below to design your rocket.</p>
@@ -133,6 +132,12 @@
           <div id="buildValidation" class="validation-list"></div>
         </section>
 
+        <button id="toggleAdvancedBuilder" type="button" class="builder-editor-toggle" aria-expanded="false">
+          <span>Edit Rocket</span>
+          <strong id="advancedBuilderLabel">Optional</strong>
+        </button>
+
+        <section id="advancedBuilderPanel" class="advanced-builder hidden" aria-label="Advanced rocket editor">
         <section class="builder-card part-inspector" aria-live="polite" aria-label="Selected part explanation">
           <div class="builder-section-title">
             <h2 id="selectedPartTitle">Select a part</h2>
@@ -166,6 +171,8 @@
           <div id="partsCatalog" class="parts-catalog"></div>
         </section>
 
+        </section>
+
         <button id="launchBuiltRocket" type="button" class="launch-button">Launch Rocket</button>
       </section>
 
@@ -174,8 +181,8 @@
           <button id="closeResearchLab" type="button" class="mini-button research-back-button">← Builder</button>
           <div>
             <p class="eyebrow">Research Lab</p>
-            <h1>Upgrade your space program</h1>
-            <p>Spend R to unlock stronger rockets, better orbital infrastructure, and the exploration satellite path.</p>
+            <h1>Research</h1>
+            <p>Buy one upgrade at a time. Recommended upgrade appears first.</p>
           </div>
         </div>
         <div id="researchGuide" class="research-guide" aria-label="How to earn Research"></div>
