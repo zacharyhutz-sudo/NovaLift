@@ -1,7 +1,7 @@
 {
   "name": "novalift",
-  "version": "0.9.0",
-  "description": "Vertical mobile-first 2D rocket company prototype with campaign progression with planet discovery, scan-based signals, and a compact planet registry.",
+  "version": "0.9.1",
+  "description": "Vertical mobile-first 2D rocket company prototype with campaign progression with planet discovery with fixed physical planets, gravity wells, and landing surfaces.",
   "type": "module",
   "private": true,
   "scripts": {

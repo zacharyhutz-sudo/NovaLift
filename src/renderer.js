@@ -334,7 +334,7 @@ export class Renderer {
   }
 
   render(state) {
-    const { rocket, debug, objects = [], selectedObjectId = null } = state;
+    const { rocket, debug, objects = [], selectedObjectId = null, planets = [PLANET], activePlanet = PLANET } = state;
     const ctx = this.ctx;
 
     this.lastRocket = rocket;
@@ -344,10 +344,10 @@ export class Renderer {
     ctx.clearRect(0, 0, this.width, this.height);
 
     this.drawBackground(ctx);
-    this.drawPlanet(ctx, PLANET);
+    this.drawPlanets(ctx, planets);
     this.drawLaunchPad(ctx, PLANET);
 
-    this.drawTrajectory(ctx, predictTrajectory(rocket, PLANET));
+    this.drawTrajectory(ctx, predictTrajectory(rocket, activePlanet), activePlanet);
     this.drawDetachedObjects(ctx, objects);
     this.drawSelectedObjectOverlay(ctx, objects);
 
@@ -487,6 +487,43 @@ export class Renderer {
     ctx.fillRect(0, 0, this.width, this.height);
   }
 
+  drawPlanets(ctx, planets = [PLANET]) {
+    const bodies = Array.isArray(planets) && planets.length ? planets : [PLANET];
+    bodies
+      .slice()
+      .sort((a, b) => (b.radius ?? 0) - (a.radius ?? 0))
+      .forEach((planet) => {
+        this.drawPlanet(ctx, planet);
+        this.drawPlanetLabel(ctx, planet);
+      });
+  }
+
+  drawPlanetLabel(ctx, planet) {
+    if (!planet?.name || planet.id === "homeworld") return;
+    const center = this.worldToScreen(planet.x, planet.y);
+    const radius = planet.radius * this.camera.scale;
+    if (center.x < -120 || center.x > this.width + 120 || center.y < -120 || center.y > this.height + 120) return;
+    if (radius < 4) return;
+
+    ctx.save();
+    const x = center.x;
+    const y = center.y + Math.max(radius + 10 * this.dpr, 18 * this.dpr);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `${Math.max(10, 11 * this.dpr)}px ui-sans-serif, system-ui, sans-serif`;
+    const label = planet.name;
+    const width = Math.min(170 * this.dpr, ctx.measureText(label).width + 22 * this.dpr);
+    ctx.fillStyle = "rgba(5, 10, 24, 0.76)";
+    ctx.strokeStyle = "rgba(167, 139, 250, 0.32)";
+    ctx.lineWidth = Math.max(1, this.dpr);
+    roundRect(ctx, x - width / 2, y - 12 * this.dpr, width, 24 * this.dpr, 999);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(237, 233, 254, 0.94)";
+    ctx.fillText(label, x, y);
+    ctx.restore();
+  }
+
   drawPlanet(ctx, planet) {
     const center = this.worldToScreen(planet.x, planet.y);
     const radius = planet.radius * this.camera.scale;
@@ -497,7 +534,7 @@ export class Renderer {
     // bluish-green body with sphere shading reads cleaner at every zoom level
     // than the previous land/cloud treatment.
     const glow = ctx.createRadialGradient(center.x, center.y, radius * 0.98, center.x, center.y, atmosphereRadius);
-    glow.addColorStop(0, "rgba(94, 234, 212, 0.18)");
+    glow.addColorStop(0, planet.atmosphereColor ?? "rgba(94, 234, 212, 0.18)");
     glow.addColorStop(0.45, planet.atmosphereColor ?? "rgba(94, 234, 212, 0.11)");
     glow.addColorStop(1, "rgba(94, 234, 212, 0)");
     ctx.fillStyle = glow;
@@ -530,10 +567,10 @@ export class Renderer {
       center.y + radius * 0.26,
       radius * 1.18
     );
-    sphere.addColorStop(0, "#7ddfd3");
+    sphere.addColorStop(0, planet.highlightColor ?? "#f8fafc");
     sphere.addColorStop(0.32, planet.color ?? "#2bb6a8");
-    sphere.addColorStop(0.72, "#168f8c");
-    sphere.addColorStop(1, "#075c64");
+    sphere.addColorStop(0.72, planet.landColor ?? planet.color ?? "#168f8c");
+    sphere.addColorStop(1, planet.shadowColor ?? "#0f172a");
     ctx.fillStyle = sphere;
     ctx.beginPath();
     ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
@@ -621,10 +658,10 @@ export class Renderer {
     ctx.restore();
   }
 
-  drawTrajectory(ctx, points) {
+  drawTrajectory(ctx, points, planet = PLANET) {
     if (points.length < 2) return;
 
-    const style = getTrajectoryStyle(points, PLANET);
+    const style = getTrajectoryStyle(points, planet);
     ctx.save();
     ctx.strokeStyle = style.color;
     ctx.lineWidth = Math.max(1, style.width * this.dpr);

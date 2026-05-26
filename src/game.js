@@ -9,6 +9,7 @@ import {
 } from "./research.js";
 import {
   PLANET_DISCOVERY_VERSION,
+  getDiscoveredPhysicalPlanets,
   getNextPlanetSignal,
   getPlanetRegistryView,
   normalizePlanetState,
@@ -49,7 +50,7 @@ const CAREER_LAUNCHES_CHARGE_MONEY = true;
 const MAX_PERSISTENT_OBJECTS = 80;
 const ECONOMY_SCALE_VERSION = "v0.5.3-20x";
 const LEGACY_ECONOMY_MULTIPLIER = 20;
-const PAYLOAD_RATE_VERSION = "v0.9.0-payload-roles-scan-planets";
+const PAYLOAD_RATE_VERSION = "v0.9.1-physical-planets";
 const EARTH_MINE_COST = 100000;
 const EARTH_MINE_INCOME_RATE = 1;
 const EARTH_MINE_MAX = 10;
@@ -75,6 +76,29 @@ export class Game {
     this.stageMessageTimer = 4;
     this.flightStats = this.createFlightStats(this.rocket);
   }
+
+  getActivePlanets() {
+    return getDiscoveredPhysicalPlanets(this.company);
+  }
+
+  getDominantPlanetFor(body = this.rocket) {
+    const planets = this.getActivePlanets();
+    if (!planets.length) return PLANET;
+    let best = planets[0];
+    let bestStrength = -Infinity;
+    for (const planet of planets) {
+      const dx = (body.x ?? 0) - planet.x;
+      const dy = (body.y ?? 0) - planet.y;
+      const distanceSq = Math.max(dx * dx + dy * dy, 1);
+      const strength = (planet.mu ?? 0) / distanceSq;
+      if (strength > bestStrength) {
+        bestStrength = strength;
+        best = planet;
+      }
+    }
+    return best;
+  }
+
 
   reset() {
     this.rocket = cloneRocket(this.rocketTemplate);
@@ -190,7 +214,7 @@ export class Game {
   }
 
   activateStage() {
-    const result = activateNextStage(this.rocket, PLANET);
+    const result = activateNextStage(this.rocket, this.getDominantPlanetFor(this.rocket));
     if (result.objects?.length) {
       this.objects.push(...result.objects);
       this.trimObjects();
@@ -205,7 +229,7 @@ export class Game {
       hasLaunched: false,
       ended: false,
       outcome: "",
-      maxAltitude: Math.max(0, getAltitude(rocket, PLANET)),
+      maxAltitude: Math.max(0, getAltitude(rocket, this.getDominantPlanetFor(rocket))),
       maxSpeed: 0,
       fuelStart: rocket.maxFuel ?? 0,
       fuelUsed: 0,
@@ -223,16 +247,25 @@ export class Game {
     const turn = (this.input.isHeld("right") ? 1 : 0) - (this.input.isHeld("left") ? 1 : 0);
     rotateRocket(this.rocket, turn, dt);
 
+    const activePlanet = this.getDominantPlanetFor(this.rocket);
+    this.rocket.primaryPlanetId = activePlanet.id ?? "homeworld";
+    this.rocket.primaryPlanetName = activePlanet.name ?? "Homeworld";
+
     stepRocket(
       this.rocket,
       {
         thrusting: this.input.isHeld("thrust")
       },
       dt,
-      PLANET
+      activePlanet
     );
 
-    this.objects.forEach((object) => stepDetachedObject(object, dt, PLANET));
+    this.objects.forEach((object) => {
+      const objectPlanet = this.getDominantPlanetFor(object);
+      object.primaryPlanetId = objectPlanet.id ?? "homeworld";
+      object.primaryPlanetName = objectPlanet.name ?? "Homeworld";
+      stepDetachedObject(object, dt, objectPlanet);
+    });
     this.trimObjects();
     this.updateEconomy(dt);
     this.updateFlightStats();
@@ -278,7 +311,7 @@ export class Game {
 
     for (const object of this.objects) {
       if (!object || object.crashed || object.exploded) continue;
-      updateDetachedObjectStatus(object, PLANET);
+      updateDetachedObjectStatus(object, this.getDominantPlanetFor(object));
       if (object.kind === "payload" && object.online) {
         const rate = Number(object.incomeRate ?? 0);
         if (rate > 0) {
@@ -409,7 +442,7 @@ export class Game {
   updateFlightStats() {
     if (!this.flightStats) this.flightStats = this.createFlightStats(this.rocket);
 
-    const altitude = Math.max(0, getAltitude(this.rocket, PLANET));
+    const altitude = Math.max(0, getAltitude(this.rocket, this.getDominantPlanetFor(this.rocket)));
     const speed = getSpeed(this.rocket);
     const inFlight = !this.rocket.landed || speed > 0.1 || this.flightStats.hasLaunched;
 
@@ -466,12 +499,13 @@ export class Game {
 
   getFlightTip() {
     const maxAltitude = this.flightStats?.maxAltitude ?? 0;
-    const tangential = getTangentialSpeed(this.rocket, PLANET);
-    const circular = getCircularOrbitSpeed(this.rocket, PLANET);
+    const activePlanet = this.getDominantPlanetFor(this.rocket);
+    const tangential = getTangentialSpeed(this.rocket, activePlanet);
+    const circular = getCircularOrbitSpeed(this.rocket, activePlanet);
 
     if (this.rocket.missionComplete || (this.rocket.payloadsOnline ?? 0) > 0) return "Great launch. Payload/orbit objective completed.";
     if (this.rocket.landed && !this.rocket.crashed) return "Nice recovery. Cash in the recovered parts from the flight results popup.";
-    if (maxAltitude < PLANET.atmosphereHeight * 0.65) return "Add fuel/thrust or reduce drag to climb out of the lower atmosphere.";
+    if (maxAltitude < activePlanet.atmosphereHeight * 0.65) return "Add fuel/thrust or reduce drag to climb out of the lower atmosphere.";
     if (tangential < circular * 0.68) return "You reached space, but need more sideways speed. Start tilting earlier.";
     if (this.rocket.parachuteState === "failed") return "The parachute ripped off. Wait until speed drops before staging recovery.";
     if (this.rocket.crashed && this.rocket.parachuteState !== "deployed") return "Use a parachute and landing legs before touchdown for recovery attempts.";
@@ -748,9 +782,12 @@ export class Game {
   }
 
   getRenderState() {
+    const activePlanet = this.getDominantPlanetFor(this.rocket);
     return {
       rocket: this.rocket,
       objects: this.objects,
+      planets: this.getActivePlanets(),
+      activePlanet,
       selectedObjectId: this.selectedObjectId,
       paused: this.paused,
       debug: this.debug,
@@ -761,12 +798,14 @@ export class Game {
   }
 
   getHudData() {
-    const altitude = getAltitude(this.rocket, PLANET);
+    const activePlanet = this.getDominantPlanetFor(this.rocket);
+    const altitude = getAltitude(this.rocket, activePlanet);
     const speed = getSpeed(this.rocket);
     const fuelPercent = this.rocket.maxFuel > 0 ? (this.rocket.fuel / this.rocket.maxFuel) * 100 : 0;
-    const status = this.paused ? `Paused — ${getOrbitStatus(this.rocket, PLANET)}` : getOrbitStatus(this.rocket, PLANET);
-    const density = getAtmosphereDensity(this.rocket, PLANET);
-    const drag = getDragVector(this.rocket, PLANET);
+    const orbitStatus = getOrbitStatus(this.rocket, activePlanet);
+    const status = this.paused ? `Paused — ${orbitStatus}` : orbitStatus;
+    const density = getAtmosphereDensity(this.rocket, activePlanet);
+    const drag = getDragVector(this.rocket, activePlanet);
     const onlinePayloads = this.objects.filter((object) => object.kind === "payload" && object.online && !object.crashed).length + (this.rocket.payloadsOnline ?? 0);
     const debrisCount = this.objects.filter((object) => object.kind === "debris" && !object.exploded).length;
 
@@ -775,6 +814,7 @@ export class Game {
       speed,
       fuelPercent,
       stageFuel: getStageFuelSummary(this.rocket),
+      activePlanet,
       status,
       fps: this.fps,
       orbitHoldTime: this.rocket.orbitHoldTime,
@@ -817,8 +857,8 @@ export class Game {
           name: this.rocket.landed ? "Current Rocket on Pad" : this.rocket.crashed ? "Crashed Current Rocket" : "Current Command Pod",
           kind: "vessel",
           category: "command",
-          status: getOrbitStatus(this.rocket, PLANET),
-          altitude: getAltitude(this.rocket, PLANET),
+          status: getOrbitStatus(this.rocket, this.getDominantPlanetFor(this.rocket)),
+          altitude: getAltitude(this.rocket, this.getDominantPlanetFor(this.rocket)),
           speed: getSpeed(this.rocket),
           incomeRate: 0,
           researchRate: 0,
@@ -839,7 +879,7 @@ export class Game {
 
     for (const object of this.objects) {
       if (!object || object.exploded) continue;
-      const info = objectToInfo(object, this.company);
+      const info = objectToInfo(object, this.company, this.getDominantPlanetFor(object));
       tracked.push(info);
     }
 
@@ -855,7 +895,7 @@ export class Game {
     }
     const object = this.getSelectedObject();
     if (!object) return null;
-    return objectToInfo(object, this.company);
+    return objectToInfo(object, this.company, this.getDominantPlanetFor(object));
   }
 
   getFlightSummary() {
@@ -878,23 +918,25 @@ export class Game {
   }
 
   getDebugText() {
-    const gravity = getGravityVector(this.rocket, PLANET);
-    const drag = getDragVector(this.rocket, PLANET);
+    const activePlanet = this.getDominantPlanetFor(this.rocket);
+    const gravity = getGravityVector(this.rocket, activePlanet);
+    const drag = getDragVector(this.rocket, activePlanet);
     const stageEvents = (this.rocket.stageEvents ?? []).map((event) => `- ${event.message}`).join("\n") || "None";
 
     return [
+      `Primary body:  ${activePlanet.name ?? "Homeworld"}`,
       `Position:      x ${fmt(this.rocket.x)}   y ${fmt(this.rocket.y)}`,
       `Velocity:      x ${fmt(this.rocket.vx)}   y ${fmt(this.rocket.vy)}`,
       `Angle:         ${fmt((this.rocket.angle * 180) / Math.PI)}°`,
-      `Distance:      ${fmt(getDistanceToPlanet(this.rocket, PLANET))}`,
-      `Altitude:      ${fmt(getAltitude(this.rocket, PLANET))}`,
+      `Distance:      ${fmt(getDistanceToPlanet(this.rocket, activePlanet))}`,
+      `Altitude:      ${fmt(getAltitude(this.rocket, activePlanet))}`,
       `Speed:         ${fmt(getSpeed(this.rocket))}`,
-      `Radial vel:    ${fmt(getRadialVelocity(this.rocket, PLANET))}`,
-      `Tangential:    ${fmt(getTangentialSpeed(this.rocket, PLANET))}`,
-      `Circular req:  ${fmt(getCircularOrbitSpeed(this.rocket, PLANET))}`,
-      `Escape req:    ${fmt(getEscapeSpeed(this.rocket, PLANET))}`,
+      `Radial vel:    ${fmt(getRadialVelocity(this.rocket, activePlanet))}`,
+      `Tangential:    ${fmt(getTangentialSpeed(this.rocket, activePlanet))}`,
+      `Circular req:  ${fmt(getCircularOrbitSpeed(this.rocket, activePlanet))}`,
+      `Escape req:    ${fmt(getEscapeSpeed(this.rocket, activePlanet))}`,
       `Gravity:       ${fmt(gravity.strength)}`,
-      `Atmosphere:    ${fmt(getAtmosphereDensity(this.rocket, PLANET) * 100)}%`,
+      `Atmosphere:    ${fmt(getAtmosphereDensity(this.rocket, activePlanet) * 100)}%`,
       `Drag accel:    ${fmt(drag.strength)}`,
       `Drag area:     ${fmt(this.rocket.dragArea)}`,
       `Mass:          ${fmt(getRocketMass(this.rocket))}`,
@@ -1157,7 +1199,7 @@ function inferPayloadPartId(object) {
   return "";
 }
 
-function objectToInfo(object, company = {}) {
+function objectToInfo(object, company = {}, planet = PLANET) {
   const kind = normalizeObjectKind(object);
   const payloadType = inferPayloadType(object);
   const onlinePayload = kind === "payload" && object.online;
@@ -1171,8 +1213,9 @@ function objectToInfo(object, company = {}) {
     payloadType,
     category: kind === "payload" ? payloadType : kind === "vessel" ? "command" : "debris",
     status: object.status ?? "unknown",
+    primaryPlanetName: object.primaryPlanetName ?? planet.name ?? "Homeworld",
     offlineReason: object.offlineReason ?? "",
-    altitude: getAltitude(object, PLANET),
+    altitude: getAltitude(object, planet),
     speed: getSpeed(object),
     incomeRate: onlinePayload ? Number(object.incomeRate ?? 0) : 0,
     researchRate: telemetryOnline ? baseResearchRate : 0,
