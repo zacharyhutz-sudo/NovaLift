@@ -1,7 +1,7 @@
 {
   "name": "novalift",
-  "version": "0.9.4.3",
-  "description": "Vertical mobile-first 2D rocket company prototype with an RPG-style research skill tree redesign.",
+  "version": "0.9.5",
+  "description": "Vertical mobile-first 2D rocket company prototype with an RPG-style research skill tree and Clash-inspired program progression pass.",
   "type": "module",
   "private": true,
   "scripts": {

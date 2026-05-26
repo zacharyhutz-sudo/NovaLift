@@ -6623,3 +6623,318 @@ button:active:not(:disabled),
     animation: none;
   }
 }
+
+/* v0.9.5 Space Program Progression Pass */
+.progression-card {
+  border-color: rgba(56, 189, 248, 0.22);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(59, 130, 246, 0.18), transparent 34%),
+    radial-gradient(circle at 100% 20%, rgba(168, 85, 247, 0.13), transparent 30%),
+    rgba(2, 6, 23, 0.78);
+}
+
+.program-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+  margin-bottom: 12px;
+}
+
+.program-level-badge {
+  min-width: 92px;
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(14, 165, 233, 0.18), rgba(79, 70, 229, 0.12));
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  box-shadow: inset 0 0 28px rgba(56, 189, 248, 0.08);
+}
+
+.program-level-badge span,
+.program-level-copy span,
+.progression-panel-top span,
+.bank-resource span,
+.daily-contract span,
+.engineer-project span {
+  color: rgba(203, 213, 225, 0.78);
+  font-size: 0.74rem;
+  letter-spacing: 0.05em;
+}
+
+.program-level-badge strong {
+  font-size: clamp(2rem, 8vw, 3rem);
+  line-height: 0.9;
+  color: #e0f2fe;
+  text-shadow: 0 0 20px rgba(56, 189, 248, 0.45);
+}
+
+.program-level-copy {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 18px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.58);
+}
+
+.program-level-copy > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.program-level-copy strong {
+  color: #f8fafc;
+  font-size: 0.9rem;
+  text-align: right;
+}
+
+.program-level-copy small {
+  display: block;
+  margin-top: 7px;
+  color: rgba(148, 163, 184, 0.86);
+}
+
+.program-xp-track,
+.bank-track,
+.engineer-track,
+.daily-track {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.program-xp-track span,
+.bank-track span,
+.engineer-track span,
+.daily-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc);
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.35);
+}
+
+.recommended-action-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.28);
+  border-radius: 20px;
+  padding: 14px;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.86), rgba(30, 41, 59, 0.62));
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.18), inset 0 0 24px rgba(56, 189, 248, 0.05);
+  margin-bottom: 12px;
+}
+
+.recommended-action-card strong {
+  display: block;
+  color: #f8fafc;
+  font-size: 1.04rem;
+  margin: 3px 0;
+}
+
+.recommended-action-card p {
+  margin: 0;
+  color: rgba(203, 213, 225, 0.84);
+  line-height: 1.38;
+}
+
+.recommended-action-card button,
+.progression-panel button,
+.daily-contract button,
+.engineer-project button {
+  border: 1px solid rgba(125, 211, 252, 0.38);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.86), rgba(14, 116, 144, 0.8));
+  color: #eff6ff;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  padding: 9px 12px;
+  box-shadow: 0 12px 28px rgba(14, 165, 233, 0.16);
+}
+
+.recommended-action-card button:disabled,
+.progression-panel button:disabled,
+.daily-contract button:disabled,
+.engineer-project button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  background: rgba(51, 65, 85, 0.72);
+  box-shadow: none;
+}
+
+.recommended-action-card.tone-reward {
+  border-color: rgba(250, 204, 21, 0.38);
+  box-shadow: inset 0 0 26px rgba(250, 204, 21, 0.06);
+}
+
+.recommended-action-card.tone-engineer {
+  border-color: rgba(168, 85, 247, 0.34);
+}
+
+.recommended-action-card.tone-income {
+  border-color: rgba(34, 197, 94, 0.34);
+}
+
+.progression-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.progression-panel {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 20px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.62);
+  min-width: 0;
+}
+
+.progression-panel-top {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.progression-panel-top strong {
+  display: block;
+  color: #f8fafc;
+}
+
+.progression-panel-top .system-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  font-size: 0.74rem;
+  background: rgba(14, 165, 233, 0.14);
+  border: 1px solid rgba(56, 189, 248, 0.24);
+  color: #bae6fd;
+}
+
+.bank-resource {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.bank-resource > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.bank-resource strong {
+  color: #e0f2fe;
+  font-size: 0.82rem;
+}
+
+.engineer-active-list,
+.engineer-project-list,
+.daily-contract-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.engineer-project,
+.daily-contract {
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 16px;
+  background: rgba(2, 6, 23, 0.42);
+  padding: 10px;
+}
+
+.engineer-project.active {
+  border-color: rgba(168, 85, 247, 0.28);
+  background: linear-gradient(135deg, rgba(88, 28, 135, 0.22), rgba(15, 23, 42, 0.55));
+}
+
+.engineer-project > div:first-child,
+.engineer-project-actions,
+.daily-contract {
+  display: grid;
+  gap: 6px;
+}
+
+.engineer-project strong,
+.daily-contract strong {
+  color: #f8fafc;
+  font-size: 0.9rem;
+}
+
+.engineer-project em,
+.daily-contract em,
+.engineer-project-actions small,
+.daily-contract small {
+  color: rgba(191, 219, 254, 0.85);
+  font-style: normal;
+  font-size: 0.78rem;
+}
+
+.engineer-project-actions {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.daily-contract {
+  grid-template-columns: minmax(0, 1fr) 78px auto;
+  align-items: center;
+}
+
+.daily-contract.claimable {
+  border-color: rgba(34, 197, 94, 0.36);
+  box-shadow: inset 0 0 22px rgba(34, 197, 94, 0.06);
+}
+
+.daily-contract.claimed {
+  opacity: 0.74;
+}
+
+.daily-contract-copy {
+  min-width: 0;
+}
+
+.daily-contract-progress {
+  display: grid;
+  gap: 6px;
+  text-align: right;
+}
+
+@media (max-width: 980px) {
+  .progression-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .program-summary,
+  .recommended-action-card,
+  .progression-panel-top,
+  .daily-contract {
+    grid-template-columns: 1fr;
+  }
+
+  .program-level-badge {
+    min-width: 0;
+    grid-template-columns: auto auto;
+    justify-content: space-between;
+  }
+
+  .recommended-action-card button,
+  .progression-panel button,
+  .daily-contract button,
+  .engineer-project button {
+    width: 100%;
+  }
+}

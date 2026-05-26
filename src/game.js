@@ -16,6 +16,23 @@ import {
   processPlanetDiscovery
 } from "./planets.js";
 import {
+  addProgramXp,
+  applyLaunchContractReward,
+  claimDailyContract as claimDailyContractReward,
+  collectPassiveIncome as collectPassiveBank,
+  depositPassiveIncome,
+  evaluateLaunchContract,
+  finishReadyEngineerProjects,
+  getDailyContractsView,
+  getEngineerView,
+  getPassiveBankView,
+  getProgramLevelInfo,
+  getRecommendedNextAction,
+  normalizeProgressionState,
+  recordDailyProgress,
+  startEngineerProject as startEngineerProjectInQueue
+} from "./progression.js";
+import {
   activateNextStage,
   cloneRocket,
   getAltitude,
@@ -144,6 +161,9 @@ export class Game {
     this.reset();
     this.company.lastMissionReward = 0;
     this.company.lastLaunchCost = launchCost;
+    this.company.totalLaunches = (this.company.totalLaunches ?? 0) + 1;
+    recordDailyProgress(this.company, "launches", 1);
+    addProgramXp(this.company, 3, "Launch committed");
     this.emitFeedback({
       title: "Launch committed",
       message: launchCost > 0 ? `Launch cost: ${formatMoney(launchCost)}.` : "Sandbox launch ready.",
@@ -276,6 +296,10 @@ export class Game {
       recoveryCashedIn: false,
       recoveredParts: [],
       missionRewards: 0,
+      contractReward: 0,
+      contractResearchReward: 0,
+      contractStars: 0,
+      contractTitle: "",
       tip: ""
     };
   }
@@ -304,6 +328,7 @@ export class Game {
       stepDetachedObject(object, dt, objectPlanet);
     });
     this.trimObjects();
+    this.updateEngineerProjects();
     this.updateEconomy(dt);
     this.updateFlightStats();
     this.updateMissions();
@@ -329,6 +354,7 @@ export class Game {
 
   updatePassiveCompanySystems(dt) {
     if (!Number.isFinite(dt) || dt <= 0) return;
+    this.updateEngineerProjects();
     this.updateEconomy(dt);
     this.saveTimer += dt;
     if (this.saveTimer >= WORLD_OBJECT_SAVE_INTERVAL) {
@@ -380,21 +406,13 @@ export class Game {
     this.company.incomePerSecond = incomeRate;
     this.company.researchPerSecond = researchRate;
     this.company.scanPerSecond = scanRate;
-    if (incomeRate > 0) {
+    if (incomeRate > 0 || researchRate > 0 || scanRate > 0) {
       const earned = incomeRate * dt;
-      this.company.money += earned;
-      this.company.totalRevenue += earned;
-      this.company.totalMineRevenue = (this.company.totalMineRevenue ?? 0) + mineIncomeRate * dt;
-    }
-    if (researchRate > 0) {
       const dataEarned = researchRate * dt;
-      this.company.researchPoints = (this.company.researchPoints ?? 0) + dataEarned;
-      this.company.totalResearchEarned = (this.company.totalResearchEarned ?? 0) + dataEarned;
-    }
-    if (scanRate > 0) {
       const scanEarned = scanRate * dt;
-      this.company.scanPoints = (this.company.scanPoints ?? 0) + scanEarned;
-      this.company.totalScanGenerated = (this.company.totalScanGenerated ?? 0) + scanEarned;
+      const deposit = depositPassiveIncome(this.company, { cash: earned, research: dataEarned, scan: scanEarned });
+      this.company.totalRevenue = (this.company.totalRevenue ?? 0) + (deposit.accepted.cash ?? 0);
+      this.company.totalMineRevenue = (this.company.totalMineRevenue ?? 0) + Math.min(mineIncomeRate * dt, deposit.accepted.cash ?? 0);
     }
 
     const discoveries = processPlanetDiscovery(this.company);
@@ -477,6 +495,7 @@ export class Game {
       this.company.totalResearchEarned = (this.company.totalResearchEarned ?? 0) + researchReward;
       this.company.lastMissionReward = reward;
       this.company.lastResearchReward = researchReward;
+      const xpResult = addProgramXp(this.company, newlyCompleted.length * 35, "Mission complete");
       if (this.flightStats) {
         this.flightStats.missionRewards = (this.flightStats.missionRewards ?? 0) + reward;
         this.flightStats.researchRewards = (this.flightStats.researchRewards ?? 0) + researchReward;
@@ -491,6 +510,7 @@ export class Game {
       const completedTitles = newlyCompleted.map((mission) => mission.title).join(", ");
       const stats = [`+${formatMoney(reward)}`];
       if (researchReward > 0) stats.push(`+${Math.round(researchReward).toLocaleString()}R`);
+      if (xpResult.added > 0) stats.push(`+${xpResult.added} XP`);
       this.emitFeedback({
         title: newlyCompleted.length === 1 ? "Mission complete" : `${newlyCompleted.length} missions complete`,
         message: completedTitles,
@@ -542,7 +562,9 @@ export class Game {
         this.flightStats.recoveryRefund = recovery.refund;
         this.flightStats.recoveryAvailable = recovery.refund;
         this.flightStats.recoveredParts = recovery.parts;
+        recordDailyProgress(this.company, "recoveries", 1);
       }
+      this.evaluateFlightContract();
       this.flightStats.tip = this.getFlightTip();
       this.emitFeedback({
         title: this.rocket.crashed ? "Vehicle lost" : "Rocket recovered",
@@ -760,6 +782,8 @@ export class Game {
     const result = purchaseResearchNode(this.company, id);
     if (result.ok) {
       const unlocked = result.node.unlockText ? ` ${result.node.unlockText}` : "";
+      recordDailyProgress(this.company, "research", 1);
+      const xpResult = addProgramXp(this.company, 20, result.node.name);
       this.stageMessage = `Research complete: ${result.node.name}.${unlocked}`;
       this.stageMessageTimer = 9;
       this.emitFeedback({
@@ -771,7 +795,7 @@ export class Game {
         reward: {
           title: result.node.name,
           subtitle: result.node.unlockText ?? "New program capability unlocked.",
-          stats: [`-${formatResearch(result.node.cost ?? 0)}R`],
+          stats: [`-${formatResearch(result.node.cost ?? 0)}R`, `+${xpResult.added} XP`],
           tone: "reward",
           kicker: "Program Unlock",
           icon: "✦"
@@ -784,6 +808,125 @@ export class Game {
       this.emitFeedback({ title: "Research unavailable", message: result.reason ?? "Research unavailable.", tone: "warning", sound: "error", haptic: "error" });
     }
     return result;
+  }
+
+  updateEngineerProjects() {
+    const finished = finishReadyEngineerProjects(this.company);
+    if (!finished.length) return;
+    const names = finished.map((project) => project.name).join(", ");
+    this.stageMessage = `Engineer project complete: ${names}.`;
+    this.stageMessageTimer = 8;
+    this.emitFeedback({
+      title: finished.length === 1 ? "Engineer project complete" : "Engineer projects complete",
+      message: names,
+      tone: "reward",
+      sound: "unlock",
+      haptic: "success",
+      reward: {
+        title: finished.length === 1 ? finished[0].name : "Engineering Progress",
+        subtitle: finished.length === 1 ? finished[0].effect : names,
+        stats: finished.map((project) => `+${Math.round(project.xpReward ?? 0)} XP`),
+        tone: "reward",
+        kicker: "Engineer Complete",
+        icon: "ENG"
+      }
+    });
+    this.saveCompany();
+  }
+
+  startEngineerProject(id) {
+    const result = startEngineerProjectInQueue(this.company, id);
+    if (result.ok) {
+      this.stageMessage = `Engineer started: ${result.project.name}.`;
+      this.stageMessageTimer = 7;
+      this.emitFeedback({ title: "Engineer assigned", message: result.project.name, tone: "info", sound: "select", haptic: "medium" });
+      this.saveCompany();
+    } else {
+      this.stageMessage = result.reason ?? "Project unavailable.";
+      this.stageMessageTimer = 5;
+      this.emitFeedback({ title: "Project unavailable", message: result.reason ?? "Project unavailable.", tone: "warning", sound: "error", haptic: "error" });
+    }
+    return result;
+  }
+
+  collectPassiveIncome() {
+    const result = collectPassiveBank(this.company);
+    if (result.ok) {
+      const pieces = [];
+      if (result.collected.cash > 0) pieces.push(`+${formatMoney(result.collected.cash)}`);
+      if (result.collected.research > 0) pieces.push(`+${formatResearch(result.collected.research)}R`);
+      if (result.collected.scan > 0) pieces.push(`+${Math.round(result.collected.scan).toLocaleString()} Scan`);
+      this.stageMessage = `Collected operations: ${pieces.join(" · ")}.`;
+      this.stageMessageTimer = 7;
+      this.emitFeedback({ title: "Operations collected", message: pieces.join(" · "), tone: "success", sound: "reward", haptic: "success" });
+      this.saveCompany();
+    } else {
+      this.emitFeedback({ title: "Nothing to collect", message: result.reason ?? "Passive storage is empty.", tone: "info", sound: "select", haptic: "light" });
+    }
+    return result;
+  }
+
+  claimDailyContract(id) {
+    const result = claimDailyContractReward(this.company, id);
+    if (result.ok) {
+      const reward = result.reward ?? {};
+      const stats = [];
+      if (reward.cash) stats.push(`+${formatMoney(reward.cash)}`);
+      if (reward.research) stats.push(`+${formatResearch(reward.research)}R`);
+      if (reward.xp) stats.push(`+${Math.round(reward.xp)} XP`);
+      this.stageMessage = `Daily claimed: ${result.contract.title}.`;
+      this.stageMessageTimer = 7;
+      this.emitFeedback({
+        title: "Daily contract claimed",
+        message: result.contract.title,
+        tone: "reward",
+        sound: "reward",
+        haptic: "success",
+        reward: {
+          title: result.contract.title,
+          subtitle: "Daily rewards added to your program.",
+          stats,
+          tone: "success",
+          kicker: "Daily Contract",
+          icon: "DAY"
+        }
+      });
+      this.saveCompany();
+    } else {
+      this.emitFeedback({ title: "Daily unavailable", message: result.reason ?? "Daily contract unavailable.", tone: "warning", sound: "error", haptic: "error" });
+    }
+    return result;
+  }
+
+  evaluateFlightContract() {
+    if (!this.flightStats || this.flightStats.contractEvaluated) return null;
+    this.flightStats.contractEvaluated = true;
+    const contract = evaluateLaunchContract(this.company, this.flightStats, this.getMissionContext());
+    const result = applyLaunchContractReward(this.company, contract);
+    this.flightStats.contractTitle = contract.title;
+    this.flightStats.contractStars = contract.starsEarned;
+    this.flightStats.contractReward = result.reward?.cash ?? 0;
+    this.flightStats.contractResearchReward = result.reward?.research ?? 0;
+    if (result.ok) {
+      this.flightStats.missionRewards = (this.flightStats.missionRewards ?? 0) + (result.reward?.cash ?? 0);
+      this.flightStats.researchRewards = (this.flightStats.researchRewards ?? 0) + (result.reward?.research ?? 0);
+      this.emitFeedback({
+        title: `${contract.starsEarned}/3 contract stars`,
+        message: contract.title,
+        tone: "reward",
+        sound: "reward",
+        haptic: "success",
+        reward: {
+          title: contract.title,
+          subtitle: contract.stars.map((star) => `${star.complete ? "DONE" : "MISS"}: ${star.label}`).join(" · "),
+          stats: [`${contract.starsEarned}/3 Stars`, `+${formatMoney(result.reward?.cash ?? 0)}`, `+${formatResearch(result.reward?.research ?? 0)}R`, `+${Math.round(result.reward?.xp ?? 0)} XP`],
+          tone: "success",
+          kicker: "Launch Contract",
+          icon: "3S"
+        }
+      });
+    }
+    return contract;
   }
 
   loadCompany() {
@@ -805,6 +948,7 @@ export class Game {
         totalRevenue: scaleLegacyMoney(Number(parsed.totalRevenue ?? 0), isLegacyEconomy),
         totalRecovery: scaleLegacyMoney(Number(parsed.totalRecovery ?? 0), isLegacyEconomy),
         totalDestroyed: Number(parsed.totalDestroyed ?? 0),
+        totalLaunches: Number(parsed.totalLaunches ?? 0),
         totalMissionRewards: scaleLegacyMoney(Number(parsed.totalMissionRewards ?? 0), isLegacyEconomy),
         totalLaunchCosts: scaleLegacyMoney(Number(parsed.totalLaunchCosts ?? 0), isLegacyEconomy),
         earthMineCount: clampMineCount(parsed.earthMineCount),
@@ -827,6 +971,7 @@ export class Game {
         lastMissionReward: scaleLegacyMoney(Number(parsed.lastMissionReward ?? 0), isLegacyEconomy),
         lastLaunchCost: scaleLegacyMoney(Number(parsed.lastLaunchCost ?? 0), isLegacyEconomy),
         missions: normalizeMissionState(parsed.missions),
+        progression: normalizeProgressionState(parsed.progression),
         incomePerSecond: 0,
         earthMineIncomePerSecond: clampMineCount(parsed.earthMineCount) * EARTH_MINE_INCOME_RATE,
         orbitalIncomePerSecond: 0,
@@ -851,6 +996,7 @@ export class Game {
         totalRevenue: this.company.totalRevenue,
         totalRecovery: this.company.totalRecovery,
         totalDestroyed: this.company.totalDestroyed,
+        totalLaunches: this.company.totalLaunches ?? 0,
         totalMissionRewards: this.company.totalMissionRewards ?? 0,
         totalLaunchCosts: this.company.totalLaunchCosts ?? 0,
         earthMineCount: clampMineCount(this.company.earthMineCount),
@@ -870,7 +1016,8 @@ export class Game {
         lastRecoveryRefund: this.company.lastRecoveryRefund ?? 0,
         lastMissionReward: this.company.lastMissionReward ?? 0,
         lastLaunchCost: this.company.lastLaunchCost ?? 0,
-        missions: normalizeMissionState(this.company.missions)
+        missions: normalizeMissionState(this.company.missions),
+        progression: normalizeProgressionState(this.company.progression)
       }));
     } catch (error) {
       console.warn("NovaLift could not save company state.", error);
@@ -967,6 +1114,11 @@ export class Game {
       nextMission: getNextMission(this.getMissionContext()),
       planets: getPlanetRegistryView(this.company),
       nextPlanetSignal: getNextPlanetSignal(this.company),
+      programLevel: getProgramLevelInfo(this.company),
+      dailyContracts: getDailyContractsView(this.company),
+      engineer: getEngineerView(this.company),
+      passiveBank: getPassiveBankView(this.company),
+      recommendedAction: getRecommendedNextAction(this.company, { research: getResearchView(this.company), nextMission: getNextMission(this.getMissionContext()) }),
       flightSummary: this.getFlightSummary(),
       selectedObject: this.getSelectedObjectInfo(),
       trackedObjects: this.getTrackedObjects(),
@@ -1042,6 +1194,10 @@ export class Game {
       launchCost: this.company.lastLaunchCost ?? 0,
       missionReward: this.flightStats.missionRewards ?? 0,
       researchReward: this.flightStats.researchRewards ?? 0,
+      contractReward: this.flightStats.contractReward ?? 0,
+      contractResearchReward: this.flightStats.contractResearchReward ?? 0,
+      contractStars: this.flightStats.contractStars ?? 0,
+      contractTitle: this.flightStats.contractTitle ?? "",
       net: (this.flightStats.missionRewards ?? 0) + (this.flightStats.recoveryCashedIn ? (this.flightStats.recoveryRefund ?? 0) : 0) - (this.company.mode === "sandbox" ? 0 : (this.company.lastLaunchCost ?? 0)),
       tip: this.flightStats.tip
     };
@@ -1122,6 +1278,7 @@ function createDefaultCompany() {
     totalRevenue: 0,
     totalRecovery: 0,
     totalDestroyed: 0,
+    totalLaunches: 0,
     totalMissionRewards: 0,
     totalLaunchCosts: 0,
     earthMineCount: 0,
@@ -1148,6 +1305,7 @@ function createDefaultCompany() {
     lastResearchReward: 0,
     lastResearchPurchase: "",
     lastLaunchCost: 0,
+    progression: normalizeProgressionState(),
     missions: normalizeMissionState()
   };
 }

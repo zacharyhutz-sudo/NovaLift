@@ -20,6 +20,7 @@ import {
 } from "./builder.js";
 import { STARTING_STACK } from "./parts.js";
 import { formatResearch, getPartUnlockText, isPartUnlocked } from "./research.js";
+import { formatDuration } from "./progression.js";
 
 const canvas = document.querySelector("#gameCanvas");
 const recenterCameraButton = document.querySelector("#recenterCamera");
@@ -134,6 +135,11 @@ const planetRegistryListEl = document.querySelector("#planetRegistryList");
 const planetSignalNameEl = document.querySelector("#planetSignalName");
 const planetSignalBarEl = document.querySelector("#planetSignalBar");
 const planetSignalStatusEl = document.querySelector("#planetSignalStatus");
+const programSummaryEl = document.querySelector("#programSummary");
+const recommendedActionCardEl = document.querySelector("#recommendedActionCard");
+const passiveBankCardEl = document.querySelector("#passiveBankCard");
+const engineerQueueCardEl = document.querySelector("#engineerQueueCard");
+const dailyContractListEl = document.querySelector("#dailyContractList");
 
 const EARTH_MINE_COST = 100000;
 const EARTH_MINE_INCOME_RATE = 1;
@@ -284,6 +290,21 @@ function bindBuilderEvents() {
   bindActivation(toggleMissionBoardViewButton, () => {
     missionsExpanded = !missionsExpanded;
     renderBuilder();
+  });
+  bindDelegatedActivation(passiveBankCardEl, "[data-collect-passive]", () => {
+    game.collectPassiveIncome();
+    renderBuilder();
+  });
+  bindDelegatedActivation(dailyContractListEl, "[data-claim-daily]", (button) => {
+    game.claimDailyContract(button.dataset.claimDaily);
+    renderBuilder();
+  });
+  bindDelegatedActivation(engineerQueueCardEl, "[data-start-project]", (button) => {
+    game.startEngineerProject(button.dataset.startProject);
+    renderBuilder();
+  });
+  bindDelegatedActivation(recommendedActionCardEl, "[data-recommended-target]", (button) => {
+    handleRecommendedAction(button.dataset.recommendedTarget);
   });
   bindDelegatedActivation(researchTreeEl, "[data-buy-research]", (button) => {
     selectedResearchId = button.dataset.buyResearch || selectedResearchId;
@@ -665,6 +686,7 @@ function renderBuilder(highlightErrors = false) {
   renderPartsCatalog(game.getHudData().nextMission);
   renderSelectedPart();
   const hudData = game.getHudData();
+  renderProgressionDashboard(hudData);
   renderMissionBoard(hudData);
   renderEarthMines(hudData);
   renderResearchLab(hudData);
@@ -858,6 +880,178 @@ function renderValidation(validation, highlightErrors, canAfford = true, cost = 
       ({ type, message }) => `<div class="validation-message ${type} ${highlightErrors && type === "error" ? "pulse" : ""}">${escapeHtml(message)}</div>`
     )
     .join("");
+}
+
+function renderProgressionDashboard(data = game.getHudData()) {
+  renderProgramSummary(data);
+  renderRecommendedAction(data);
+  renderPassiveBank(data);
+  renderEngineerQueue(data);
+  renderDailyContracts(data);
+}
+
+function renderProgramSummary(data = game.getHudData()) {
+  if (!programSummaryEl) return;
+  const level = data.programLevel ?? {};
+  const progress = Math.round((level.progress ?? 0) * 100);
+  programSummaryEl.innerHTML = `
+    <div class="program-level-badge">
+      <span>Program Level</span>
+      <strong>${escapeHtml(String(level.level ?? 1))}</strong>
+    </div>
+    <div class="program-level-copy">
+      <div><span>${escapeHtml(level.title ?? "Space Program")}</span><strong>${escapeHtml(level.isMaxLevel ? "Max Level" : `${level.xpRemaining ?? 0} XP to Level ${level.nextLevel ?? 2}`)}</strong></div>
+      <div class="program-xp-track" aria-label="Program XP progress"><span style="width:${progress}%"></span></div>
+      <small>${Math.round(level.xp ?? 0).toLocaleString()} XP · ${progress}% through this level</small>
+    </div>
+  `;
+}
+
+function renderRecommendedAction(data = game.getHudData()) {
+  if (!recommendedActionCardEl) return;
+  const action = data.recommendedAction ?? {};
+  recommendedActionCardEl.className = `recommended-action-card tone-${escapeHtml(action.tone ?? "info")}`;
+  recommendedActionCardEl.innerHTML = `
+    <div>
+      <span class="eyebrow">Recommended Next Action</span>
+      <strong>${escapeHtml(action.title ?? "Grow the Program")}</strong>
+      <p>${escapeHtml(action.body ?? "Launch, collect, and upgrade to keep the company moving.")}</p>
+    </div>
+    <button type="button" data-recommended-target="${escapeHtml(action.target ?? "missions")}">${escapeHtml(action.action ?? "Review")}</button>
+  `;
+}
+
+function handleRecommendedAction(target = "missions") {
+  if (target === "bank") {
+    game.collectPassiveIncome();
+    renderBuilder();
+    return;
+  }
+  if (target === "daily") {
+    dailyContractListEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+  if (target === "engineer") {
+    engineerQueueCardEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+  if (target === "research") {
+    showResearchLab();
+    return;
+  }
+  if (target === "missions" || target === "launch") {
+    scrollBuilderSection(builderMissionsSectionEl);
+    return;
+  }
+  scrollBuilderSection(builderMissionsSectionEl);
+}
+
+function renderPassiveBank(data = game.getHudData()) {
+  if (!passiveBankCardEl) return;
+  const view = data.passiveBank ?? {};
+  const bank = view.bank ?? {};
+  const caps = view.caps ?? {};
+  const fill = view.fill ?? {};
+  passiveBankCardEl.innerHTML = `
+    <div class="progression-panel-top">
+      <div><span class="system-icon income-icon" aria-hidden="true">IN</span></div>
+      <div><strong>Operations Storage</strong><span>Passive income waits here until collected.</span></div>
+      <button type="button" data-collect-passive ${view.hasCollectable ? "" : "disabled"}>Collect</button>
+    </div>
+    ${renderBankResource("Cash", formatMoney(bank.cash ?? 0), formatMoney(caps.cash ?? 0), fill.cash ?? 0)}
+    ${renderBankResource("Research", `${formatResearch(bank.research ?? 0)}R`, `${formatResearch(caps.research ?? 0)}R`, fill.research ?? 0)}
+    ${renderBankResource("Scan", Math.floor(bank.scan ?? 0).toLocaleString(), Math.floor(caps.scan ?? 0).toLocaleString(), fill.scan ?? 0)}
+  `;
+}
+
+function renderBankResource(label, value, cap, fill) {
+  const percent = Math.round(clampNumber(Number(fill ?? 0) * 100, 0, 100));
+  return `
+    <div class="bank-resource">
+      <div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)} / ${escapeHtml(cap)}</strong></div>
+      <div class="bank-track"><span style="width:${percent}%"></span></div>
+    </div>
+  `;
+}
+
+function renderEngineerQueue(data = game.getHudData()) {
+  if (!engineerQueueCardEl) return;
+  const engineer = data.engineer ?? { slots: 1, active: [], projects: [] };
+  const active = engineer.active ?? [];
+  const nextProjects = (engineer.projects ?? []).filter((project) => !project.complete && !project.active).slice(0, 3);
+  engineerQueueCardEl.innerHTML = `
+    <div class="progression-panel-top">
+      <div><span class="system-icon engineer-icon" aria-hidden="true">EN</span></div>
+      <div><strong>Engineers</strong><span>${active.length}/${engineer.slots ?? 1} working</span></div>
+    </div>
+    <div class="engineer-active-list">
+      ${active.length ? active.map(renderActiveEngineerProject).join("") : `<p class="empty-note">No engineer project active. Start one to keep progression moving between launches.</p>`}
+    </div>
+    <div class="engineer-project-list">
+      ${nextProjects.map(renderAvailableEngineerProject).join("")}
+    </div>
+  `;
+}
+
+function renderActiveEngineerProject(project) {
+  const percent = Math.round((project.progress ?? 0) * 100);
+  return `
+    <article class="engineer-project active">
+      <div><strong>${escapeHtml(project.name)}</strong><span>${escapeHtml(project.effect ?? "Project in progress")}</span></div>
+      <em>${formatDuration(project.remainingMs ?? 0)}</em>
+      <div class="engineer-track"><span style="width:${percent}%"></span></div>
+    </article>
+  `;
+}
+
+function renderAvailableEngineerProject(project) {
+  return `
+    <article class="engineer-project ${project.locked ? "locked" : project.affordable ? "" : "unaffordable"}">
+      <div><strong>${escapeHtml(project.name)}</strong><span>${escapeHtml(project.effect ?? project.description ?? "Engineer project")}</span></div>
+      <div class="engineer-project-actions">
+        <small>${formatDuration((project.durationSeconds ?? 0) * 1000)} · ${formatMoney(project.cost ?? 0)}</small>
+        <button type="button" data-start-project="${escapeHtml(project.id)}" ${project.canStart ? "" : "disabled"}>${project.complete ? "Done" : project.locked ? `Lvl ${project.requiredProgramLevel}` : project.affordable ? "Start" : "Need Cash"}</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderDailyContracts(data = game.getHudData()) {
+  if (!dailyContractListEl) return;
+  const contracts = data.dailyContracts ?? [];
+  dailyContractListEl.innerHTML = `
+    <div class="progression-panel-top">
+      <div><span class="system-icon daily-icon" aria-hidden="true">DY</span></div>
+      <div><strong>Daily Contracts</strong><span>Small return goals for a Clash-style rhythm.</span></div>
+    </div>
+    <div class="daily-contract-stack">
+      ${contracts.map(renderDailyContract).join("")}
+    </div>
+  `;
+}
+
+function renderDailyContract(contract) {
+  const percent = Math.round((contract.percent ?? 0) * 100);
+  const reward = contract.reward ?? {};
+  const rewardText = [
+    reward.cash ? formatMoney(reward.cash) : "",
+    reward.research ? `${formatResearch(reward.research)}R` : "",
+    reward.xp ? `${reward.xp} XP` : ""
+  ].filter(Boolean).join(" · ");
+  return `
+    <article class="daily-contract ${contract.claimed ? "claimed" : contract.claimable ? "claimable" : ""}">
+      <div class="daily-contract-copy">
+        <strong>${escapeHtml(contract.title)}</strong>
+        <span>${escapeHtml(contract.description)}</span>
+        <small>${escapeHtml(rewardText)}</small>
+      </div>
+      <div class="daily-contract-progress">
+        <em>${Math.min(Math.floor(contract.progress ?? 0), contract.target ?? 1)}/${contract.target ?? 1}</em>
+        <div class="daily-track"><span style="width:${percent}%"></span></div>
+      </div>
+      <button type="button" data-claim-daily="${escapeHtml(contract.id)}" ${contract.claimable ? "" : "disabled"}>${contract.claimed ? "Claimed" : contract.claimable ? "Claim" : "Progress"}</button>
+    </article>
+  `;
 }
 
 function renderMissionBoard(data) {
@@ -1433,6 +1627,7 @@ function updateHud(data) {
   if (builderCashEl) builderCashEl.textContent = data.company?.mode === "sandbox" ? "∞" : formatMoney(data.company?.money ?? 0);
   if (builderModeLabelEl) builderModeLabelEl.textContent = data.company?.mode === "sandbox" ? "Sandbox Mode" : "Career Mode";
   if (screenMode === "builder") {
+    renderProgressionDashboard(data);
     renderEarthMines(data);
     renderOrbitalNetwork(data);
     renderPlanetRegistry(data);
@@ -1618,6 +1813,8 @@ function updateFlightSummaryModal(summary, force = false) {
       <div><span>Max Speed</span><strong>${summary.maxSpeed.toFixed(0)} m/s</strong></div>
       <div><span>Mission Rewards</span><strong>${formatMoney(summary.missionReward)}</strong></div>
       <div><span>Research Earned</span><strong>${formatResearch(summary.researchReward ?? 0)}R</strong></div>
+      <div><span>Contract Stars</span><strong>${summary.contractStars ?? 0}/3</strong></div>
+      <div><span>Launch Contract</span><strong>${escapeHtml(summary.contractTitle || "—")}</strong></div>
       <div><span>Launch Cost</span><strong>${summary.launchCost ? formatMoney(summary.launchCost) : "Sandbox"}</strong></div>
       <div><span>Recovery</span><strong>${summary.recoveryCashedIn ? "Cashed in" : formatMoney(summary.recoveryAvailable ?? summary.recoveryRefund ?? 0)}</strong></div>
       <div><span>Net</span><strong>${formatMoney(summary.net)}</strong></div>

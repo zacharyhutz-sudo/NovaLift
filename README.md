@@ -1,8 +1,21 @@
-# NovaLift v0.9.4.3 — Research RPG Tree Redesign
+# NovaLift v0.9.5 — Space Program Progression Pass
 
-NovaLift is a portrait/mobile-first 2D rocket company game prototype. This patch redesigns the Research Lab into a more polished RPG-style skill progression screen inspired by mobile talent trees, without using emoji icons.
+NovaLift is a portrait/mobile-first 2D rocket company game prototype. This patch adds a first pass at Clash-inspired pacing: short launch sessions, daily goals, timed engineer projects, passive income storage, launch contract stars, and a stronger recommended-next-action loop.
 
-## What is new in v0.9.4.3
+## What is new in v0.9.5
+
+- Added Program Level and Program XP as a long-term era/progression layer.
+- Added a Space Program dashboard to the Launchpad with a level badge, XP bar, and recommended next action.
+- Added daily contracts that reset by local date and reward cash, Research, and Program XP.
+- Added launch contract star scoring so each flight can earn 0–3 stars and small repeatable rewards.
+- Added one Engineer queue with timed facility projects and future support for more engineer slots.
+- Added early engineer projects for operations, storage, research lab, assembly bay, and engineering team growth.
+- Converted passive cash, Research, and Scan income into capped Operations Storage that must be collected.
+- Added storage caps that grow with Program Level and engineer projects.
+- Added feedback/reward events for contract stars, daily claims, engineer starts/completions, and passive collection.
+- Preserved the existing mission campaign, research tree, rocket building, and save compatibility.
+
+## Previous v0.9.4.3 — Research RPG Tree Redesign
 
 - Rebuilt the Research Lab around a top Recommended upgrade card.
 - Replaced the previous roadmap layout with four RPG-style research paths: Propulsion, Orbital Ops, Exploration, and Planetary Systems.
@@ -106,7 +119,7 @@ NovaLift is a portrait/mobile-first 2D rocket company game prototype. This patch
 - Live builder preview.
 - Quick Build templates, Auto-Stage, part category tabs, recommended parts, and +3 quick-add controls.
 - Staging, decouplers, satellites, data centers, parachutes, landing legs, and recovery cash-in.
-- Career Mode, Sandbox Mode, launch costs, mission rewards, recurring payload income, Research, and Scan progression.
+- Career Mode, Sandbox Mode, launch costs, mission rewards, collectable passive income storage, Research, Scan progression, Program XP, daily contracts, and timed engineer projects.
 - Persistent world objects and company state saved to `localStorage`.
 - Procedural starfield, color-coded trajectory lines, planet shading, atmosphere, drag, and orbital prediction.
 - World View with object tracking, command-vessel switching, selling, and destroying.
