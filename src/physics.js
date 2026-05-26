@@ -5,6 +5,7 @@ import { getRocketSurfaceContact } from "./dimensions.js";
 export function cloneRocket(template) {
   return {
     ...template,
+    angularVelocity: Number(template.angularVelocity ?? 0),
     parts: Array.isArray(template.parts) ? template.parts.map((part) => ({ ...part })) : template.parts,
     orbitHoldTime: 0,
     missionComplete: false,
@@ -174,10 +175,20 @@ export function getDragVector(rocket, planet = PLANET, scale = PHYSICS.dragScale
   const speed = getSpeed(rocket);
   const density = getAtmosphereDensity(rocket, planet);
   const mass = Math.max(getRocketMass(rocket), 0.1);
-  if (speed <= 0.001 || density <= 0) return { x: 0, y: 0, strength: 0, density };
+  if (speed <= 0.001 || density <= 0) return { x: 0, y: 0, strength: 0, density, effectiveArea: 0, angleOfAttack: 0 };
 
-  const bodyArea = Math.max(0.1, rocket.dragArea ?? 1);
-  const bodyForce = density * speed * speed * bodyArea * scale;
+  const velocityAngle = Math.atan2(rocket.vy ?? 0, rocket.vx ?? 0);
+  const bodyAngle = rocket.angle ?? velocityAngle;
+  const angleOfAttack = normalizeAngle(velocityAngle - bodyAngle);
+  const crossflow = Math.abs(Math.sin(angleOfAttack));
+  const aligned = Math.abs(Math.cos(angleOfAttack));
+  const baseArea = Math.max(0.1, rocket.dragArea ?? 1);
+  const frontalArea = Math.max(0.45, rocket.frontalArea ?? 1);
+  const sideArea = Math.max(frontalArea, (rocket.collisionRadius ?? 80) / 42);
+  const projectedArea = frontalArea * (0.75 + aligned * 0.42) + sideArea * crossflow * 1.45;
+  const effectiveArea = Math.max(0.12, baseArea + projectedArea);
+
+  const bodyForce = density * speed * speed * effectiveArea * scale;
   const chuteArea = rocket.parachuteState === "deployed" && density >= (PHYSICS.parachuteMinEffectiveDensity ?? 0)
     ? getParachuteDragArea(rocket)
     : 0;
@@ -194,7 +205,9 @@ export function getDragVector(rocket, planet = PLANET, scale = PHYSICS.dragScale
     x: -(rocket.vx / speed) * acceleration,
     y: -(rocket.vy / speed) * acceleration,
     strength: acceleration,
-    density
+    density,
+    effectiveArea,
+    angleOfAttack
   };
 }
 
@@ -284,8 +297,28 @@ export function getOrbitAnalysis(object, planet = PLANET) {
 }
 
 export function rotateRocket(rocket, direction, dt) {
-  if (rocket.crashed) return;
-  rocket.angle += direction * rocket.rotateSpeed * dt;
+  if (rocket.crashed) {
+    rocket.angularVelocity = 0;
+    return;
+  }
+
+  const input = Math.max(-1, Math.min(1, Number(direction) || 0));
+  const acceleration = PHYSICS.angularAcceleration ?? Math.max(rocket.rotateSpeed ?? 0.45, 0.1) * 3;
+  const damping = PHYSICS.angularDamping ?? 2.2;
+  const maxVelocity = PHYSICS.maxAngularVelocity ?? Math.max(rocket.rotateSpeed ?? 0.45, 0.1) * 1.8;
+  let angularVelocity = Number(rocket.angularVelocity ?? 0);
+
+  if (input !== 0) {
+    angularVelocity += input * acceleration * dt;
+  }
+
+  angularVelocity *= Math.exp(-damping * dt);
+
+  if (Math.abs(angularVelocity) < 0.002 && input === 0) angularVelocity = 0;
+  angularVelocity = Math.max(-maxVelocity, Math.min(maxVelocity, angularVelocity));
+
+  rocket.angularVelocity = angularVelocity;
+  rocket.angle += angularVelocity * dt;
 }
 
 export function stepRocket(rocket, input, dt, planet = PLANET) {
@@ -423,12 +456,14 @@ function resolveSurfaceContact(rocket, planet) {
     rocket.landed = true;
     rocket.vx = 0;
     rocket.vy = 0;
+    rocket.angularVelocity = 0;
     rocket.orbitHoldTime = 0;
     rocket.lastStageMessage = rocket.landingLegsDeployed ? "Touchdown: rocket recovered on landing legs." : "Touchdown: soft landing.";
   } else {
     rocket.crashed = true;
     rocket.vx = 0;
     rocket.vy = 0;
+    rocket.angularVelocity = 0;
     rocket.lastStageMessage = rocket.landingLegsDeployed ? "Touchdown too hard or tilted. Rocket lost." : "Rocket crashed. Add legs or slow down more.";
   }
 }

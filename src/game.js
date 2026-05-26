@@ -206,7 +206,7 @@ export class Game {
 
   update(dt) {
     const turn = (this.input.isHeld("right") ? 1 : 0) - (this.input.isHeld("left") ? 1 : 0);
-    if (turn !== 0) rotateRocket(this.rocket, turn, dt);
+    rotateRocket(this.rocket, turn, dt);
 
     stepRocket(
       this.rocket,

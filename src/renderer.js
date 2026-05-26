@@ -505,6 +505,23 @@ export class Renderer {
     ctx.arc(center.x, center.y, atmosphereRadius, 0, Math.PI * 2);
     ctx.fill();
 
+    if (atmosphereRadius > 8) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.setLineDash([Math.max(6, 8 * this.dpr), Math.max(8, 12 * this.dpr)]);
+      ctx.strokeStyle = "rgba(186, 230, 253, 0.22)";
+      ctx.lineWidth = Math.max(1, 1.1 * this.dpr);
+      ctx.arc(center.x, center.y, atmosphereRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.strokeStyle = "rgba(103, 232, 249, 0.10)";
+      ctx.lineWidth = Math.max(1, 3.2 * this.dpr);
+      ctx.arc(center.x, center.y, atmosphereRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     const sphere = ctx.createRadialGradient(
       center.x - radius * 0.36,
       center.y - radius * 0.42,
