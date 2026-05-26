@@ -3,6 +3,7 @@ import { Input } from "./input.js";
 import { Renderer } from "./renderer.js";
 import { PHYSICS } from "./config.js";
 import { BuilderPreview } from "./preview.js";
+import { FeedbackCenter } from "./feedback.js";
 import {
   AVAILABLE_PARTS,
   MAX_STACK_PARTS,
@@ -31,6 +32,9 @@ const missionResultEl = document.querySelector("#missionResult");
 const debugPanelEl = document.querySelector("#debugPanel");
 const debugTextEl = document.querySelector("#debugText");
 const gameShellEl = document.querySelector("#gameShell");
+const toastStackEl = document.querySelector("#toastStack");
+const rewardOverlayEl = document.querySelector("#rewardOverlay");
+const toggleSoundButton = document.querySelector("#toggleSound");
 
 const builderScreenEl = document.querySelector("#builderScreen");
 const stackListEl = document.querySelector("#stackList");
@@ -90,7 +94,6 @@ const sellObjectButton = document.querySelector("#sellObject");
 const closeObjectInspectorButton = document.querySelector("#closeObjectInspector");
 const builderWorldViewButton = document.querySelector("#builderWorldView");
 const builderJumpToPreviewButton = document.querySelector("#builderJumpToPreview");
-const builderJumpToPartsButton = document.querySelector("#builderJumpToParts");
 const builderJumpToMissionsButton = document.querySelector("#builderJumpToMissions");
 const builderJumpToResearchButton = document.querySelector("#builderJumpToResearch");
 const toggleMissionBoardViewButton = document.querySelector("#toggleMissionBoardView");
@@ -189,11 +192,14 @@ const builderPreview = new BuilderPreview(builderPreviewCanvas, builderPreviewEm
 
 const input = new Input();
 const renderer = new Renderer(canvas, recenterCameraButton);
+const feedback = new FeedbackCenter({ toastRoot: toastStackEl, rewardRoot: rewardOverlayEl, soundToggle: toggleSoundButton });
 const initialRocket = buildRocketFromStack(builderStack).rocket;
 const game = new Game(input, renderer, initialRocket);
 
 renderBuilder();
 renderer.onObjectTap = (object) => {
+  feedback.haptic("light");
+  feedback.sound("select");
   game.selectObject(object.id);
   renderer.centerOnWorldObject?.(object);
   updateObjectInspector(game.getHudData().selectedObject);
@@ -206,6 +212,7 @@ requestAnimationFrame(loop);
 function loop(timestamp) {
   game.frame(timestamp);
   updateHud(game.getHudData());
+  processFeedbackEvents(game.consumeFeedbackEvents?.());
   requestAnimationFrame(loop);
 }
 
@@ -239,7 +246,6 @@ function bindBuilderEvents() {
   });
   bindActivation(builderWorldViewButton, showWorldView);
   bindActivation(builderJumpToPreviewButton, () => scrollBuilderSection(builderRocketSectionEl));
-  bindActivation(builderJumpToPartsButton, () => scrollBuilderSection(builderPartsSectionEl));
   bindActivation(builderJumpToMissionsButton, () => scrollBuilderSection(builderMissionsSectionEl));
   bindActivation(builderJumpToResearchButton, showResearchLab);
   bindActivation(openResearchLabButton, showResearchLab);
@@ -405,6 +411,7 @@ function bindActivation(element, handler) {
     if (event.type === "pointerup") lastPointerActivation = performance.now();
     event.preventDefault?.();
     event.stopPropagation?.();
+    feedback.tap();
     handler(event);
   };
 
@@ -422,6 +429,7 @@ function bindDelegatedActivation(container, selector, handler) {
     if (event.type === "pointerup") lastPointerActivation = performance.now();
     event.preventDefault?.();
     event.stopPropagation?.();
+    feedback.tap();
     handler(button, event);
   };
 
@@ -455,6 +463,7 @@ function hideBuilder() {
 }
 
 function showWorldView() {
+  feedback.toast({ title: "World view", message: "Tracking active vessels, payloads, and debris.", tone: "info", duration: 2200 });
   hideFlightSummaryModal();
   hideResearchLab();
   screenMode = "world";
@@ -501,6 +510,7 @@ function launchBuiltRocket() {
   if (!valid || lockedParts.length) {
     builderAdvancedOpen = true;
     renderBuilder(true);
+    feedback.handle({ title: "Rocket not ready", message: lockedParts.length ? "Unlock or remove locked parts before launch." : "Fix the highlighted build issues before launch.", tone: "warning", sound: "error", haptic: "error", toast: true });
     return;
   }
 
@@ -508,6 +518,7 @@ function launchBuiltRocket() {
   const cost = rocket.buildStats?.cost ?? 0;
   if (!game.canAffordLaunch(cost)) {
     renderBuilder(true);
+    feedback.handle({ title: "Not enough cash", message: `This launch costs ${formatMoney(cost)}.`, tone: "warning", sound: "error", haptic: "error", toast: true });
     return;
   }
   game.setRocketTemplate(rocket);
@@ -1070,6 +1081,14 @@ function getPartResearchMetric(part) {
   return telemetryComplete
     ? `Research ${formatResearchRate(part.researchRate)}/s`
     : "Research after Orbital Telemetry";
+}
+
+function processFeedbackEvents(events = []) {
+  if (!Array.isArray(events) || events.length === 0) return;
+  events.forEach((event) => {
+    feedback.handle(event);
+    if (event.worldEffect) renderer.addWorldEffect?.(event.worldEffect.type, event.worldEffect.x, event.worldEffect.y, event.worldEffect);
+  });
 }
 
 function updateHud(data) {

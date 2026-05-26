@@ -74,7 +74,26 @@ export class Game {
     this.fpsSmoothed = 60;
     this.stageMessage = "Stage system ready.";
     this.stageMessageTimer = 4;
+    this.feedbackEvents = [];
     this.flightStats = this.createFlightStats(this.rocket);
+  }
+
+  emitFeedback(event = {}) {
+    this.feedbackEvents.push({ ...event, createdAt: Date.now() });
+  }
+
+  consumeFeedbackEvents() {
+    const events = this.feedbackEvents;
+    this.feedbackEvents = [];
+    return events;
+  }
+
+  getRocketWorldEffectPoint(offset = -80) {
+    const angle = this.rocket?.angle ?? -Math.PI / 2;
+    return {
+      x: (this.rocket?.x ?? 0) + Math.cos(angle) * offset,
+      y: (this.rocket?.y ?? 0) + Math.sin(angle) * offset
+    };
   }
 
   getActivePlanets() {
@@ -125,6 +144,14 @@ export class Game {
     this.reset();
     this.company.lastMissionReward = 0;
     this.company.lastLaunchCost = launchCost;
+    this.emitFeedback({
+      title: "Launch committed",
+      message: launchCost > 0 ? `Launch cost: ${formatMoney(launchCost)}.` : "Sandbox launch ready.",
+      tone: "launch",
+      sound: "launch",
+      haptic: "medium",
+      worldEffect: { type: "launch", x: this.rocket.x, y: this.rocket.y }
+    });
     this.saveCompany();
   }
 
@@ -222,6 +249,15 @@ export class Game {
     }
     this.stageMessage = result.message;
     this.stageMessageTimer = 6;
+    const effectPoint = this.getRocketWorldEffectPoint(-90);
+    this.emitFeedback({
+      title: "Stage fired",
+      message: result.message,
+      tone: result.ok === false ? "warning" : "info",
+      sound: result.ok === false ? "error" : "stage",
+      haptic: result.ok === false ? "error" : "medium",
+      worldEffect: { type: "stage", x: effectPoint.x, y: effectPoint.y }
+    });
   }
 
   createFlightStats(rocket = this.rocket) {
@@ -365,6 +401,20 @@ export class Game {
       const names = discoveries.map((planet) => planet.name).join(", ");
       this.stageMessage = discoveries.length === 1 ? `Planet discovered: ${names}.` : `Planets discovered: ${names}.`;
       this.stageMessageTimer = 10;
+      this.emitFeedback({
+        title: discoveries.length === 1 ? "Planet discovered" : "Planets discovered",
+        message: names,
+        tone: "reward",
+        sound: "unlock",
+        haptic: "success",
+        reward: {
+          title: discoveries.length === 1 ? `Planet Discovered: ${names}` : "New Planets Discovered",
+          subtitle: "Your orbital network revealed a new destination.",
+          stats: discoveries.map((planet) => `${planet.name}: ${Math.round((planet.gravity ?? 0) * 100) / 100}g`),
+          tone: "reward"
+        },
+        worldEffect: { type: "unlock", x: this.rocket.x, y: this.rocket.y }
+      });
       this.saveCompany();
     }
   }
@@ -380,12 +430,14 @@ export class Game {
     if (current >= EARTH_MINE_MAX) {
       this.stageMessage = "Earth mine limit reached.";
       this.stageMessageTimer = 5;
+      this.emitFeedback({ title: "Mine limit reached", message: "All Earth mine slots are already built.", tone: "warning", sound: "error", haptic: "error" });
       return { ok: false, reason: "Mine limit reached." };
     }
 
     if (this.company.mode !== "sandbox" && Number(this.company.money ?? 0) < EARTH_MINE_COST) {
       this.stageMessage = `Need ${formatMoney(EARTH_MINE_COST)} to buy another Earth mine.`;
       this.stageMessageTimer = 5;
+      this.emitFeedback({ title: "Not enough cash", message: `Need ${formatMoney(EARTH_MINE_COST)} to buy another Earth mine.`, tone: "warning", sound: "error", haptic: "error" });
       return { ok: false, reason: "Not enough cash." };
     }
 
@@ -397,6 +449,13 @@ export class Game {
     this.company.earthMineIncomePerSecond = this.company.earthMineCount * EARTH_MINE_INCOME_RATE;
     this.stageMessage = `Earth mine purchased. Mines now produce ${formatMoney(this.company.earthMineIncomePerSecond)}/sec.`;
     this.stageMessageTimer = 7;
+    this.emitFeedback({
+      title: "Earth mine purchased",
+      message: `Mines now produce ${formatMoney(this.company.earthMineIncomePerSecond)}/sec.`,
+      tone: "success",
+      sound: "reward",
+      haptic: "success"
+    });
     this.saveCompany();
     return { ok: true, mineCount: this.company.earthMineCount };
   }
@@ -426,6 +485,23 @@ export class Game {
         })
         .join(" ");
       this.stageMessageTimer = 9;
+      const completedTitles = newlyCompleted.map((mission) => mission.title).join(", ");
+      const stats = [`+${formatMoney(reward)}`];
+      if (researchReward > 0) stats.push(`+${Math.round(researchReward).toLocaleString()}R`);
+      this.emitFeedback({
+        title: newlyCompleted.length === 1 ? "Mission complete" : `${newlyCompleted.length} missions complete`,
+        message: completedTitles,
+        tone: "reward",
+        sound: "reward",
+        haptic: "success",
+        reward: {
+          title: newlyCompleted.length === 1 ? newlyCompleted[0].title : "Mission Chain Complete",
+          subtitle: "Rewards added to your space program.",
+          stats,
+          tone: "success"
+        },
+        worldEffect: { type: "reward", x: this.rocket.x, y: this.rocket.y }
+      });
       this.saveCompany();
     }
   }
@@ -463,6 +539,14 @@ export class Game {
         this.flightStats.recoveredParts = recovery.parts;
       }
       this.flightStats.tip = this.getFlightTip();
+      this.emitFeedback({
+        title: this.rocket.crashed ? "Vehicle lost" : "Rocket recovered",
+        message: this.rocket.crashed ? "Review the flight result and rebuild." : `Recovery value: ${formatMoney(this.flightStats.recoveryAvailable ?? 0)}.`,
+        tone: this.rocket.crashed ? "danger" : "success",
+        sound: this.rocket.crashed ? "crash" : "reward",
+        haptic: this.rocket.crashed ? "heavy" : "success",
+        worldEffect: { type: this.rocket.crashed ? "crash" : "landing", x: this.rocket.x, y: this.rocket.y }
+      });
     }
   }
 
@@ -490,6 +574,7 @@ export class Game {
       this.company.lastRecoveryRefund = amount;
       this.stageMessage = `Recovered parts cashed in: ${formatMoney(amount)}.`;
       this.stageMessageTimer = 8;
+      this.emitFeedback({ title: "Recovery cashed in", message: `+${formatMoney(amount)} returned to cash.`, tone: "success", sound: "reward", haptic: "success" });
       this.saveCompany();
     }
     this.flightStats.recoveryCashedIn = true;
@@ -531,6 +616,7 @@ export class Game {
     if (objectId === "current-rocket") {
       this.stageMessage = "Current craft destroyed.";
       this.stageMessageTimer = 6;
+      this.emitFeedback({ title: "Craft destroyed", message: "Current craft removed from the world.", tone: "danger", sound: "crash", haptic: "heavy", worldEffect: { type: "crash", x: this.rocket.x, y: this.rocket.y } });
       this.company.totalDestroyed = (this.company.totalDestroyed ?? 0) + 1;
       this.rocket = cloneRocket(this.rocketTemplate);
       this.flightStats = this.createFlightStats(this.rocket);
@@ -547,6 +633,7 @@ export class Game {
     this.company.totalDestroyed = (this.company.totalDestroyed ?? 0) + 1;
     this.stageMessage = `${object.name ?? "Object"} destroyed.`;
     this.stageMessageTimer = 6;
+    this.emitFeedback({ title: "Object destroyed", message: `${object.name ?? "Object"} removed from the world.`, tone: "danger", sound: "crash", haptic: "heavy", worldEffect: { type: "crash", x: object.x, y: object.y } });
     this.trimObjects();
     this.updateMissions();
     this.selectedObjectId = null;
@@ -560,6 +647,7 @@ export class Game {
     if (!object || normalizeObjectKind(object) !== "vessel" || !objectContainsPartType(object, "command")) {
       this.stageMessage = "Select a command module to control it.";
       this.stageMessageTimer = 5;
+      this.emitFeedback({ title: "Command required", message: "Select a command module to control it.", tone: "warning", sound: "error", haptic: "error" });
       return false;
     }
 
@@ -594,6 +682,7 @@ export class Game {
     this.paused = false;
     this.stageMessage = `Control switched to ${object.name ?? "command module"}.`;
     this.stageMessageTimer = 7;
+    this.emitFeedback({ title: "Control switched", message: object.name ?? "Command module", tone: "info", sound: "select", haptic: "medium" });
     this.trimObjects();
     this.saveWorldObjects();
     this.saveCompany();
@@ -608,6 +697,7 @@ export class Game {
     if (!object.landed && !object.crashed) {
       this.stageMessage = "Only landed or crashed craft can be sold.";
       this.stageMessageTimer = 5;
+      this.emitFeedback({ title: "Cannot sell in flight", message: "Only landed or crashed craft can be sold.", tone: "warning", sound: "error", haptic: "error" });
       return false;
     }
     const refund = getObjectSaleValue(object);
@@ -619,6 +709,7 @@ export class Game {
     this.company.totalSoldObjects = (this.company.totalSoldObjects ?? 0) + 1;
     this.stageMessage = `${object.name ?? "Craft"} sold for ${formatMoney(refund)}.`;
     this.stageMessageTimer = 7;
+    this.emitFeedback({ title: "Craft sold", message: `Recovered ${formatMoney(refund)}.`, tone: "success", sound: "reward", haptic: "success" });
     this.selectedObjectId = null;
     this.trimObjects();
     this.saveWorldObjects();
@@ -636,6 +727,7 @@ export class Game {
     this.company.totalSoldObjects = (this.company.totalSoldObjects ?? 0) + 1;
     this.stageMessage = `Current craft sold for ${formatMoney(refund)}.`;
     this.stageMessageTimer = 7;
+    this.emitFeedback({ title: "Craft sold", message: `Recovered ${formatMoney(refund)}.`, tone: "success", sound: "reward", haptic: "success" });
     this.rocket = cloneRocket(this.rocketTemplate);
     this.flightStats = this.createFlightStats(this.rocket);
     this.selectedObjectId = null;
@@ -650,10 +742,24 @@ export class Game {
       const unlocked = result.node.unlockText ? ` ${result.node.unlockText}` : "";
       this.stageMessage = `Research complete: ${result.node.name}.${unlocked}`;
       this.stageMessageTimer = 9;
+      this.emitFeedback({
+        title: "Research complete",
+        message: result.node.name,
+        tone: "reward",
+        sound: "unlock",
+        haptic: "success",
+        reward: {
+          title: result.node.name,
+          subtitle: result.node.unlockText ?? "New program capability unlocked.",
+          stats: [`-${formatResearch(result.node.cost ?? 0)}R`],
+          tone: "reward"
+        }
+      });
       this.saveCompany();
     } else {
       this.stageMessage = result.reason ?? "Research unavailable.";
       this.stageMessageTimer = 6;
+      this.emitFeedback({ title: "Research unavailable", message: result.reason ?? "Research unavailable.", tone: "warning", sound: "error", haptic: "error" });
     }
     return result;
   }

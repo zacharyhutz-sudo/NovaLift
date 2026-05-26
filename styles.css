@@ -4152,3 +4152,323 @@ body {
     justify-content: start;
   }
 }
+
+/* v0.9.2 Patch 1: tactile feedback, toasts, reward reveals, and button polish */
+button,
+.nav-pill,
+.template-card,
+.part-card,
+.stack-item,
+.research-open-button,
+.mission-action-row button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+.nav-pill,
+.template-card,
+.category-tab,
+.mini-button,
+.launch-button,
+.control-button,
+.icon-button,
+.camera-button,
+.research-open-button,
+.research-node-actions button,
+.research-flow-node-actions button,
+.part-card button,
+.stack-buttons button,
+.stage-buttons button,
+.cash-button,
+.danger-button {
+  touch-action: manipulation;
+  transition:
+    transform 150ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    opacity 180ms ease;
+}
+
+button:active:not(:disabled),
+.nav-pill:active:not(:disabled),
+.template-card:active:not(:disabled),
+.category-tab:active:not(:disabled),
+.mini-button:active:not(:disabled),
+.launch-button:active:not(:disabled),
+.control-button:active:not(:disabled),
+.icon-button:active:not(:disabled),
+.camera-button:active:not(:disabled),
+.research-open-button:active:not(:disabled),
+.research-node-actions button:active:not(:disabled),
+.research-flow-node-actions button:active:not(:disabled),
+.part-card button:active:not(:disabled),
+.stack-buttons button:active:not(:disabled),
+.stage-buttons button:active:not(:disabled),
+.cash-button:active:not(:disabled),
+.danger-button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.975);
+}
+
+.launch-button:not(:disabled) {
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    0 18px 42px rgba(34, 211, 238, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.launch-button:not(:disabled)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(120deg, transparent 8%, rgba(255, 255, 255, 0.24), transparent 42%);
+  transform: translateX(-140%);
+  animation: launchButtonSheen 3.4s ease-in-out infinite;
+}
+
+.icon-button.sound-toggle {
+  min-width: 66px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.icon-button.sound-toggle.is-active {
+  border-color: rgba(134, 239, 172, 0.54);
+  color: #bbf7d0;
+  box-shadow: 0 0 22px rgba(34, 197, 94, 0.22);
+}
+
+.toast-stack {
+  position: fixed;
+  top: calc(86px + env(safe-area-inset-top));
+  left: max(14px, env(safe-area-inset-left));
+  right: max(14px, env(safe-area-inset-right));
+  z-index: 80;
+  display: grid;
+  gap: 9px;
+  pointer-events: none;
+}
+
+.game-toast {
+  justify-self: center;
+  width: min(440px, 100%);
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  background: linear-gradient(135deg, rgba(2, 6, 23, 0.9), rgba(15, 23, 42, 0.82));
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px);
+  animation: toastIn 260ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+.game-toast.leaving {
+  animation: toastOut 260ms ease both;
+}
+
+.game-toast-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: rgba(125, 211, 252, 0.14);
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  color: #bae6fd;
+  font-weight: 950;
+}
+
+.game-toast-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.game-toast-copy strong {
+  color: #f8fafc;
+  font-size: 13px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.game-toast-copy span {
+  color: rgba(226, 232, 240, 0.78);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.game-toast.success .game-toast-icon,
+.game-toast.reward .game-toast-icon {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(134, 239, 172, 0.32);
+  color: #bbf7d0;
+}
+
+.game-toast.warning .game-toast-icon,
+.game-toast.error .game-toast-icon {
+  background: rgba(251, 191, 36, 0.14);
+  border-color: rgba(251, 191, 36, 0.32);
+  color: #fde68a;
+}
+
+.game-toast.danger .game-toast-icon {
+  background: rgba(248, 113, 113, 0.14);
+  border-color: rgba(248, 113, 113, 0.34);
+  color: #fecaca;
+}
+
+.game-toast.launch .game-toast-icon {
+  background: rgba(34, 211, 238, 0.14);
+  border-color: rgba(34, 211, 238, 0.34);
+  color: #a5f3fc;
+}
+
+.reward-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 44%, rgba(14, 165, 233, 0.12), transparent 42%);
+}
+
+.reward-overlay.hidden {
+  display: none;
+}
+
+.reward-card {
+  position: relative;
+  width: min(420px, 100%);
+  overflow: hidden;
+  border-radius: 30px;
+  padding: 28px 22px 22px;
+  text-align: center;
+  border: 1px solid rgba(134, 239, 172, 0.28);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(134, 239, 172, 0.18), transparent 38%),
+    linear-gradient(145deg, rgba(2, 6, 23, 0.96), rgba(15, 23, 42, 0.92));
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.54), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  animation: rewardPop 460ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.reward-card.reward {
+  border-color: rgba(167, 139, 250, 0.32);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(167, 139, 250, 0.22), transparent 38%),
+    linear-gradient(145deg, rgba(2, 6, 23, 0.96), rgba(15, 23, 42, 0.92));
+}
+
+.reward-burst {
+  position: absolute;
+  inset: -60px;
+  background: conic-gradient(from 0deg, transparent, rgba(125, 211, 252, 0.18), transparent, rgba(134, 239, 172, 0.16), transparent);
+  animation: rewardSpin 4s linear infinite;
+  opacity: 0.82;
+}
+
+.reward-kicker,
+.reward-card h2,
+.reward-card p,
+.reward-stats {
+  position: relative;
+  z-index: 1;
+}
+
+.reward-kicker {
+  color: #a5f3fc;
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.reward-card h2 {
+  margin: 8px 0 8px;
+  color: #f8fafc;
+  font-size: clamp(24px, 7vw, 38px);
+  line-height: 0.94;
+  letter-spacing: -0.06em;
+}
+
+.reward-card p {
+  margin: 0 auto;
+  max-width: 30ch;
+  color: rgba(226, 232, 240, 0.78);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.reward-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.reward-stats span {
+  padding: 8px 10px;
+  border-radius: 999px;
+  color: #ecfeff;
+  background: rgba(15, 23, 42, 0.76);
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+@keyframes launchButtonSheen {
+  0%, 62% { transform: translateX(-140%); }
+  82%, 100% { transform: translateX(140%); }
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes toastOut {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-8px) scale(0.98); }
+}
+
+@keyframes rewardPop {
+  0% { opacity: 0; transform: translateY(22px) scale(0.88); }
+  66% { opacity: 1; transform: translateY(-3px) scale(1.02); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes rewardSpin {
+  to { transform: rotate(1turn); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .launch-button:not(:disabled)::after,
+  .reward-burst {
+    animation: none;
+  }
+
+  .game-toast,
+  .game-toast.leaving,
+  .reward-card {
+    animation-duration: 1ms;
+  }
+}
+
+@media (min-width: 720px) {
+  .toast-stack {
+    left: auto;
+    right: max(20px, env(safe-area-inset-right));
+    width: 390px;
+  }
+
+  .game-toast {
+    justify-self: stretch;
+  }
+}

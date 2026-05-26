@@ -38,6 +38,11 @@ export class Renderer {
     this.onObjectTap = null;
     this.tapCandidate = null;
     this.stars = makeStars(RENDER.starCount);
+    this.effects = [];
+    this.shakeOffset = { x: 0, y: 0 };
+    this.impactShake = { until: 0, strength: 0 };
+    this.lastRocketEffectState = { landed: null, crashed: null, thrusting: false };
+    this.lastEffectObjectIds = new Set();
 
     this.resize();
     this.bindCameraControls();
@@ -333,6 +338,104 @@ export class Renderer {
     this.updateRecenterButton();
   }
 
+  addWorldEffect(type, x, y, options = {}) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    const now = performance.now();
+    const count = getEffectParticleCount(type);
+    const spread = options.spread ?? getEffectSpread(type);
+    for (let index = 0; index < count; index += 1) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = Math.random() * spread;
+      const speed = getEffectSpeed(type) * (0.45 + Math.random() * 0.9);
+      const upwardBias = type === "launch" || type === "landing" ? -Math.PI / 2 : angle;
+      const travelAngle = type === "launch" || type === "landing" ? upwardBias + (Math.random() - 0.5) * Math.PI * 0.65 : angle;
+      this.effects.push({
+        type,
+        x: x + Math.cos(angle) * distance,
+        y: y + Math.sin(angle) * distance,
+        vx: Math.cos(travelAngle) * speed,
+        vy: Math.sin(travelAngle) * speed,
+        radius: getEffectRadius(type) * (0.62 + Math.random() * 0.9),
+        spin: (Math.random() - 0.5) * 0.06,
+        born: now,
+        duration: getEffectDuration(type) * (0.75 + Math.random() * 0.45)
+      });
+    }
+
+    if (["crash", "stage", "launch", "reward"].includes(type)) {
+      this.impactShake = {
+        until: now + (type === "crash" ? 720 : type === "launch" ? 420 : 300),
+        strength: type === "crash" ? 7 : type === "launch" ? 3.2 : 2.6
+      };
+    }
+  }
+
+  updateRenderShake(thrusting, rocket) {
+    const now = performance.now();
+    let strength = 0;
+    if (thrusting && !rocket?.landed && !rocket?.crashed) strength += 1.35 * this.dpr;
+    if (now < this.impactShake.until) {
+      const remaining = (this.impactShake.until - now) / Math.max(1, this.impactShake.until - (this.impactShake.until - 1));
+      const fade = clamp((this.impactShake.until - now) / 720, 0, 1);
+      strength += this.impactShake.strength * this.dpr * (0.25 + fade * 0.75) * (remaining > 0 ? 1 : 0);
+    }
+    if (strength <= 0.01) {
+      this.shakeOffset = { x: 0, y: 0 };
+      return;
+    }
+    this.shakeOffset = {
+      x: Math.sin(now / 23) * strength + Math.sin(now / 43) * strength * 0.46,
+      y: Math.cos(now / 29) * strength * 0.82 + Math.sin(now / 53) * strength * 0.35
+    };
+  }
+
+  updateEffectTriggers(rocket, thrusting) {
+    const previous = this.lastRocketEffectState;
+    if (previous.landed === null) {
+      this.lastRocketEffectState = {
+        landed: Boolean(rocket?.landed),
+        crashed: Boolean(rocket?.crashed),
+        thrusting: Boolean(thrusting)
+      };
+      return;
+    }
+
+    if (previous.landed && !rocket?.landed && thrusting) {
+      this.addWorldEffect("launch", rocket.x, rocket.y, { spread: 80 });
+    }
+    if (!previous.crashed && rocket?.crashed) {
+      this.addWorldEffect("crash", rocket.x, rocket.y, { spread: 110 });
+    } else if (!previous.landed && rocket?.landed && !rocket?.crashed) {
+      this.addWorldEffect("landing", rocket.x, rocket.y, { spread: 95 });
+    }
+
+    this.lastRocketEffectState = {
+      landed: Boolean(rocket?.landed),
+      crashed: Boolean(rocket?.crashed),
+      thrusting: Boolean(thrusting)
+    };
+  }
+
+  updateWorldEffects() {
+    const now = performance.now();
+    this.effects = this.effects
+      .map((effect) => {
+        const age = now - effect.born;
+        const dt = 1 / 60;
+        const drag = effect.type === "launch" || effect.type === "landing" ? 0.985 : 0.974;
+        return {
+          ...effect,
+          x: effect.x + effect.vx * dt,
+          y: effect.y + effect.vy * dt,
+          vx: effect.vx * drag,
+          vy: effect.vy * drag + (effect.type === "spark" ? 8 * dt : effect.type === "crash" ? 3 * dt : -0.6 * dt),
+          age
+        };
+      })
+      .filter((effect) => effect.age < effect.duration)
+      .slice(-220);
+  }
+
   render(state) {
     const { rocket, debug, objects = [], selectedObjectId = null, planets = [PLANET], activePlanet = PLANET } = state;
     const ctx = this.ctx;
@@ -340,7 +443,11 @@ export class Renderer {
     this.lastRocket = rocket;
     this.lastObjects = objects;
     this.selectedObjectId = selectedObjectId;
+    const thrusting = state.input.thrusting && rocket.fuel > 0 && !rocket.landed && !rocket.crashed;
     this.updateCamera(rocket);
+    this.updateRenderShake(thrusting, rocket);
+    this.updateEffectTriggers(rocket, thrusting);
+    this.updateWorldEffects();
     ctx.clearRect(0, 0, this.width, this.height);
 
     this.drawBackground(ctx);
@@ -348,6 +455,7 @@ export class Renderer {
     this.drawLaunchPad(ctx, PLANET);
 
     this.drawTrajectory(ctx, predictTrajectory(rocket, activePlanet), activePlanet);
+    this.drawWorldEffects(ctx, "behind");
     this.drawDetachedObjects(ctx, objects);
     this.drawSelectedObjectOverlay(ctx, objects);
 
@@ -355,7 +463,8 @@ export class Renderer {
       this.drawDebugVectors(ctx, rocket);
     }
 
-    this.drawRocket(ctx, rocket, state.input.thrusting && rocket.fuel > 0 && !rocket.landed && !rocket.crashed);
+    this.drawWorldEffects(ctx, "front");
+    this.drawRocket(ctx, rocket, thrusting);
     this.drawActiveRocketOverlay(ctx, rocket);
   }
 
@@ -429,8 +538,8 @@ export class Renderer {
 
   worldToScreen(x, y) {
     return {
-      x: (x - this.camera.x) * this.camera.scale + this.camera.centerX,
-      y: (y - this.camera.y) * this.camera.scale + this.camera.centerY
+      x: (x - this.camera.x) * this.camera.scale + this.camera.centerX + (this.shakeOffset?.x ?? 0),
+      y: (y - this.camera.y) * this.camera.scale + this.camera.centerY + (this.shakeOffset?.y ?? 0)
     };
   }
 
@@ -998,6 +1107,61 @@ export class Renderer {
     ctx.restore();
   }
 
+  drawWorldEffects(ctx, layer = "front") {
+    if (!this.effects.length) return;
+    const now = performance.now();
+    ctx.save();
+    this.effects.forEach((effect) => {
+      const age = now - effect.born;
+      const progress = clamp(age / Math.max(1, effect.duration), 0, 1);
+      const isSmoke = effect.type === "launch" || effect.type === "landing";
+      const belongsBehind = isSmoke || effect.type === "stage";
+      if ((layer === "behind") !== belongsBehind) return;
+      const screen = this.worldToScreen(effect.x, effect.y);
+      const radius = Math.max(1.5 * this.dpr, effect.radius * this.camera.scale * (isSmoke ? 0.9 + progress * 1.85 : 1 + progress * 0.68));
+      const alpha = Math.max(0, 1 - progress);
+
+      if (effect.type === "crash") {
+        const hot = ctx.createRadialGradient(screen.x, screen.y, 0, screen.x, screen.y, radius * 2.2);
+        hot.addColorStop(0, `rgba(255, 247, 237, ${0.58 * alpha})`);
+        hot.addColorStop(0.28, `rgba(251, 146, 60, ${0.48 * alpha})`);
+        hot.addColorStop(0.72, `rgba(248, 113, 113, ${0.22 * alpha})`);
+        hot.addColorStop(1, "rgba(15, 23, 42, 0)");
+        ctx.fillStyle = hot;
+        ctx.beginPath();
+        ctx.arc(screen.x, screen.y, radius * 2.2, 0, Math.PI * 2);
+        ctx.fill();
+        return;
+      }
+
+      if (effect.type === "stage" || effect.type === "reward" || effect.type === "unlock") {
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = effect.type === "stage" ? "rgba(251, 191, 36, 0.86)" : "rgba(134, 239, 172, 0.82)";
+        ctx.fillStyle = effect.type === "stage" ? "rgba(254, 240, 138, 0.75)" : "rgba(125, 211, 252, 0.65)";
+        ctx.lineWidth = Math.max(1, 1.4 * this.dpr);
+        ctx.beginPath();
+        ctx.arc(screen.x, screen.y, radius * (1 + progress), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(screen.x, screen.y, Math.max(1.8 * this.dpr, radius * 0.22), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        return;
+      }
+
+      const smoke = ctx.createRadialGradient(screen.x, screen.y, 0, screen.x, screen.y, radius);
+      smoke.addColorStop(0, `rgba(226, 232, 240, ${0.22 * alpha})`);
+      smoke.addColorStop(0.42, `rgba(148, 163, 184, ${0.16 * alpha})`);
+      smoke.addColorStop(1, "rgba(15, 23, 42, 0)");
+      ctx.fillStyle = smoke;
+      ctx.beginPath();
+      ctx.arc(screen.x, screen.y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
   drawRocket(ctx, rocket, thrusting) {
     const screen = this.worldToScreen(rocket.x, rocket.y);
     const parts = Array.isArray(rocket.parts) && rocket.parts.length > 0 ? rocket.parts.filter((part) => part.active !== false) : null;
@@ -1393,12 +1557,24 @@ export class Renderer {
 
     ctx.globalAlpha = 0.28;
     ctx.fillStyle = "#fed7aa";
-    for (let i = 0; i < 5; i += 1) {
-      const drift = ((time / 18 + i * 43) % 150);
-      const y = Math.sin(time / 95 + i) * 18 + (i - 2) * 13;
+    for (let i = 0; i < 8; i += 1) {
+      const drift = ((time / 16 + i * 37) % 190);
+      const y = Math.sin(time / 95 + i) * 18 + (i - 3.5) * 10;
       ctx.beginPath();
-      ctx.arc(tailX - 28 - drift, y, 10 + i * 1.2, 0, Math.PI * 2);
+      ctx.arc(tailX - 28 - drift, y, 7 + i * 0.9, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    ctx.globalAlpha = 0.18;
+    ctx.strokeStyle = "rgba(255, 247, 237, 0.82)";
+    ctx.lineWidth = 3 / Math.max(this.camera.scale, 0.001);
+    for (let i = 0; i < 4; i += 1) {
+      const drift = ((time / 11 + i * 57) % 155);
+      const y = Math.sin(time / 80 + i * 1.7) * 24;
+      ctx.beginPath();
+      ctx.moveTo(tailX - 16 - drift * 0.18, y * 0.35);
+      ctx.lineTo(tailX - 34 - drift, y);
+      ctx.stroke();
     }
     ctx.restore();
   }
@@ -1424,6 +1600,32 @@ function getTrajectoryStyle(points, planet) {
   }
   if (angularTravel >= Math.PI * 1.65) return { color: "rgba(52, 211, 153, 0.82)", glow: "rgba(52, 211, 153, 0.38)", width: 1.8, dash: [4, 8] };
   return { color: "rgba(251, 191, 36, 0.72)", glow: "rgba(251, 191, 36, 0.28)", width: 1.65, dash: [3, 8] };
+}
+
+
+function getEffectParticleCount(type) {
+  const counts = { launch: 26, landing: 18, stage: 16, crash: 34, reward: 18, unlock: 22 };
+  return counts[type] ?? 12;
+}
+
+function getEffectDuration(type) {
+  const durations = { launch: 1350, landing: 1100, stage: 700, crash: 1250, reward: 1000, unlock: 1200 };
+  return durations[type] ?? 850;
+}
+
+function getEffectSpread(type) {
+  const spreads = { launch: 96, landing: 82, stage: 58, crash: 130, reward: 70, unlock: 90 };
+  return spreads[type] ?? 60;
+}
+
+function getEffectSpeed(type) {
+  const speeds = { launch: 135, landing: 92, stage: 210, crash: 260, reward: 115, unlock: 105 };
+  return speeds[type] ?? 120;
+}
+
+function getEffectRadius(type) {
+  const radii = { launch: 44, landing: 34, stage: 18, crash: 26, reward: 18, unlock: 20 };
+  return radii[type] ?? 20;
 }
 
 function normalizeAngle(angle) {
