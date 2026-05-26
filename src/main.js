@@ -143,6 +143,7 @@ const recommendedActionCardEl = document.querySelector("#recommendedActionCard")
 const passiveBankCardEl = document.querySelector("#passiveBankCard");
 const engineerQueueCardEl = document.querySelector("#engineerQueueCard");
 const dailyContractListEl = document.querySelector("#dailyContractList");
+const hangarHubEl = document.querySelector("#hangarHub");
 
 const EARTH_MINE_COST = 100000;
 const EARTH_MINE_INCOME_RATE = 1;
@@ -348,6 +349,9 @@ function bindBuilderEvents() {
   });
   bindDelegatedActivation(spaceCenterMapEl, "[data-space-center-target]", (button) => {
     handleRecommendedAction(button.dataset.spaceCenterTarget);
+  });
+  bindDelegatedActivation(hangarHubEl, "[data-hangar-action]", (button) => {
+    handleHangarAction(button.dataset.hangarAction);
   });
   bindDelegatedActivation(planetRegistryListEl, "[data-colony-action]", (button) => {
     game.upgradeColony(button.dataset.colonyAction);
@@ -740,6 +744,7 @@ function renderBuilder(highlightErrors = false) {
   renderPartsCatalog(game.getHudData().nextMission);
   renderSelectedPart();
   const hudData = game.getHudData();
+  renderHangarHub(hudData, stats, validation, canAfford, lockedParts);
   renderProgressionDashboard(hudData);
   renderMissionBoard(hudData);
   renderEarthMines(hudData);
@@ -934,6 +939,231 @@ function renderValidation(validation, highlightErrors, canAfford = true, cost = 
       ({ type, message }) => `<div class="validation-message ${type} ${highlightErrors && type === "error" ? "pulse" : ""}">${escapeHtml(message)}</div>`
     )
     .join("");
+}
+
+
+function renderHangarHub(data = game.getHudData(), stats = calculateBuildStats(builderStack), validation = validateBuild(builderStack), canAfford = true, lockedParts = []) {
+  if (!hangarHubEl) return;
+  const company = data.company ?? {};
+  const bankView = data.passiveBank ?? {};
+  const bank = bankView.bank ?? {};
+  const bankFill = bankView.fill ?? {};
+  const engineer = data.engineer ?? { crew: [], active: [], slots: 1 };
+  const nextMission = data.nextMission ?? {};
+  const daily = data.dailyContracts ?? [];
+  const ready = validation.valid && canAfford && lockedParts.length === 0;
+  const hasCollectable = Boolean(bankView.hasCollectable);
+  const availableResearch = (data.research ?? []).filter((node) => node.available).length;
+  const completedDaily = daily.filter((contract) => contract.claimable).length;
+  const planets = data.planets ?? [];
+  const discoveredPlanets = planets.filter((planet) => planet.discovered).length;
+  const colonies = Number(company.totalColoniesBuilt ?? 0);
+  const bankMaxFill = Math.max(bankFill.cash ?? 0, bankFill.research ?? 0, bankFill.scan ?? 0);
+  const statusTitle = ready ? "Ready for Launch" : lockedParts.length ? "Locked Parts" : !validation.valid ? "Needs Work" : "Need Cash";
+  const statusBody = ready
+    ? "All systems green. Send this rocket when you are ready."
+    : lockedParts.length
+      ? "Unlock or remove locked parts before flight."
+      : !validation.valid
+        ? (validation.errors?.[0] ?? "Fix the rocket checklist before launch.")
+        : `This launch costs ${formatMoney(stats.cost)}.`;
+  const systems = getHangarSystemReadiness(stats, validation, canAfford, lockedParts);
+
+  hangarHubEl.className = `hangar-hub ${ready ? "is-ready" : "needs-work"}`;
+  hangarHubEl.innerHTML = `
+    <div class="hangar-viewport">
+      <div class="hangar-backdrop" aria-hidden="true">
+        <span class="hangar-light light-left"></span>
+        <span class="hangar-light light-right"></span>
+        <span class="hangar-gantry gantry-left"></span>
+        <span class="hangar-gantry gantry-right"></span>
+        <span class="hangar-door"></span>
+      </div>
+
+      <div class="hangar-topline">
+        ${renderHangarResourceChip("Money", formatCashBalance(company), `${formatMoneyRate(company.incomePerSecond ?? 0)}/s`, "money")}
+        ${renderHangarResourceChip("Research", formatResearchBalance(company), `${formatResearchRate(company.researchPerSecond ?? 0)}R/s`, "research")}
+        ${renderHangarResourceChip("Scan", formatScanBalance(company), `${formatScanRate(company.scanPerSecond ?? 0)}/s`, "scan")}
+      </div>
+
+      <div class="hangar-rail left-rail">
+        ${renderHangarAction("build", "Build Rocket", "Design, stage, and upgrade", "↟", "blue")}
+        ${renderHangarAction("collect", "Collect Resources", hasCollectable ? "Crates ready in storage" : "Storage is filling", "▣", "green", !hasCollectable)}
+        ${renderHangarAction("research", "Research", availableResearch ? `${availableResearch} node${availableResearch === 1 ? "" : "s"} available` : "Unlock new systems", "⌬", "purple")}
+        ${renderHangarAction("contracts", "Contracts", completedDaily ? `${completedDaily} reward ready` : "Client missions", "▤", "gold")}
+      </div>
+
+      <div class="hangar-centerpiece" aria-label="Current rocket in hangar">
+        <div class="rocket-status-badge ${ready ? "ready" : "warning"}">
+          <strong>${escapeHtml(statusTitle)}</strong>
+          <span>${escapeHtml(statusBody)}</span>
+        </div>
+        <div class="hangar-rocket-wrap">
+          <div class="hangar-service-arm" aria-hidden="true"></div>
+          <div class="hangar-rocket-stack" style="--rocket-part-count:${Math.max(stats.parts?.length ?? 0, 1)}">
+            ${renderHangarRocketStack(stats.parts ?? [])}
+          </div>
+          <div class="hangar-pad" aria-hidden="true"><span></span></div>
+        </div>
+        <div class="hangar-engineer" aria-hidden="true">
+          ${renderEngineerSvg()}
+        </div>
+        <button type="button" class="hangar-launch-button ${ready ? "ready" : "disabled"}" data-hangar-action="launch">
+          <span>Launch</span>
+          <strong>${ready ? (hasCostBypass(company) ? "No cost in TEST/Sandbox" : `For ${formatMoney(stats.cost)}`) : statusTitle}</strong>
+        </button>
+      </div>
+
+      <div class="hangar-rail right-rail">
+        ${renderHangarAction("engineers", "Engineers", `${engineer.active?.length ?? 0}/${engineer.slots ?? 1} assigned`, "◉", "orange")}
+        ${renderHangarAction("planets", "Planetary Ops", `${discoveredPlanets} mapped · ${colonies} colonies`, "◌", "blue")}
+        <div class="hangar-systems-card">
+          <div><strong>Systems</strong><span>${escapeHtml(`${stats.count ?? 0} parts · ${formatStatNumber(stats.launchMass ?? 0)}t`)}</span></div>
+          ${systems.map((system) => `
+            <div class="hangar-system-row ${system.ok ? "ok" : "warn"}">
+              <span>${escapeHtml(system.label)}</span>
+              <strong>${escapeHtml(system.text)}</strong>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+
+      <div class="hangar-side-panel hangar-storage-panel">
+        <div class="hangar-panel-title"><strong>Storage Yard</strong><span>${Math.round(bankMaxFill * 100)}% full</span></div>
+        ${renderHangarStorage("Cash", formatMoney(bank.cash ?? 0), bankFill.cash ?? 0, "money")}
+        ${renderHangarStorage("Research", `${formatResearch(bank.research ?? 0)}R`, bankFill.research ?? 0, "research")}
+        ${renderHangarStorage("Scan", Math.floor(bank.scan ?? 0).toLocaleString(), bankFill.scan ?? 0, "scan")}
+      </div>
+
+      <div class="hangar-side-panel hangar-crew-panel">
+        <div class="hangar-panel-title"><strong>Engineer Crew</strong><span>${engineer.active?.length ?? 0}/${engineer.slots ?? 1} active</span></div>
+        ${renderHangarCrew(engineer.crew ?? [], engineer.active ?? [])}
+      </div>
+
+      <div class="hangar-footer-card hangar-mission-card">
+        <span class="eyebrow">Next Objective</span>
+        <strong>${escapeHtml(nextMission.title ?? "Choose a mission")}</strong>
+        <p>${escapeHtml(nextMission.description ?? "Use Mission Control to pick the next company goal.")}</p>
+      </div>
+    </div>
+  `;
+}
+
+function renderHangarAction(action, title, subtitle, icon, tone = "blue", disabled = false) {
+  return `
+    <button type="button" class="hangar-action-card tone-${escapeHtml(tone)}" data-hangar-action="${escapeHtml(action)}" ${disabled ? "disabled" : ""}>
+      <span class="hangar-action-icon" aria-hidden="true">${escapeHtml(icon)}</span>
+      <span class="hangar-action-copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(subtitle)}</small></span>
+      <em aria-hidden="true">›</em>
+    </button>
+  `;
+}
+
+function renderHangarResourceChip(label, value, rate, tone) {
+  return `
+    <div class="hangar-resource-chip tone-${escapeHtml(tone)}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <small>${escapeHtml(rate)}</small>
+    </div>
+  `;
+}
+
+function renderHangarStorage(label, value, fill, tone) {
+  const percent = Math.round(clampNumber(Number(fill ?? 0) * 100, 0, 100));
+  return `
+    <div class="hangar-storage-row tone-${escapeHtml(tone)}">
+      <div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>
+      <div class="hangar-storage-track"><span style="width:${percent}%"></span></div>
+    </div>
+  `;
+}
+
+function renderHangarCrew(crew = [], active = []) {
+  if (!crew.length) return `<p class="empty-note">No engineers hired yet.</p>`;
+  const busy = new Map(active.map((project) => [project.assignedEngineerId, project]));
+  return crew.slice(0, 4).map((engineer) => {
+    const project = busy.get(engineer.id);
+    return `
+      <div class="hangar-crew-row ${project ? "busy" : "idle"}">
+        <span>${escapeHtml(engineer.name?.slice(0, 1) ?? "E")}</span>
+        <div><strong>${escapeHtml(engineer.name ?? "Engineer")}</strong><small>${project ? `On ${escapeHtml(project.name)}` : escapeHtml(engineer.role ?? "Idle")}</small></div>
+      </div>
+    `;
+  }).join("");
+}
+
+function renderHangarRocketStack(parts = []) {
+  if (!parts.length) {
+    return `<div class="hangar-empty-rocket"><span>Add Parts</span></div>`;
+  }
+  const visibleParts = parts.slice(0, 14);
+  return visibleParts.map((part, index) => {
+    const type = part.type ?? "part";
+    const height = type === "command" ? 28 : type === "engine" ? 24 : type === "fuel" ? 32 : type === "payload" ? 26 : 16;
+    return `<span class="hangar-rocket-part part-${escapeHtml(type)}" style="--part-color:${escapeHtml(part.color ?? "#7dd3fc")}; --part-h:${height}px" title="${escapeHtml(part.shortName ?? part.name ?? "Rocket part")}">${index === 0 ? "" : ""}</span>`;
+  }).join("");
+}
+
+function getHangarSystemReadiness(stats = {}, validation = {}, canAfford = true, lockedParts = []) {
+  const hasCommand = (stats.parts ?? []).some((part) => part.type === "command");
+  const hasEngine = (stats.parts ?? []).some((part) => part.type === "engine");
+  const hasFuel = (stats.fuelCapacity ?? 0) > 0;
+  const hasPayload = (stats.parts ?? []).some((part) => part.type === "payload");
+  return [
+    { label: "Structure", ok: hasCommand && (stats.count ?? 0) > 0 && lockedParts.length === 0, text: lockedParts.length ? "Locked" : hasCommand ? "Online" : "Needs pod" },
+    { label: "Propulsion", ok: hasEngine && hasFuel && (stats.twr ?? 0) >= 1, text: hasEngine && hasFuel ? `TWR ${formatStatNumber(stats.twr ?? 0, 2)}` : "Missing" },
+    { label: "Mission", ok: hasPayload, text: hasPayload ? "Payload" : "No payload" },
+    { label: "Budget", ok: canAfford, text: canAfford ? "Funded" : "Need cash" },
+    { label: "Checklist", ok: validation.valid, text: validation.valid ? "Clear" : "Review" }
+  ];
+}
+
+function renderEngineerSvg() {
+  return `
+    <svg viewBox="0 0 62 82" role="img" aria-label="Engineer walking in the hangar">
+      <g class="engineer-shadow"><ellipse cx="31" cy="76" rx="20" ry="5"></ellipse></g>
+      <g class="engineer-body">
+        <circle cx="31" cy="18" r="10"></circle>
+        <path d="M20 17c2-10 20-10 22 0h-22z"></path>
+        <rect x="22" y="30" width="18" height="25" rx="7"></rect>
+        <path d="M23 34l-13 10M39 35l12 8" class="limb arm"></path>
+        <path d="M27 54l-8 18M36 54l9 18" class="limb leg"></path>
+        <rect x="43" y="39" width="12" height="9" rx="2" class="tablet"></rect>
+      </g>
+    </svg>
+  `;
+}
+
+function handleHangarAction(action = "build") {
+  if (action === "collect") {
+    game.collectPassiveIncome();
+    renderBuilder();
+    return;
+  }
+  if (action === "research") {
+    showResearchLab();
+    return;
+  }
+  if (action === "contracts" || action === "missions") {
+    scrollBuilderSection(builderMissionsSectionEl);
+    return;
+  }
+  if (action === "engineers") {
+    engineerQueueCardEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+  if (action === "planets") {
+    scrollBuilderSection(document.querySelector("#builderPlanetSection"));
+    return;
+  }
+  if (action === "launch") {
+    launchBuiltRocket();
+    return;
+  }
+  builderAdvancedOpen = true;
+  renderBuilder();
+  setTimeout(() => scrollBuilderSection(builderRocketSectionEl), 0);
 }
 
 function renderProgressionDashboard(data = game.getHudData()) {

@@ -1,7 +1,7 @@
 {
   "name": "novalift",
-  "version": "0.9.8",
-  "description": "Vertical mobile-first 2D rocket company prototype with a colonization research and payload mission pass.",
+  "version": "0.9.9",
+  "description": "Vertical 2D rocket company prototype with an in-game hangar hub launchpad UI pass.",
   "type": "module",
   "private": true,
   "scripts": {

@@ -1,8 +1,26 @@
-# NovaLift v0.9.8 — Colonization Research + Payload Missions
+# NovaLift v0.9.9 — Hangar Hub UI Pass
+
+This patch replaces the Launchpad's spreadsheet-first feel with an in-game Hangar Hub. The rocket is now the visual centerpiece, with animated engineer life, action stations, visible resource storage, crew status, mission context, and launch readiness all presented as a physical space.
+
+## What is new in v0.9.9
+
+- Added a new interactive Hangar Hub at the top of the Launchpad.
+- The current rocket is now visualized in the middle of the hangar using the actual current build stack.
+- Added a small SVG-style engineer who walks around the rocket to make the Launchpad feel alive.
+- Added large hangar station buttons for Build Rocket, Collect Resources, Research, Contracts, Engineers, Planetary Ops, and Launch.
+- Added a compact visual resource HUD inside the hangar for Money, Research, and Scan.
+- Added visible Storage Yard crates/bars for collectable Cash, Research, and Scan.
+- Added an Engineer Crew side panel with named crew and active assignments.
+- Added a Systems card showing structure, propulsion, mission payload, budget, and checklist readiness.
+- Added a large rocket status badge and Launch button that reflect whether the rocket is ready, missing parts, locked, or unaffordable.
+- The existing detailed Space Program, Mission Board, Rocket Editor, Research, and Planet Registry systems remain available below the hangar.
+- Added a wider desktop shell layout so the hangar has room to breathe while preserving mobile support.
+
+## Previous v0.9.8 — Colonization Research + Payload Missions
 
 This patch turns colonization from a menu-only upgrade into a staged planetary mission loop: research the right tech, select a discovered planet as the colony target, build a rocket with the required payload, deploy it in stable orbit, then build the next colony stage from the Planet Registry.
 
-## What is new in v0.9.8
+### What is new in v0.9.8
 
 - Expanded the planetary research branch with Surface Mapping, Cargo Delivery Capsules, Surface Power Systems, Automated Construction, Offworld Mining, and Habitat Modules.
 - Added new physical payload parts: Survey Probe, Robotic Lander, Cargo Delivery Pod, Surface Power Module, Automated Mining Rig, and Habitat Module.

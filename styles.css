@@ -7283,3 +7283,709 @@ button:active:not(:disabled),
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* v0.9.9 Hangar Hub UI Pass */
+@media (min-width: 900px) and (min-height: 700px) {
+  #gameShell {
+    width: min(100vw, 1180px);
+    height: min(100dvh, 860px);
+    aspect-ratio: 16 / 10;
+    border-radius: 24px;
+  }
+}
+
+.hangar-hub {
+  position: relative;
+  margin: 10px 0 14px;
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  border-radius: 30px;
+  overflow: hidden;
+  min-height: 720px;
+  background:
+    radial-gradient(circle at 50% 6%, rgba(125, 211, 252, 0.20), transparent 34%),
+    radial-gradient(circle at 50% 70%, rgba(34, 197, 94, 0.08), transparent 42%),
+    linear-gradient(180deg, rgba(2, 6, 23, 0.92), rgba(8, 13, 27, 0.96));
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.hangar-viewport {
+  position: relative;
+  min-height: inherit;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: 240px minmax(220px, 1fr) 240px;
+  grid-template-rows: auto minmax(410px, 1fr) auto;
+  grid-template-areas:
+    "top top top"
+    "left center right"
+    "storage mission crew";
+  gap: 12px;
+  isolation: isolate;
+}
+
+.hangar-backdrop,
+.hangar-backdrop > span {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hangar-backdrop {
+  z-index: -2;
+  background:
+    linear-gradient(90deg, rgba(2, 6, 23, 0.74), transparent 18%, transparent 82%, rgba(2, 6, 23, 0.76)),
+    repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.05) 0 1px, transparent 1px 84px),
+    repeating-linear-gradient(0deg, rgba(148, 163, 184, 0.04) 0 1px, transparent 1px 74px);
+}
+
+.hangar-door {
+  top: 13%;
+  left: 29%;
+  right: 29%;
+  bottom: 28%;
+  border: 1px solid rgba(125, 211, 252, 0.16);
+  border-radius: 30px 30px 10px 10px;
+  background:
+    linear-gradient(180deg, rgba(14, 165, 233, 0.18), rgba(15, 23, 42, 0.08) 42%, transparent),
+    radial-gradient(circle at 50% 8%, rgba(186, 230, 253, 0.18), transparent 35%);
+  box-shadow: inset 0 0 52px rgba(56, 189, 248, 0.10), 0 0 40px rgba(14, 165, 233, 0.08);
+}
+
+.hangar-light {
+  top: 8%;
+  width: 8px;
+  height: 34%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, transparent, rgba(125, 211, 252, 0.62), transparent);
+  filter: drop-shadow(0 0 14px rgba(56, 189, 248, 0.55));
+}
+
+.light-left { left: 7%; }
+.light-right { right: 7%; }
+
+.hangar-gantry {
+  top: 20%;
+  width: 70px;
+  bottom: 22%;
+  opacity: 0.54;
+  background:
+    repeating-linear-gradient(180deg, rgba(148, 163, 184, 0.16) 0 8px, transparent 8px 22px),
+    linear-gradient(90deg, transparent 0 42%, rgba(148, 163, 184, 0.20) 42% 58%, transparent 58% 100%);
+}
+
+.gantry-left { left: 22%; transform: skewY(-6deg); }
+.gantry-right { right: 20%; transform: skewY(6deg); }
+
+.hangar-hub::after {
+  content: "";
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: 10%;
+  height: 28%;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(125, 211, 252, 0.13), transparent 55%),
+    repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.08) 0 1px, transparent 1px 46px),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.10), rgba(2, 6, 23, 0.72));
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  transform: perspective(500px) rotateX(54deg);
+  transform-origin: bottom center;
+}
+
+.hangar-topline {
+  grid-area: top;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  z-index: 2;
+}
+
+.hangar-resource-chip,
+.hangar-action-card,
+.hangar-side-panel,
+.hangar-footer-card,
+.hangar-systems-card,
+.rocket-status-badge {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(8, 11, 20, 0.70);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.hangar-resource-chip {
+  min-height: 74px;
+  border-radius: 20px;
+  padding: 11px 13px;
+}
+
+.hangar-resource-chip span,
+.hangar-storage-row span,
+.hangar-panel-title span,
+.hangar-action-card small,
+.hangar-footer-card p,
+.hangar-system-row span,
+.hangar-crew-row small,
+.rocket-status-badge span,
+.hangar-launch-button strong {
+  color: rgba(203, 213, 225, 0.78);
+  font-size: 0.73rem;
+  line-height: 1.25;
+}
+
+.hangar-resource-chip strong {
+  display: block;
+  margin: 3px 0;
+  color: #f8fafc;
+  font-size: clamp(1.08rem, 3.2vw, 1.42rem);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.hangar-resource-chip small {
+  font-weight: 900;
+}
+
+.hangar-resource-chip.tone-money small { color: #86efac; }
+.hangar-resource-chip.tone-research small { color: #93c5fd; }
+.hangar-resource-chip.tone-scan small { color: #c4b5fd; }
+
+.hangar-rail {
+  display: grid;
+  align-content: center;
+  gap: 10px;
+  z-index: 2;
+}
+
+.left-rail { grid-area: left; }
+.right-rail { grid-area: right; }
+
+.hangar-action-card {
+  min-height: 84px;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border-radius: 20px;
+  padding: 12px;
+  color: #f8fafc;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.hangar-action-card:disabled {
+  opacity: 0.72;
+  cursor: default;
+}
+
+.hangar-action-card:not(:disabled):active,
+.hangar-launch-button:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.hangar-action-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 23, 42, 0.80);
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  font-size: 1.35rem;
+  font-weight: 950;
+}
+
+.hangar-action-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.hangar-action-copy strong,
+.hangar-footer-card strong,
+.hangar-panel-title strong,
+.hangar-crew-row strong,
+.rocket-status-badge strong,
+.hangar-launch-button span,
+.hangar-systems-card strong {
+  color: #f8fafc;
+  font-weight: 950;
+  letter-spacing: -0.02em;
+}
+
+.hangar-action-card em {
+  color: rgba(226, 232, 240, 0.72);
+  font-style: normal;
+  font-size: 1.8rem;
+}
+
+.hangar-action-card.tone-blue { border-color: rgba(56, 189, 248, 0.30); }
+.hangar-action-card.tone-green { border-color: rgba(34, 197, 94, 0.30); }
+.hangar-action-card.tone-purple { border-color: rgba(168, 85, 247, 0.30); }
+.hangar-action-card.tone-gold { border-color: rgba(251, 191, 36, 0.30); }
+.hangar-action-card.tone-orange { border-color: rgba(251, 146, 60, 0.30); }
+
+.hangar-action-card.tone-blue .hangar-action-icon { color: #7dd3fc; }
+.hangar-action-card.tone-green .hangar-action-icon { color: #86efac; }
+.hangar-action-card.tone-purple .hangar-action-icon { color: #c084fc; }
+.hangar-action-card.tone-gold .hangar-action-icon { color: #facc15; }
+.hangar-action-card.tone-orange .hangar-action-icon { color: #fdba74; }
+
+.hangar-centerpiece {
+  grid-area: center;
+  position: relative;
+  min-height: 430px;
+  display: grid;
+  grid-template-rows: auto minmax(250px, 1fr) auto;
+  place-items: center;
+  z-index: 2;
+}
+
+.rocket-status-badge {
+  z-index: 4;
+  display: grid;
+  gap: 2px;
+  min-width: min(100%, 330px);
+  border-radius: 18px;
+  padding: 10px 14px;
+  text-align: center;
+}
+
+.rocket-status-badge.ready {
+  border-color: rgba(34, 197, 94, 0.42);
+  background: linear-gradient(180deg, rgba(22, 101, 52, 0.50), rgba(8, 11, 20, 0.70));
+}
+
+.rocket-status-badge.warning {
+  border-color: rgba(251, 191, 36, 0.34);
+  background: linear-gradient(180deg, rgba(113, 63, 18, 0.44), rgba(8, 11, 20, 0.70));
+}
+
+.hangar-rocket-wrap {
+  position: relative;
+  width: min(54vw, 260px);
+  min-width: 160px;
+  height: 315px;
+  display: grid;
+  place-items: end center;
+  align-self: stretch;
+}
+
+.hangar-rocket-stack {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  min-height: 215px;
+  width: 84px;
+  filter: drop-shadow(0 28px 22px rgba(0, 0, 0, 0.45));
+  animation: hangar-rocket-idle 4.4s ease-in-out infinite;
+}
+
+.hangar-rocket-part {
+  display: block;
+  width: 58px;
+  height: var(--part-h, 24px);
+  border: 1px solid rgba(15, 23, 42, 0.40);
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.86), var(--part-color, #7dd3fc) 47%, rgba(15, 23, 42, 0.24)),
+    linear-gradient(180deg, rgba(255,255,255,0.26), rgba(2,6,23,0.12));
+  box-shadow: inset 10px 0 14px rgba(255, 255, 255, 0.24), inset -10px 0 14px rgba(2, 6, 23, 0.18);
+}
+
+.hangar-rocket-part.part-command {
+  width: 44px;
+  border-radius: 999px 999px 8px 8px;
+  clip-path: polygon(50% 0, 100% 76%, 88% 100%, 12% 100%, 0 76%);
+}
+
+.hangar-rocket-part.part-fuel {
+  width: 64px;
+  border-radius: 8px;
+}
+
+.hangar-rocket-part.part-engine {
+  width: 52px;
+  border-radius: 6px 6px 15px 15px;
+  clip-path: polygon(8% 0, 92% 0, 78% 100%, 22% 100%);
+}
+
+.hangar-rocket-part.part-payload {
+  width: 54px;
+  border-radius: 10px;
+  border-style: dashed;
+}
+
+.hangar-rocket-part.part-decoupler {
+  width: 68px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.hangar-rocket-part.part-parachute,
+.hangar-rocket-part.part-legs {
+  width: 68px;
+  height: 12px;
+  border-radius: 999px;
+}
+
+.hangar-empty-rocket {
+  width: 92px;
+  height: 210px;
+  border: 1px dashed rgba(125, 211, 252, 0.30);
+  border-radius: 999px 999px 16px 16px;
+  display: grid;
+  place-items: center;
+  color: rgba(186, 230, 253, 0.74);
+  font-weight: 900;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.hangar-pad {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 210px;
+  height: 52px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(148, 163, 184, 0.20);
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 50% 40%, rgba(125, 211, 252, 0.20), transparent 52%),
+    linear-gradient(180deg, rgba(51, 65, 85, 0.86), rgba(15, 23, 42, 0.96));
+  box-shadow: 0 18px 26px rgba(0, 0, 0, 0.36);
+}
+
+.hangar-pad span {
+  position: absolute;
+  inset: 11px 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(251, 191, 36, 0.22);
+}
+
+.hangar-service-arm {
+  position: absolute;
+  z-index: 2;
+  right: -18px;
+  top: 82px;
+  width: 96px;
+  height: 12px;
+  border-radius: 999px;
+  transform: rotate(-20deg);
+  transform-origin: right center;
+  background: linear-gradient(90deg, rgba(251, 191, 36, 0.55), rgba(51, 65, 85, 0.94));
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.15);
+}
+
+.hangar-service-arm::before {
+  content: "";
+  position: absolute;
+  right: -18px;
+  top: -22px;
+  width: 34px;
+  height: 56px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.20);
+  background: rgba(15, 23, 42, 0.88);
+}
+
+.hangar-engineer {
+  position: absolute;
+  z-index: 5;
+  width: 52px;
+  height: 68px;
+  left: calc(50% - 118px);
+  bottom: 76px;
+  animation: engineer-walk 7.4s ease-in-out infinite;
+}
+
+.hangar-engineer svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.engineer-shadow ellipse { fill: rgba(0, 0, 0, 0.38); }
+.engineer-body circle { fill: #f5d0a9; }
+.engineer-body rect { fill: #1d4ed8; stroke: rgba(186, 230, 253, 0.55); stroke-width: 1; }
+.engineer-body path:first-of-type { fill: #fbbf24; stroke: #92400e; stroke-width: 1; }
+.engineer-body .limb { fill: none; stroke: #bfdbfe; stroke-width: 5; stroke-linecap: round; }
+.engineer-body .tablet { fill: #7dd3fc; stroke: #0f172a; stroke-width: 1; }
+
+.hangar-launch-button {
+  z-index: 5;
+  width: min(100%, 360px);
+  min-height: 72px;
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.95), rgba(180, 83, 9, 0.92));
+  color: white;
+  font: inherit;
+  box-shadow: 0 18px 34px rgba(245, 158, 11, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  cursor: pointer;
+}
+
+.hangar-launch-button span {
+  display: block;
+  color: white;
+  font-size: clamp(1.2rem, 5vw, 1.85rem);
+  text-transform: uppercase;
+}
+
+.hangar-launch-button.disabled {
+  border-color: rgba(148, 163, 184, 0.24);
+  background: linear-gradient(180deg, rgba(71, 85, 105, 0.86), rgba(30, 41, 59, 0.92));
+  box-shadow: none;
+}
+
+.hangar-systems-card {
+  border-radius: 20px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.hangar-systems-card > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 2px;
+}
+
+.hangar-system-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.10);
+}
+
+.hangar-system-row strong {
+  color: #fbbf24;
+  font-size: 0.72rem;
+  text-align: right;
+}
+
+.hangar-system-row.ok strong { color: #86efac; }
+
+.hangar-side-panel,
+.hangar-footer-card {
+  z-index: 2;
+  border-radius: 20px;
+  padding: 12px;
+  min-width: 0;
+}
+
+.hangar-storage-panel { grid-area: storage; }
+.hangar-crew-panel { grid-area: crew; }
+.hangar-mission-card { grid-area: mission; }
+
+.hangar-panel-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.hangar-storage-row {
+  display: grid;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.hangar-storage-row > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.hangar-storage-row strong {
+  font-size: 0.74rem;
+  color: #e0f2fe;
+}
+
+.hangar-storage-track {
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.10);
+  background: rgba(2, 6, 23, 0.64);
+}
+
+.hangar-storage-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #38bdf8, #818cf8);
+}
+
+.hangar-storage-row.tone-money .hangar-storage-track span { background: linear-gradient(90deg, #22c55e, #86efac); }
+.hangar-storage-row.tone-research .hangar-storage-track span { background: linear-gradient(90deg, #3b82f6, #93c5fd); }
+.hangar-storage-row.tone-scan .hangar-storage-track span { background: linear-gradient(90deg, #8b5cf6, #c4b5fd); }
+
+.hangar-crew-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 7px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.50);
+  border: 1px solid rgba(148, 163, 184, 0.10);
+  margin-top: 7px;
+}
+
+.hangar-crew-row.busy {
+  border-color: rgba(168, 85, 247, 0.26);
+  background: rgba(88, 28, 135, 0.20);
+}
+
+.hangar-crew-row > span {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #f8fafc;
+  background: rgba(14, 165, 233, 0.16);
+  border: 1px solid rgba(125, 211, 252, 0.25);
+  font-weight: 950;
+}
+
+.hangar-crew-row div {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.hangar-crew-row strong,
+.hangar-crew-row small {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.hangar-footer-card {
+  display: grid;
+  align-content: center;
+  text-align: center;
+}
+
+.hangar-footer-card strong {
+  display: block;
+  font-size: 1rem;
+  margin: 3px 0 5px;
+}
+
+.hangar-footer-card p {
+  margin: 0;
+}
+
+.support-systems-card {
+  border-color: rgba(148, 163, 184, 0.13);
+  background: rgba(8, 11, 20, 0.54);
+}
+
+.support-systems-card > .builder-section-title h2::after {
+  content: " details";
+  color: rgba(148, 163, 184, 0.76);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+@keyframes engineer-walk {
+  0%, 100% { transform: translateX(-10px) translateY(0); }
+  45% { transform: translateX(70px) translateY(-2px); }
+  55% { transform: translateX(70px) translateY(-2px) scaleX(-1); }
+  95% { transform: translateX(-10px) translateY(0) scaleX(-1); }
+}
+
+@keyframes hangar-rocket-idle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hangar-engineer,
+  .hangar-rocket-stack {
+    animation: none;
+  }
+}
+
+@media (max-width: 1020px) {
+  .hangar-viewport {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto minmax(380px, 1fr) auto auto;
+    grid-template-areas:
+      "top top"
+      "left right"
+      "center center"
+      "storage crew"
+      "mission mission";
+  }
+
+  .hangar-rail {
+    align-content: stretch;
+  }
+}
+
+@media (max-width: 640px) {
+  .hangar-hub {
+    min-height: 940px;
+    border-radius: 24px;
+  }
+
+  .hangar-viewport {
+    padding: 10px;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto minmax(370px, auto) auto auto auto;
+    grid-template-areas:
+      "top"
+      "left"
+      "center"
+      "right"
+      "storage"
+      "crew"
+      "mission";
+  }
+
+  .hangar-topline {
+    grid-template-columns: 1fr;
+  }
+
+  .hangar-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .hangar-action-card {
+    min-height: 72px;
+  }
+
+  .hangar-centerpiece {
+    min-height: 390px;
+  }
+
+  .hangar-rocket-wrap {
+    height: 272px;
+  }
+
+  .hangar-engineer {
+    left: calc(50% - 94px);
+    bottom: 78px;
+  }
+
+  .hangar-door {
+    left: 14%;
+    right: 14%;
+  }
+}
