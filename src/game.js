@@ -80,6 +80,8 @@ const EARTH_MINE_COST = 100000;
 const EARTH_MINE_INCOME_RATE = 1;
 const EARTH_MINE_MAX = 10;
 const SIGNAL_SCAN_TARGET = 500;
+const FLIGHT_TIME_WARP_STEPS = [1, 2, 5, 10, 25];
+const MAX_PHYSICS_STEPS_PER_FRAME = 90;
 
 export class Game {
   constructor(input, renderer, rocketTemplate = ROCKET) {
@@ -101,6 +103,8 @@ export class Game {
     this.stageMessageTimer = 4;
     this.feedbackEvents = [];
     this.flightStats = this.createFlightStats(this.rocket);
+    this.flightTimeScale = 1;
+    this.physicsStepBudgetExceeded = false;
   }
 
   emitFeedback(event = {}) {
@@ -232,6 +236,30 @@ export class Game {
     this.setTestResourcesEnabled(!this.company.testResourcesEnabled);
   }
 
+  setFlightTimeScale(scale = 1) {
+    const next = FLIGHT_TIME_WARP_STEPS.includes(Number(scale)) ? Number(scale) : 1;
+    this.flightTimeScale = next;
+    this.stageMessage = next > 1
+      ? `Flight time warp set to ${next}x. Income and engineer timers remain real-time.`
+      : "Flight time warp returned to 1x.";
+    this.stageMessageTimer = 5;
+    this.emitFeedback({
+      title: next > 1 ? `Flight warp ${next}x` : "Flight warp off",
+      message: next > 1 ? "Only flight physics are accelerated." : "Back to normal flight speed.",
+      tone: "info",
+      sound: "select",
+      haptic: "light"
+    });
+  }
+
+  cycleFlightTimeScale() {
+    const current = Number(this.flightTimeScale ?? 1);
+    const index = FLIGHT_TIME_WARP_STEPS.indexOf(current);
+    const next = FLIGHT_TIME_WARP_STEPS[(index + 1) % FLIGHT_TIME_WARP_STEPS.length] ?? 1;
+    this.setFlightTimeScale(next);
+    return next;
+  }
+
   persistActiveCommandVessel(reason = "left flight", options = {}) {
     if (!this.rocket || this.rocket.archived) return false;
     const keepLanded = Boolean(options.includeLanded);
@@ -272,11 +300,17 @@ export class Game {
     this.handleGlobalActions();
 
     if (!this.paused) {
-      this.accumulator += frameTime;
-      while (this.accumulator >= PHYSICS.fixedDt) {
-        this.update(PHYSICS.fixedDt);
+      const timeScale = Math.max(1, Number(this.flightTimeScale ?? 1));
+      this.accumulator += frameTime * timeScale;
+      let physicsSteps = 0;
+      while (this.accumulator >= PHYSICS.fixedDt && physicsSteps < MAX_PHYSICS_STEPS_PER_FRAME) {
+        this.updateFlightPhysics(PHYSICS.fixedDt);
         this.accumulator -= PHYSICS.fixedDt;
+        physicsSteps += 1;
       }
+      this.physicsStepBudgetExceeded = this.accumulator >= PHYSICS.fixedDt;
+      if (this.physicsStepBudgetExceeded) this.accumulator = Math.min(this.accumulator, PHYSICS.fixedDt * 2);
+      this.updateRealtimeCompanySystems(frameTime);
     } else {
       this.updatePassiveCompanySystems(frameTime);
     }
@@ -288,6 +322,7 @@ export class Game {
     if (this.input.consume("reset")) this.reset();
     if (this.input.consume("pause")) this.paused = !this.paused;
     if (this.input.consume("debug")) this.debug = !this.debug;
+    if (this.input.consume("warp")) this.cycleFlightTimeScale();
     if (this.input.consume("stage")) this.activateStage();
   }
 
@@ -335,6 +370,11 @@ export class Game {
   }
 
   update(dt) {
+    this.updateFlightPhysics(dt);
+    this.updateRealtimeCompanySystems(dt);
+  }
+
+  updateFlightPhysics(dt) {
     const turn = (this.input.isHeld("right") ? 1 : 0) - (this.input.isHeld("left") ? 1 : 0);
     rotateRocket(this.rocket, turn, dt);
 
@@ -358,9 +398,12 @@ export class Game {
       stepDetachedObject(object, dt, objectPlanet);
     });
     this.trimObjects();
+    this.updateFlightStats();
+  }
+
+  updateRealtimeCompanySystems(dt) {
     this.updateEngineerProjects();
     this.updateEconomy(dt);
-    this.updateFlightStats();
     this.updateMissions();
     this.stageMessageTimer = Math.max(0, this.stageMessageTimer - dt);
 
@@ -1155,6 +1198,7 @@ export class Game {
       selectedObjectId: this.selectedObjectId,
       paused: this.paused,
       debug: this.debug,
+      flightTimeScale: this.flightTimeScale ?? 1,
       input: {
         thrusting: this.input.isHeld("thrust")
       }
@@ -1167,7 +1211,8 @@ export class Game {
     const speed = getSpeed(this.rocket);
     const fuelPercent = this.rocket.maxFuel > 0 ? (this.rocket.fuel / this.rocket.maxFuel) * 100 : 0;
     const orbitStatus = getOrbitStatus(this.rocket, activePlanet);
-    const status = this.paused ? `Paused — ${orbitStatus}` : orbitStatus;
+    const warpLabel = Number(this.flightTimeScale ?? 1) > 1 ? ` · ${this.flightTimeScale}x warp` : "";
+    const status = this.paused ? `Paused — ${orbitStatus}` : `${orbitStatus}${warpLabel}`;
     const density = getAtmosphereDensity(this.rocket, activePlanet);
     const drag = getDragVector(this.rocket, activePlanet);
     const onlinePayloads = this.objects.filter((object) => object.kind === "payload" && object.online && !object.crashed).length + (this.rocket.payloadsOnline ?? 0);
@@ -1180,6 +1225,8 @@ export class Game {
       stageFuel: getStageFuelSummary(this.rocket),
       activePlanet,
       status,
+      flightTimeScale: this.flightTimeScale ?? 1,
+      physicsStepBudgetExceeded: Boolean(this.physicsStepBudgetExceeded),
       fps: this.fps,
       orbitHoldTime: this.rocket.orbitHoldTime,
       missionComplete: this.rocket.missionComplete || onlinePayloads > 0,
@@ -1330,6 +1377,7 @@ export class Game {
       `Colonies:      ${Object.keys(normalizeColonyState(this.company.colonies)).length} (${formatMoney(this.company.colonyIncomePerSecond ?? 0)}/sec)`,
       `Cash:          ${formatMoney(this.company.money)}`,
       `Mode:          ${this.company.mode}${hasInfiniteTestResources(this.company) ? " + test resources" : ""}`,
+      `Flight warp:   ${this.flightTimeScale ?? 1}x (economy real-time)`,
       `Mission rewards: ${formatMoney(this.company.totalMissionRewards ?? 0)}`,
       `Launch costs:  ${formatMoney(this.company.totalLaunchCosts ?? 0)}`,
       `World objects: ${this.objects.length}`,

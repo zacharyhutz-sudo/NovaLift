@@ -1,4 +1,4 @@
-export const PROGRESSION_VERSION = "v0.9.5";
+export const PROGRESSION_VERSION = "v0.9.7";
 
 export const PROGRAM_LEVELS = [
   { level: 1, title: "Backyard Rocketry", xp: 0, cashCap: 6000, researchCap: 40, scanCap: 250 },
@@ -9,11 +9,20 @@ export const PROGRAM_LEVELS = [
   { level: 6, title: "Deep Space Company", xp: 2200, cashCap: 750000, researchCap: 1300, scanCap: 12000 }
 ];
 
+export const ENGINEER_CREW = [
+  { id: "maya", name: "Maya", role: "Systems Engineer", specialty: "Research labs and clean upgrade handoffs" },
+  { id: "boone", name: "Boone", role: "Launch Engineer", specialty: "Pads, assembly bays, and heavier rockets" },
+  { id: "iris", name: "Iris", role: "Robotics Engineer", specialty: "Planetary ops, probes, and colony systems" },
+  { id: "kai", name: "Kai", role: "Logistics Engineer", specialty: "Storage, contracts, and operations throughput" }
+];
+
 export const DAILY_CONTRACTS = [
   {
     id: "daily_launches",
     title: "Launch Cadence",
+    client: "Mission Control",
     description: "Launch three rockets today.",
+    flavor: "The flight director wants repeatable launch rhythm, not one lucky shot.",
     metric: "launches",
     target: 3,
     reward: { cash: 3500, research: 8, xp: 20 }
@@ -21,7 +30,9 @@ export const DAILY_CONTRACTS = [
   {
     id: "daily_stars",
     title: "Contract Stars",
+    client: "Atlas Telecom",
     description: "Earn six launch contract stars today.",
+    flavor: "A commercial client is watching whether your program can hit dependable milestones.",
     metric: "contractStars",
     target: 6,
     reward: { cash: 5500, research: 14, xp: 30 }
@@ -29,7 +40,9 @@ export const DAILY_CONTRACTS = [
   {
     id: "daily_collection",
     title: "Collect Operations",
+    client: "Operations Office",
     description: "Collect stored passive income once today.",
+    flavor: "The office team has invoices, lab notes, and scan packets ready for deposit.",
     metric: "collections",
     target: 1,
     reward: { cash: 2000, research: 5, xp: 15 }
@@ -41,6 +54,8 @@ export const ENGINEER_PROJECTS = [
     id: "ops_console_1",
     name: "Ops Console I",
     lane: "Operations",
+    facility: "Mission Control",
+    crewLead: "kai",
     description: "Improves contract planning and unlocks the first reliable company rhythm.",
     cost: 4000,
     durationSeconds: 20,
@@ -51,6 +66,8 @@ export const ENGINEER_PROJECTS = [
     id: "storage_yard_1",
     name: "Storage Yard I",
     lane: "Infrastructure",
+    facility: "Storage Yard",
+    crewLead: "kai",
     description: "Expands passive storage so income can build up between check-ins.",
     cost: 9000,
     durationSeconds: 45,
@@ -62,6 +79,8 @@ export const ENGINEER_PROJECTS = [
     id: "research_lab_1",
     name: "Research Lab I",
     lane: "Research",
+    facility: "Research Lab",
+    crewLead: "maya",
     description: "Adds better lab tooling for passive research collection and upgrades.",
     cost: 14000,
     durationSeconds: 75,
@@ -73,6 +92,8 @@ export const ENGINEER_PROJECTS = [
     id: "assembly_bay_1",
     name: "Assembly Bay I",
     lane: "Manufacturing",
+    facility: "Assembly Bay",
+    crewLead: "boone",
     description: "Prepares the space center for larger rocket programs and heavier contracts.",
     cost: 30000,
     durationSeconds: 120,
@@ -85,6 +106,8 @@ export const ENGINEER_PROJECTS = [
     id: "engineering_team_2",
     name: "Engineering Team II",
     lane: "Personnel",
+    facility: "Engineering Bay",
+    crewLead: "maya",
     description: "Expands the company with a second engineer slot for parallel upgrades.",
     cost: 80000,
     durationSeconds: 240,
@@ -337,8 +360,12 @@ export function startEngineerProject(company = {}, id) {
   if (!hasCostBypass(company) && Number(company.money ?? 0) < Number(project.cost ?? 0)) return { ok: false, reason: "Not enough cash." };
   if (!hasCostBypass(company)) company.money = Math.max(0, Number(company.money ?? 0) - Number(project.cost ?? 0));
   const now = Date.now();
+  const busy = new Set(queueState.activeEngineerProjects.map((active) => active.assignedEngineerId).filter(Boolean));
+  const preferred = project.crewLead && !busy.has(project.crewLead) ? project.crewLead : null;
+  const assignedEngineerId = preferred ?? ENGINEER_CREW.find((engineer) => !busy.has(engineer.id))?.id ?? ENGINEER_CREW[0]?.id ?? "engineer";
   queueState.activeEngineerProjects.push({
     id: project.id,
+    assignedEngineerId,
     startedAt: now,
     finishAt: now + Math.max(1, Number(project.durationSeconds ?? 1)) * 1000
   });
@@ -383,6 +410,8 @@ export function getEngineerView(company = {}) {
       const remainingMs = Math.max(0, Number(active.finishAt ?? now) - now);
       return {
         ...project,
+        assignedEngineerId: active.assignedEngineerId,
+        assignedEngineer: ENGINEER_CREW.find((engineer) => engineer.id === active.assignedEngineerId) ?? ENGINEER_CREW[0],
         startedAt: active.startedAt,
         finishAt: active.finishAt,
         remainingMs,
@@ -390,6 +419,7 @@ export function getEngineerView(company = {}) {
         ready: remainingMs <= 0
       };
     }),
+    crew: ENGINEER_CREW.slice(0, getEngineerSlots(company)),
     projects: getAvailableEngineerProjects(company),
     finished
   };
@@ -522,7 +552,7 @@ function normalizeEngineerQueue(queue = []) {
   if (!Array.isArray(queue)) return [];
   return queue
     .filter((item) => item && ENGINEER_PROJECTS.some((project) => project.id === item.id))
-    .map((item) => ({ id: String(item.id), startedAt: Number(item.startedAt ?? Date.now()), finishAt: Number(item.finishAt ?? Date.now()) }))
+    .map((item) => ({ id: String(item.id), assignedEngineerId: String(item.assignedEngineerId ?? ""), startedAt: Number(item.startedAt ?? Date.now()), finishAt: Number(item.finishAt ?? Date.now()) }))
     .slice(0, 4);
 }
 

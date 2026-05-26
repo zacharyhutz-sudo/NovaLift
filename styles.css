@@ -7032,3 +7032,214 @@ button:active:not(:disabled),
     width: 100%;
   }
 }
+
+/* v0.9.7 Space Center + flight-only time warp pass */
+.space-center-map {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.space-center-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 20px;
+  padding: 14px;
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.84), rgba(30, 41, 59, 0.52)),
+    radial-gradient(circle at 8% 0%, rgba(56, 189, 248, 0.12), transparent 34%);
+}
+
+.space-center-intro strong {
+  display: block;
+  color: #f8fafc;
+  font-size: 1.02rem;
+  margin: 2px 0 3px;
+}
+
+.space-center-intro p {
+  margin: 0;
+  color: rgba(203, 213, 225, 0.78);
+}
+
+.space-center-mode {
+  white-space: nowrap;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: #bae6fd;
+  background: rgba(14, 165, 233, 0.1);
+  font-weight: 800;
+  font-size: 0.76rem;
+}
+
+.facility-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.facility-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 18px;
+  padding: 12px;
+  text-align: left;
+  background: rgba(2, 6, 23, 0.5);
+  color: inherit;
+  box-shadow: inset 0 0 18px rgba(15, 23, 42, 0.38);
+}
+
+.facility-card.state-ready {
+  border-color: rgba(34, 197, 94, 0.32);
+  background: linear-gradient(145deg, rgba(20, 83, 45, 0.26), rgba(2, 6, 23, 0.54));
+}
+
+.facility-card.state-active {
+  border-color: rgba(56, 189, 248, 0.3);
+  background: linear-gradient(145deg, rgba(14, 116, 144, 0.22), rgba(2, 6, 23, 0.54));
+}
+
+.facility-card.state-needs-attention {
+  border-color: rgba(250, 204, 21, 0.34);
+  background: linear-gradient(145deg, rgba(113, 63, 18, 0.24), rgba(2, 6, 23, 0.54));
+}
+
+.facility-card.state-locked {
+  opacity: 0.7;
+}
+
+.facility-card:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.facility-badge {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: #e0f2fe;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.facility-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.facility-copy strong {
+  color: #f8fafc;
+  font-size: 0.94rem;
+}
+
+.facility-copy em,
+.facility-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.facility-copy em {
+  color: rgba(219, 234, 254, 0.82);
+  font-style: normal;
+  font-size: 0.78rem;
+}
+
+.facility-copy small {
+  color: rgba(148, 163, 184, 0.86);
+  font-size: 0.72rem;
+}
+
+.engineer-crew-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.engineer-crew-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 8px;
+  row-gap: 1px;
+  align-items: center;
+  border: 1px solid rgba(148, 163, 184, 0.13);
+  border-radius: 14px;
+  padding: 8px;
+  background: rgba(15, 23, 42, 0.46);
+}
+
+.engineer-crew-card span {
+  grid-row: span 2;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(168, 85, 247, 0.16);
+  border: 1px solid rgba(216, 180, 254, 0.24);
+  color: #f3e8ff;
+  font-weight: 900;
+}
+
+.engineer-crew-card strong {
+  color: #f8fafc;
+  font-size: 0.82rem;
+}
+
+.engineer-crew-card small {
+  min-width: 0;
+  color: rgba(203, 213, 225, 0.7);
+  font-size: 0.68rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.engineer-crew-card.busy {
+  border-color: rgba(168, 85, 247, 0.32);
+  box-shadow: inset 0 0 18px rgba(168, 85, 247, 0.08);
+}
+
+.time-warp-control.is-active,
+.small-control.time-warp-control.is-active {
+  border-color: rgba(34, 197, 94, 0.5);
+  background: linear-gradient(180deg, rgba(22, 163, 74, 0.92), rgba(21, 128, 61, 0.86));
+  color: #ecfdf5;
+  box-shadow: 0 0 22px rgba(34, 197, 94, 0.22);
+}
+
+@media (max-width: 980px) {
+  .facility-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .space-center-intro,
+  .facility-grid,
+  .engineer-crew-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .space-center-intro {
+    align-items: flex-start;
+  }
+
+  .facility-card {
+    min-height: 74px;
+  }
+}

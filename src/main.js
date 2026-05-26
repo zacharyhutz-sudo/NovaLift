@@ -37,6 +37,7 @@ const toastStackEl = document.querySelector("#toastStack");
 const rewardOverlayEl = document.querySelector("#rewardOverlay");
 const toggleSoundButton = document.querySelector("#toggleSound");
 const toggleTestResourcesButton = document.querySelector("#toggleTestResources");
+const cycleTimeWarpButton = document.querySelector("#cycleTimeWarp");
 const titleScreenEl = document.querySelector("#titleScreen");
 const titleContinueButton = document.querySelector("#titleContinue");
 const titleNewCompanyButton = document.querySelector("#titleNewCompany");
@@ -136,6 +137,7 @@ const planetRegistryListEl = document.querySelector("#planetRegistryList");
 const planetSignalNameEl = document.querySelector("#planetSignalName");
 const planetSignalBarEl = document.querySelector("#planetSignalBar");
 const planetSignalStatusEl = document.querySelector("#planetSignalStatus");
+const spaceCenterMapEl = document.querySelector("#spaceCenterMap");
 const programSummaryEl = document.querySelector("#programSummary");
 const recommendedActionCardEl = document.querySelector("#recommendedActionCard");
 const passiveBankCardEl = document.querySelector("#passiveBankCard");
@@ -277,6 +279,10 @@ function bindBuilderEvents() {
     renderBuilder();
     updateHud(game.getHudData());
   });
+  bindActivation(cycleTimeWarpButton, () => {
+    game.cycleFlightTimeScale();
+    updateHud(game.getHudData());
+  });
   bindActivation(builderWorldViewButton, showWorldView);
   bindActivation(builderWorldViewHeroButton, showWorldView);
   bindActivation(builderJumpToPreviewButton, () => scrollBuilderSection(builderRocketSectionEl));
@@ -311,6 +317,9 @@ function bindBuilderEvents() {
   });
   bindDelegatedActivation(recommendedActionCardEl, "[data-recommended-target]", (button) => {
     handleRecommendedAction(button.dataset.recommendedTarget);
+  });
+  bindDelegatedActivation(spaceCenterMapEl, "[data-space-center-target]", (button) => {
+    handleRecommendedAction(button.dataset.spaceCenterTarget);
   });
   bindDelegatedActivation(planetRegistryListEl, "[data-colony-action]", (button) => {
     game.upgradeColony(button.dataset.colonyAction);
@@ -895,11 +904,115 @@ function renderValidation(validation, highlightErrors, canAfford = true, cost = 
 }
 
 function renderProgressionDashboard(data = game.getHudData()) {
+  renderSpaceCenterMap(data);
   renderProgramSummary(data);
   renderRecommendedAction(data);
   renderPassiveBank(data);
   renderEngineerQueue(data);
   renderDailyContracts(data);
+}
+
+function renderSpaceCenterMap(data = game.getHudData()) {
+  if (!spaceCenterMapEl) return;
+  const company = data.company ?? {};
+  const engineer = data.engineer ?? { active: [], slots: 1 };
+  const bank = data.passiveBank ?? { fill: {} };
+  const daily = data.dailyContracts ?? [];
+  const planets = data.planets ?? [];
+  const completedDaily = daily.filter((contract) => contract.claimable).length;
+  const maxBankFill = Math.max(bank.fill?.cash ?? 0, bank.fill?.research ?? 0, bank.fill?.scan ?? 0);
+  const discovered = planets.filter((planet) => planet.discovered).length;
+  const colonies = Number(company.totalColoniesBuilt ?? 0);
+  const nextMission = data.nextMission ?? {};
+  const facilities = [
+    {
+      id: "mission-control",
+      title: "Mission Control",
+      subtitle: nextMission.title ? `Next: ${nextMission.title}` : "Campaign clear",
+      status: data.missionComplete ? "Objective complete" : "Flight plan ready",
+      metric: `${Math.round(data.altitude ?? 0).toLocaleString()} m peak target`,
+      target: "missions",
+      state: data.missionComplete ? "ready" : "active",
+      badge: "MC"
+    },
+    {
+      id: "engineering-bay",
+      title: "Engineering Bay",
+      subtitle: `${engineer.active?.length ?? 0}/${engineer.slots ?? 1} engineers assigned`,
+      status: engineer.active?.length ? "Construction underway" : "Crew idle",
+      metric: engineer.active?.[0]?.assignedEngineer?.name ? `${engineer.active[0].assignedEngineer.name} on ${engineer.active[0].name}` : "Start an upgrade",
+      target: "engineer",
+      state: engineer.active?.length ? "active" : "needs-attention",
+      badge: "EN"
+    },
+    {
+      id: "contract-office",
+      title: "Contract Office",
+      subtitle: completedDaily ? `${completedDaily} reward ready` : "Daily clients waiting",
+      status: completedDaily ? "Ready to claim" : "Build reputation",
+      metric: `${daily.filter((contract) => contract.claimed).length}/${daily.length} claimed today`,
+      target: "daily",
+      state: completedDaily ? "ready" : "idle",
+      badge: "CO"
+    },
+    {
+      id: "storage-yard",
+      title: "Storage Yard",
+      subtitle: maxBankFill > 0.9 ? "Almost full" : maxBankFill > 0.35 ? "Resources waiting" : "Room available",
+      status: bank.hasCollectable ? "Collectable" : "Empty",
+      metric: `${Math.round(maxBankFill * 100)}% capacity`,
+      target: "bank",
+      state: maxBankFill > 0.9 ? "ready" : bank.hasCollectable ? "active" : "idle",
+      badge: "SY"
+    },
+    {
+      id: "research-lab",
+      title: "Research Lab",
+      subtitle: `${formatResearchBalance(company)} available`,
+      status: `${formatResearchRate(company.researchPerSecond ?? 0)}R/s`,
+      metric: "Unlock parts and systems",
+      target: "research",
+      state: (data.research ?? []).some((node) => node.available) ? "ready" : "idle",
+      badge: "RL"
+    },
+    {
+      id: "planetary-ops",
+      title: "Planetary Ops",
+      subtitle: `${discovered} mapped · ${colonies} colonies`,
+      status: colonies ? "Offworld online" : "Awaiting first outpost",
+      metric: `${formatScanRate(company.scanPerSecond ?? 0)}/s Scan`,
+      target: "planets",
+      state: colonies ? "active" : discovered > 1 ? "ready" : "locked",
+      badge: "PO"
+    }
+  ];
+
+  spaceCenterMapEl.innerHTML = `
+    <div class="space-center-intro">
+      <div>
+        <span class="eyebrow">Space Center</span>
+        <strong>Run the company from facilities, not just numbers.</strong>
+        <p>Tap a facility to jump to the work happening there.</p>
+      </div>
+      <span class="space-center-mode">${escapeHtml(formatCompanyMode(company))}</span>
+    </div>
+    <div class="facility-grid">
+      ${facilities.map(renderFacilityCard).join("")}
+    </div>
+  `;
+}
+
+function renderFacilityCard(facility) {
+  return `
+    <button type="button" class="facility-card state-${escapeHtml(facility.state)}" data-space-center-target="${escapeHtml(facility.target)}">
+      <span class="facility-badge">${escapeHtml(facility.badge)}</span>
+      <span class="facility-copy">
+        <strong>${escapeHtml(facility.title)}</strong>
+        <em>${escapeHtml(facility.subtitle)}</em>
+        <small>${escapeHtml(facility.status)} · ${escapeHtml(facility.metric)}</small>
+      </span>
+    </button>
+  `;
 }
 
 function renderProgramSummary(data = game.getHudData()) {
@@ -951,6 +1064,10 @@ function handleRecommendedAction(target = "missions") {
     showResearchLab();
     return;
   }
+  if (target === "planets") {
+    scrollBuilderSection(document.querySelector("#builderPlanetSection"));
+    return;
+  }
   if (target === "missions" || target === "launch") {
     scrollBuilderSection(builderMissionsSectionEl);
     return;
@@ -967,7 +1084,7 @@ function renderPassiveBank(data = game.getHudData()) {
   passiveBankCardEl.innerHTML = `
     <div class="progression-panel-top">
       <div><span class="system-icon income-icon" aria-hidden="true">IN</span></div>
-      <div><strong>Operations Storage</strong><span>Passive income waits here until collected.</span></div>
+      <div><strong>Storage Yard</strong><span>Cash crates, research binders, and scan drives wait here.</span></div>
       <button type="button" data-collect-passive ${view.hasCollectable ? "" : "disabled"}>Collect</button>
     </div>
     ${renderBankResource("Cash", formatMoney(bank.cash ?? 0), formatMoney(caps.cash ?? 0), fill.cash ?? 0)}
@@ -994,8 +1111,9 @@ function renderEngineerQueue(data = game.getHudData()) {
   engineerQueueCardEl.innerHTML = `
     <div class="progression-panel-top">
       <div><span class="system-icon engineer-icon" aria-hidden="true">EN</span></div>
-      <div><strong>Engineers</strong><span>${active.length}/${engineer.slots ?? 1} working</span></div>
+      <div><strong>Engineering Bay</strong><span>${active.length}/${engineer.slots ?? 1} working · named crew</span></div>
     </div>
+    ${renderEngineerCrewStrip(engineer.crew ?? [], active)}
     <div class="engineer-active-list">
       ${active.length ? active.map(renderActiveEngineerProject).join("") : `<p class="empty-note">No engineer project active. Start one to keep progression moving between launches.</p>`}
     </div>
@@ -1005,11 +1123,30 @@ function renderEngineerQueue(data = game.getHudData()) {
   `;
 }
 
+function renderEngineerCrewStrip(crew = [], active = []) {
+  if (!crew.length) return "";
+  const busy = new Map(active.map((project) => [project.assignedEngineerId, project]));
+  return `
+    <div class="engineer-crew-strip">
+      ${crew.map((engineer) => {
+        const project = busy.get(engineer.id);
+        return `
+          <div class="engineer-crew-card ${project ? "busy" : "idle"}">
+            <span>${escapeHtml(engineer.name?.slice(0, 1) ?? "E")}</span>
+            <strong>${escapeHtml(engineer.name ?? "Engineer")}</strong>
+            <small>${project ? `On ${escapeHtml(project.name)}` : escapeHtml(engineer.role ?? "Available")}</small>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
 function renderActiveEngineerProject(project) {
   const percent = Math.round((project.progress ?? 0) * 100);
   return `
     <article class="engineer-project active">
-      <div><strong>${escapeHtml(project.name)}</strong><span>${escapeHtml(project.effect ?? "Project in progress")}</span></div>
+      <div><strong>${escapeHtml(project.name)}</strong><span>${escapeHtml(project.assignedEngineer?.name ?? "Engineer")} in ${escapeHtml(project.facility ?? project.lane ?? "Engineering")} · ${escapeHtml(project.effect ?? "Project in progress")}</span></div>
       <em>${formatDuration(project.remainingMs ?? 0)}</em>
       <div class="engineer-track"><span style="width:${percent}%"></span></div>
     </article>
@@ -1019,7 +1156,7 @@ function renderActiveEngineerProject(project) {
 function renderAvailableEngineerProject(project) {
   return `
     <article class="engineer-project ${project.locked ? "locked" : project.affordable ? "" : "unaffordable"}">
-      <div><strong>${escapeHtml(project.name)}</strong><span>${escapeHtml(project.effect ?? project.description ?? "Engineer project")}</span></div>
+      <div><strong>${escapeHtml(project.name)}</strong><span>${escapeHtml(project.facility ?? project.lane ?? "Space Center")} · ${escapeHtml(project.effect ?? project.description ?? "Engineer project")}</span></div>
       <div class="engineer-project-actions">
         <small>${formatDuration((project.durationSeconds ?? 0) * 1000)} · ${formatMoney(project.cost ?? 0)}</small>
         <button type="button" data-start-project="${escapeHtml(project.id)}" ${project.canStart ? "" : "disabled"}>${project.complete ? "Done" : project.locked ? `Lvl ${project.requiredProgramLevel}` : project.affordable ? "Start" : "Need Cash"}</button>
@@ -1034,7 +1171,7 @@ function renderDailyContracts(data = game.getHudData()) {
   dailyContractListEl.innerHTML = `
     <div class="progression-panel-top">
       <div><span class="system-icon daily-icon" aria-hidden="true">DY</span></div>
-      <div><strong>Daily Contracts</strong><span>Small return goals for a Clash-style rhythm.</span></div>
+      <div><strong>Contract Office</strong><span>Client requests with clear rewards.</span></div>
     </div>
     <div class="daily-contract-stack">
       ${contracts.map(renderDailyContract).join("")}
@@ -1053,8 +1190,8 @@ function renderDailyContract(contract) {
   return `
     <article class="daily-contract ${contract.claimed ? "claimed" : contract.claimable ? "claimable" : ""}">
       <div class="daily-contract-copy">
-        <strong>${escapeHtml(contract.title)}</strong>
-        <span>${escapeHtml(contract.description)}</span>
+        <strong>${escapeHtml(contract.client ? `${contract.client}: ${contract.title}` : contract.title)}</strong>
+        <span>${escapeHtml(contract.flavor ?? contract.description)}</span>
         <small>${escapeHtml(rewardText)}</small>
       </div>
       <div class="daily-contract-progress">
@@ -1652,6 +1789,17 @@ function processFeedbackEvents(events = []) {
   });
 }
 
+function updateTimeWarpControl(data = {}) {
+  if (!cycleTimeWarpButton) return;
+  const scale = Number(data.flightTimeScale ?? 1);
+  cycleTimeWarpButton.textContent = `Warp ${scale}x`;
+  cycleTimeWarpButton.classList.toggle("is-active", scale > 1);
+  cycleTimeWarpButton.setAttribute("aria-pressed", String(scale > 1));
+  cycleTimeWarpButton.title = scale > 1
+    ? "Flight physics are sped up. Income, scan, research, and engineer timers remain real-time."
+    : "Cycle flight-only time warp. Shortcut: T or period.";
+}
+
 function updateHud(data) {
   altitudeEl.textContent = formatDistance(data.altitude);
   speedEl.textContent = `${data.speed.toFixed(1)} m/s`;
@@ -1664,6 +1812,7 @@ function updateHud(data) {
   if (companyResearchHudEl) companyResearchHudEl.textContent = formatResearchBalance(data.company);
   if (companyScanHudEl) companyScanHudEl.textContent = formatScanBalance(data.company, data.nextPlanetSignal);
   updateTestResourceToggle(data.company);
+  updateTimeWarpControl(data);
   if (screenMode === "builder" && researchScreenEl && !researchScreenEl.classList.contains("hidden") && performance.now() - lastResearchLiveRenderAt > 500) {
     lastResearchLiveRenderAt = performance.now();
     renderResearchLab(data);

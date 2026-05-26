@@ -1,3 +1,20 @@
+# NovaLift v0.9.7 — Space Center + Flight Warp Pass
+
+This patch makes the company layer feel more like a playable space center and adds Space Flight Simulator-style flight time warp without accelerating passive income, scan, research, or engineer timers.
+
+## What is new in v0.9.7
+
+- Added a Space Center facility map to the Launchpad with Mission Control, Engineering Bay, Contract Office, Storage Yard, Research Lab, and Planetary Ops.
+- Facilities now act as shortcuts into the relevant game systems instead of leaving everything as detached stat panels.
+- Reframed passive storage as the Storage Yard with visible cash, Research, and Scan containers.
+- Reframed daily contracts as client requests from groups like Mission Control, Atlas Telecom, and Operations Office.
+- Added named engineer crew cards so projects are assigned to people rather than abstract queue slots.
+- Added facility labels and crew leads to engineer projects for a stronger space-company feel.
+- Added a Warp button during flight that cycles 1x, 2x, 5x, 10x, and 25x physics speed.
+- Added keyboard shortcuts for flight warp: T or period.
+- Split flight simulation time from economy time so time warp accelerates rockets and orbital objects only. Passive income, colony production, scan, research, daily progress, engineer projects, and storage collection remain real-time.
+- Updated the HUD/debug readouts so the current flight warp is clear.
+
 # NovaLift v0.9.6 — Offworld Colony Test Pass
 
 This patch keeps the existing planet discovery and physical planet system intact, then adds a first playable colonization layer plus a testing resource toggle.

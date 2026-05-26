@@ -8,6 +8,8 @@ const ACTION_KEYS = new Map([
   ["KeyR", "reset"],
   ["Space", "pause"],
   ["KeyF", "debug"],
+  ["KeyT", "warp"],
+  ["Period", "warp"],
   ["KeyX", "stage"],
   ["Enter", "stage"]
 ]);

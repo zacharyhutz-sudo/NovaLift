@@ -1,7 +1,7 @@
 {
   "name": "novalift",
-  "version": "0.9.6",
-  "description": "Vertical mobile-first 2D rocket company prototype with test resources and first-pass offworld colony outposts.",
+  "version": "0.9.7",
+  "description": "Vertical mobile-first 2D rocket company prototype with a Space Center feel pass and flight-only time warp.",
   "type": "module",
   "private": true,
   "scripts": {

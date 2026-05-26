@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050816" />
-    <title>NovaLift v0.9.6</title>
+    <title>NovaLift v0.9.7</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -27,7 +27,7 @@
             <button id="titleContinue" class="title-primary-button" type="button">Continue Program</button>
             <button id="titleNewCompany" class="title-secondary-button" type="button">New Company</button>
           </div>
-          <small>v0.9.6 · Mobile-first prototype</small>
+          <small>v0.9.7 · Mobile-first prototype</small>
         </div>
       </section>
 
@@ -35,7 +35,7 @@
         <section id="hud" class="compact-hud" aria-label="Flight status">
           <div class="brand-chip">
             <strong>NovaLift</strong>
-            <span>v0.9.6</span>
+            <span>v0.9.7</span>
           </div>
           <div class="hud-stats">
             <div class="hud-stat"><span>Alt</span><strong id="altitude">0 m</strong></div>
@@ -96,6 +96,7 @@
             <h2>Space Program</h2>
             <span>Short sessions, timed upgrades, daily goals</span>
           </div>
+          <div id="spaceCenterMap" class="space-center-map" aria-label="Space center facilities"></div>
           <div id="programSummary" class="program-summary"></div>
           <div id="recommendedActionCard" class="recommended-action-card"></div>
           <div class="progression-grid">
@@ -291,6 +292,7 @@
           <button id="rebuildRocket" class="small-control" type="button">Build</button>
           <button class="small-control stage-control" type="button" data-press-action="stage">Stage</button>
           <button id="toggleTracker" class="small-control" type="button" aria-expanded="false">Track</button>
+          <button id="cycleTimeWarp" class="small-control time-warp-control" type="button">Warp 1x</button>
           <button class="small-control" type="button" data-press-action="pause">Pause</button>
         </div>
 
