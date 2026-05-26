@@ -35,6 +35,9 @@ const gameShellEl = document.querySelector("#gameShell");
 const toastStackEl = document.querySelector("#toastStack");
 const rewardOverlayEl = document.querySelector("#rewardOverlay");
 const toggleSoundButton = document.querySelector("#toggleSound");
+const titleScreenEl = document.querySelector("#titleScreen");
+const titleContinueButton = document.querySelector("#titleContinue");
+const titleNewCompanyButton = document.querySelector("#titleNewCompany");
 
 const builderScreenEl = document.querySelector("#builderScreen");
 const stackListEl = document.querySelector("#stackList");
@@ -135,6 +138,12 @@ const planetSignalStatusEl = document.querySelector("#planetSignalStatus");
 const EARTH_MINE_COST = 100000;
 const EARTH_MINE_INCOME_RATE = 1;
 const EARTH_MINE_MAX = 10;
+const RESET_STORAGE_KEYS = [
+  "novaliftWorldObjects.v2",
+  "novaliftWorldObjects.v1",
+  "novaliftCompany.v2",
+  "novaliftCompany.v1"
+];
 
 let builderStack = [];
 let screenMode = "builder";
@@ -218,6 +227,8 @@ function loop(timestamp) {
 }
 
 function bindBuilderEvents() {
+  bindActivation(titleContinueButton, hideTitleScreen);
+  bindActivation(titleNewCompanyButton, startNewCompanyFromTitle);
   bindActivation(launchBuiltRocketButton, launchBuiltRocket);
   bindActivation(starterBuildButton, () => {
     builderStack = normalizeStack(STARTING_STACK);
@@ -445,6 +456,24 @@ function bindDelegatedActivation(container, selector, handler) {
 
   container.addEventListener("pointerup", activate);
   container.addEventListener("click", activate);
+}
+
+function hideTitleScreen() {
+  if (!titleScreenEl) return;
+  titleScreenEl.classList.add("hidden");
+  gameShellEl.classList.remove("title-open");
+  feedback.toast({ title: "Mission Control online", message: "Launchpad is ready.", tone: "info", duration: 2000 });
+}
+
+function startNewCompanyFromTitle() {
+  const shouldReset = window.confirm("Start a new NovaLift company? This clears your saved company, rockets, and orbital objects on this device.");
+  if (!shouldReset) return;
+  try {
+    RESET_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+  } catch {
+    // Storage can be unavailable in some browser privacy modes.
+  }
+  window.location.reload();
 }
 
 function showBuilder() {
@@ -820,7 +849,7 @@ function renderMissionBoard(data) {
   missionBoardEl.classList.toggle("expanded", missionsExpanded);
 
   if (!missionsExpanded && nextMission) {
-    const reward = `${formatMoney(nextMission.reward)}${nextMission.researchReward ? ` + ${formatResearch(nextMission.researchReward)}R` : ""}`;
+    const reward = getMissionRewardLabel(nextMission);
     const template = ROCKET_TEMPLATES.find((candidate) => candidate.id === nextMission.recommendedTemplateId);
     const templateLocked = template?.requiresResearch && !game.company.completedResearch?.includes(template.requiresResearch) && game.company.mode !== "sandbox";
     const chapterText = chapter ? `${chapter.title} · ${chapter.completed}/${chapter.total}` : "Campaign";
@@ -831,16 +860,17 @@ function renderMissionBoard(data) {
     const launchReady = currentValidation.valid && canAffordCurrent && currentLockedParts.length === 0;
     missionBoardEl.innerHTML = `
       <article class="mission-card current-objective">
-        <div class="campaign-chip-row">
-          <span class="campaign-chip">${escapeHtml(chapterText)}</span>
-          <span class="campaign-chip reward-chip">${reward}</span>
-        </div>
-        <div class="mission-card-top">
+        <div class="mission-card-top objective-topline">
+          <div class="mission-emblem" aria-hidden="true">${escapeHtml(getChapterIcon(nextMission.chapter))}</div>
           <div>
-            <small>Current Objective</small>
+            <small>${escapeHtml(chapterText)}</small>
             <strong>${escapeHtml(nextMission.title)}</strong>
             <span>${escapeHtml(nextMission.objective)}</span>
           </div>
+        </div>
+        <div class="campaign-chip-row objective-chip-row">
+          <span class="campaign-chip">${escapeHtml(getMissionStatusLabel(nextMission))}</span>
+          <span class="campaign-chip reward-chip">${escapeHtml(reward)}</span>
         </div>
         <div class="mission-progress-block" aria-label="Mission progress">
           <div class="mission-progress-copy">
@@ -862,26 +892,82 @@ function renderMissionBoard(data) {
     return;
   }
 
-  missionBoardEl.innerHTML = missions.map((mission) => {
-    const reward = mission.completed ? "✓" : `${formatMoney(mission.reward)}${mission.researchReward ? ` + ${formatResearch(mission.researchReward)}R` : ""}`;
-    const chapterLabel = mission.chapterTitle ? `${mission.chapterTitle}` : "Campaign";
-    return `
-    <article class="mission-card ${mission.completed ? "complete" : ""}">
-      <div class="campaign-chip-row">
-        <span class="campaign-chip">${escapeHtml(chapterLabel)}</span>
-        <span class="campaign-chip reward-chip">${reward}</span>
-      </div>
-      <div class="mission-card-top">
-        <div>
-          <strong>${escapeHtml(mission.title)}</strong>
-          <span>${escapeHtml(mission.objective)}</span>
-        </div>
-      </div>
-      <div class="mission-progress">${escapeHtml(mission.progress)}</div>
-    </article>`;
-  }).join("");
+  missionBoardEl.innerHTML = renderCampaignRoad(missions, data.missionChapters ?? [], nextMission);
 }
 
+function renderCampaignRoad(missions = [], chapters = [], nextMission = null) {
+  if (!missions.length) return `<p class="empty-note">No campaign missions available.</p>`;
+  const chapterList = chapters.length
+    ? chapters
+    : [...new Map(missions.map((mission) => [mission.chapter, {
+        id: mission.chapter,
+        title: mission.chapterTitle ?? "Campaign",
+        description: mission.chapterDescription ?? "Complete missions to advance.",
+        completed: missions.filter((candidate) => candidate.chapter === mission.chapter && candidate.completed).length,
+        total: missions.filter((candidate) => candidate.chapter === mission.chapter).length,
+        complete: missions.filter((candidate) => candidate.chapter === mission.chapter).every((candidate) => candidate.completed)
+      }])).values()];
+
+  return `
+    <div class="campaign-road">
+      ${chapterList.map((chapter) => {
+        const chapterMissions = missions.filter((mission) => mission.chapter === chapter.id);
+        const isCurrent = Boolean(nextMission && nextMission.chapter === chapter.id && !chapter.complete);
+        const isLocked = !chapter.complete && !isCurrent && chapterMissions.every((mission) => !mission.completed) && missions.findIndex((mission) => mission.id === chapterMissions[0]?.id) > missions.findIndex((mission) => mission.id === nextMission?.id);
+        const progress = chapter.total > 0 ? Math.round((chapter.completed / chapter.total) * 100) : 0;
+        return `
+          <section class="campaign-chapter-card ${chapter.complete ? "complete" : isCurrent ? "current" : isLocked ? "locked" : ""}">
+            <div class="campaign-chapter-head">
+              <div class="chapter-badge" aria-hidden="true">${escapeHtml(getChapterIcon(chapter.id))}</div>
+              <div>
+                <span>${escapeHtml(chapter.complete ? "Chapter Complete" : isCurrent ? "Current Chapter" : "Upcoming Chapter")}</span>
+                <strong>${escapeHtml(chapter.title)}</strong>
+                <p>${escapeHtml(chapter.description ?? "Complete missions to advance.")}</p>
+              </div>
+              <b>${chapter.completed}/${chapter.total}</b>
+            </div>
+            <div class="chapter-progress-track" aria-hidden="true"><span style="width:${progress}%"></span></div>
+            <div class="mission-road-list">
+              ${chapterMissions.map((mission, index) => {
+                const missionProgress = getMissionProgressPercent(mission);
+                const isNext = nextMission?.id === mission.id;
+                return `
+                  <article class="mission-road-node ${mission.completed ? "complete" : isNext ? "next" : ""}">
+                    <div class="mission-node-index">${mission.completed ? "✓" : String(index + 1).padStart(2, "0")}</div>
+                    <div class="mission-node-copy">
+                      <strong>${escapeHtml(mission.title)}</strong>
+                      <span>${escapeHtml(mission.objective)}</span>
+                      <div class="mission-node-progress"><span style="width:${missionProgress.toFixed(1)}%"></span></div>
+                    </div>
+                    <div class="mission-node-reward">${escapeHtml(mission.completed ? "Claimed" : getMissionRewardLabel(mission))}</div>
+                  </article>`;
+              }).join("")}
+            </div>
+          </section>`;
+      }).join("")}
+    </div>`;
+}
+
+function getChapterIcon(id = "") {
+  const icons = {
+    flight_school: "01",
+    orbit_program: "02",
+    orbital_business: "03",
+    exploration_program: "04"
+  };
+  return icons[id] ?? "NL";
+}
+
+function getMissionStatusLabel(mission) {
+  if (!mission) return "Mission";
+  if (mission.completed) return "Complete";
+  return mission.chapterTitle ? `${mission.chapterTitle}` : "Next Mission";
+}
+
+function getMissionRewardLabel(mission) {
+  if (!mission) return "$0";
+  return `${formatMoney(mission.reward)}${mission.researchReward ? ` + ${formatResearch(mission.researchReward)}R` : ""}`;
+}
 
 function renderEarthMines(data = game.getHudData()) {
   if (!earthMineCountEl || !earthMineIncomeEl || !earthMineTotalIncomeEl || !earthMineStatusEl || !buyEarthMineButton) return;
@@ -944,19 +1030,24 @@ function renderPlanetRegistry(data = game.getHudData()) {
   const scanRate = Number(data.company?.scanPerSecond ?? 0);
 
   planetRegistryStatusEl.textContent = `${Math.max(0, discovered.length - 1)} discovered`;
-  planetRegistryListEl.innerHTML = planets.map((planet) => `
-    <article class="planet-card ${planet.discovered ? "discovered" : "locked"}">
-      <div>
-        <strong>${escapeHtml(planet.discovered ? planet.name : "Unknown Signal")}</strong>
-        <span>${escapeHtml(planet.discovered ? planet.classification : `${Math.floor(planet.scanProgress ?? 0)} / ${planet.scanRequired.toLocaleString()} Scan`)}</span>
-      </div>
-      <div class="planet-tags">
-        <span>${escapeHtml(planet.discovered ? planet.distanceLabel : "???")}</span>
-        <span>${escapeHtml(planet.discovered ? planet.mineralsLabel : "Minerals ?")}</span>
-        <span>${escapeHtml(planet.discovered ? planet.habitabilityLabel : "Hab ?")}</span>
-      </div>
-    </article>
-  `).join("");
+  planetRegistryListEl.innerHTML = planets.map((planet) => {
+    const progress = Math.round(Math.max(0, Math.min(1, Number(planet.progress ?? 0))) * 100);
+    const color = planet.visualColor ?? "#a78bfa";
+    return `
+      <article class="planet-card ${planet.discovered ? "discovered" : "locked"}" style="--planet-color: ${escapeHtml(color)}">
+        <div class="planet-orb" aria-hidden="true"><span></span></div>
+        <div class="planet-card-copy">
+          <strong>${escapeHtml(planet.discovered ? planet.name : "Unknown Signal")}</strong>
+          <span>${escapeHtml(planet.discovered ? planet.classification : `${Math.floor(planet.scanProgress ?? 0)} / ${planet.scanRequired.toLocaleString()} Scan`)}</span>
+          ${planet.discovered ? `<p>${escapeHtml(planet.description ?? "Mapped destination.")}</p>` : `<div class="planet-card-progress"><span style="width:${progress}%"></span></div>`}
+        </div>
+        <div class="planet-tags">
+          <span>${escapeHtml(planet.discovered ? planet.distanceLabel : "???")}</span>
+          <span>${escapeHtml(planet.discovered ? planet.mineralsLabel : "Minerals ?")}</span>
+          <span>${escapeHtml(planet.discovered ? planet.habitabilityLabel : "Hab ?")}</span>
+        </div>
+      </article>`;
+  }).join("");
 
   if (signal.complete) {
     planetSignalNameEl.textContent = "Survey Complete";

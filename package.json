@@ -1,10 +1,10 @@
 {
   "name": "novalift",
-  "version": "0.9.3",
-  "description": "Vertical mobile-first 2D rocket company prototype with simplified launchpad flow, stronger mobile readability, and clearer world-view tracking.",
+  "version": "0.9.4",
+  "description": "Vertical mobile-first 2D rocket company prototype with title-screen branding, visual campaign chapters, app-style badges, and stronger discovery presentation.",
   "type": "module",
   "private": true,
   "scripts": {
-    "check": "node --check src/*.js"
+    "check": "for file in src/*.js; do node --check \"$file\"; done"
   }
 }

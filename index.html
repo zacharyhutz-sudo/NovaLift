@@ -4,18 +4,38 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050816" />
-    <title>NovaLift v0.9.3</title>
+    <title>NovaLift v0.9.4</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <main id="gameShell" class="builder-open">
+    <main id="gameShell" class="builder-open title-open">
       <canvas id="gameCanvas" aria-label="NovaLift 2D vertical space flight sandbox"></canvas>
+
+      <section id="titleScreen" class="title-screen" aria-label="NovaLift title screen">
+        <div class="title-orbit-grid" aria-hidden="true"></div>
+        <div class="title-card">
+          <div class="nova-logo-mark title-logo" aria-hidden="true"><span>NL</span></div>
+          <p class="eyebrow">NovaLift Aerospace</p>
+          <h1>NovaLift</h1>
+          <p class="title-tagline">Build rockets. Grow your space company. Reach farther.</p>
+          <div class="title-feature-strip" aria-label="Game pillars">
+            <span><b>01</b> Build</span>
+            <span><b>02</b> Orbit</span>
+            <span><b>03</b> Discover</span>
+          </div>
+          <div class="title-actions">
+            <button id="titleContinue" class="title-primary-button" type="button">Continue Program</button>
+            <button id="titleNewCompany" class="title-secondary-button" type="button">New Company</button>
+          </div>
+          <small>v0.9.4 · Mobile-first prototype</small>
+        </div>
+      </section>
 
       <div class="top-layer" aria-label="Flight status and camera controls">
         <section id="hud" class="compact-hud" aria-label="Flight status">
           <div class="brand-chip">
             <strong>NovaLift</strong>
-            <span>v0.9.3</span>
+            <span>v0.9.4</span>
           </div>
           <div class="hud-stats">
             <div class="hud-stat"><span>Alt</span><strong id="altitude">0 m</strong></div>
@@ -41,10 +61,13 @@
 
       <section id="builderScreen" class="builder-screen" aria-label="Rocket builder">
         <div class="builder-header">
-          <div>
-            <p class="eyebrow">Launchpad</p>
-            <h1>Ready to fly</h1>
-            <p class="builder-copy">Follow the campaign objective, use the suggested rocket, and grow your space program.</p>
+          <div class="builder-brand-lockup">
+            <div class="nova-logo-mark builder-logo" aria-hidden="true"><span>NL</span></div>
+            <div>
+              <p class="eyebrow">Launchpad</p>
+              <h1>Ready to fly</h1>
+              <p class="builder-copy">Follow the campaign objective, use the suggested rocket, and grow your space program.</p>
+            </div>
           </div>
           <div class="builder-header-actions">
             <button id="builderWorldViewHero" type="button" class="world-view-hero-button">
@@ -120,7 +143,7 @@
           <div class="program-card-grid">
             <section class="builder-card research-teaser-card" id="builderResearchSection" aria-label="Research overview">
           <div class="builder-section-title">
-            <h2>Research</h2>
+            <h2><span class="system-icon research-icon" aria-hidden="true">R</span>Research</h2>
             <span id="builderResearchMiniStatus">0R · 0R/sec</span>
           </div>
           <div class="research-teaser-grid">
@@ -134,7 +157,7 @@
 
             <section class="builder-card orbital-network-card" id="builderNetworkSection" aria-label="Orbital network">
           <div class="builder-section-title">
-            <h2>Orbital Network</h2>
+            <h2><span class="system-icon network-icon" aria-hidden="true">O</span>Orbital Network</h2>
             <span id="orbitalNetworkStatus">No signal</span>
           </div>
           <div class="orbital-network-grid">
@@ -151,7 +174,7 @@
 
             <section class="builder-card planet-registry-card" id="builderPlanetSection" aria-label="Planet registry">
           <div class="builder-section-title">
-            <h2>Planet Registry</h2>
+            <h2><span class="system-icon planet-icon" aria-hidden="true">P</span>Planet Registry</h2>
             <span id="planetRegistryStatus">Homeworld only</span>
           </div>
           <div id="planetRegistryList" class="planet-registry-list"></div>
@@ -164,7 +187,7 @@
 
             <section class="builder-card earth-mines-card" id="builderMinesSection" aria-label="Earth mines">
           <div class="builder-section-title">
-            <h2>Earth Mines</h2>
+            <h2><span class="system-icon mine-icon" aria-hidden="true">M</span>Earth Mines</h2>
             <span id="earthMineMiniStatus">$1/s each</span>
           </div>
           <div class="earth-mines-grid">
@@ -181,7 +204,7 @@
 
             <section class="builder-card template-card-wrap" aria-label="Quick rocket templates">
           <div class="builder-section-title">
-            <h2>Rocket Presets</h2>
+            <h2><span class="system-icon preset-icon" aria-hidden="true">B</span>Rocket Presets</h2>
             <span>Tap to swap</span>
           </div>
           <div id="templateDeck" class="template-deck"></div>

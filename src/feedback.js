@@ -134,13 +134,14 @@ export class FeedbackCenter {
     window.setTimeout(() => toast.remove(), Math.max(1100, duration + 260));
   }
 
-  reward({ title = "Reward", subtitle = "", stats = [], tone = "success" } = {}) {
+  reward({ title = "Reward", subtitle = "", stats = [], tone = "success", kicker = "Milestone", icon = "★" } = {}) {
     if (!this.rewardRoot) return;
     window.clearTimeout(this.rewardDismissTimer);
     this.rewardRoot.innerHTML = `
       <div class="reward-card ${escapeHtml(tone)}">
         <div class="reward-burst" aria-hidden="true"></div>
-        <div class="reward-kicker">Milestone</div>
+        <div class="reward-badge" aria-hidden="true">${escapeHtml(icon)}</div>
+        <div class="reward-kicker">${escapeHtml(kicker)}</div>
         <h2>${escapeHtml(title)}</h2>
         ${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ""}
         ${stats.length ? `<div class="reward-stats">${stats.map((stat) => `<span>${escapeHtml(stat)}</span>`).join("")}</div>` : ""}

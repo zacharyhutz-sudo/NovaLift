@@ -411,7 +411,9 @@ export class Game {
           title: discoveries.length === 1 ? `Planet Discovered: ${names}` : "New Planets Discovered",
           subtitle: "Your orbital network revealed a new destination.",
           stats: discoveries.map((planet) => `${planet.name}: ${Math.round((planet.gravity ?? 0) * 100) / 100}g`),
-          tone: "reward"
+          tone: "reward",
+          kicker: "Discovery",
+          icon: "◐"
         },
         worldEffect: { type: "unlock", x: this.rocket.x, y: this.rocket.y }
       });
@@ -498,7 +500,9 @@ export class Game {
           title: newlyCompleted.length === 1 ? newlyCompleted[0].title : "Mission Chain Complete",
           subtitle: "Rewards added to your space program.",
           stats,
-          tone: "success"
+          tone: "success",
+          kicker: newlyCompleted.length === 1 ? "Mission Complete" : "Campaign Progress",
+          icon: "★"
         },
         worldEffect: { type: "reward", x: this.rocket.x, y: this.rocket.y }
       });
@@ -752,7 +756,9 @@ export class Game {
           title: result.node.name,
           subtitle: result.node.unlockText ?? "New program capability unlocked.",
           stats: [`-${formatResearch(result.node.cost ?? 0)}R`],
-          tone: "reward"
+          tone: "reward",
+          kicker: "Program Unlock",
+          icon: "✦"
         }
       });
       this.saveCompany();

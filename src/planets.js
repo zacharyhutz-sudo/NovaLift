@@ -174,6 +174,7 @@ export function getPlanetRegistryView(company = {}) {
     return {
       ...planet,
       physical: isDiscovered ? getPhysicalPlanet(planet) : null,
+      visualColor: planet.physical?.color ?? "#a78bfa",
       discovered: isDiscovered,
       locked: !isDiscovered,
       progress,
