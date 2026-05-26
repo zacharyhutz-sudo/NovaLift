@@ -865,42 +865,79 @@ export class Renderer {
 
     const screen = this.worldToScreen(rocket.x, rocket.y);
     const travelAngle = Math.atan2(rocket.vy, rocket.vx);
+    const bodyAngle = rocket.angle ?? travelAngle;
+    const angleDelta = normalizeAngle(travelAngle - bodyAngle);
+    const alignment = Math.abs(Math.cos(angleDelta));
+    const crossflow = Math.abs(Math.sin(angleDelta));
+    const flowSign = Math.sign(Math.sin(angleDelta)) || 1;
     const intensity = clamp((speed - 155) / 360, 0, 1) * clamp(density * 2.25, 0, 1);
-    const wakeLength = (42 + intensity * 86) * this.dpr;
-    const wakeWidth = (26 + intensity * 54) * this.dpr;
+    const bodyRadius = Math.max(12, ((rocket.collisionRadius ?? 92) * this.camera.scale * 0.44));
+    const trailLength = (46 + intensity * 110) * this.dpr * (0.9 + crossflow * 0.32);
+    const trailWidth = (18 + intensity * 34) * this.dpr * (0.72 + crossflow * 1.08);
+    const sideBias = flowSign * trailWidth * 0.34 * crossflow;
+    const noseLength = bodyRadius * (0.92 + intensity * 0.7);
+    const noseWidth = bodyRadius * (0.62 + crossflow * 0.7);
 
     ctx.save();
     ctx.translate(screen.x, screen.y);
     ctx.rotate(travelAngle);
 
-    // A soft bow-wave communicates drag without noisy speed-line clutter.
-    const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, wakeWidth * 1.25);
-    glow.addColorStop(0, `rgba(186, 230, 253, ${0.06 + intensity * 0.10})`);
-    glow.addColorStop(0.62, `rgba(125, 211, 252, ${0.035 + intensity * 0.08})`);
-    glow.addColorStop(1, "rgba(125, 211, 252, 0)");
-    ctx.fillStyle = glow;
+    // Leading compression glow. This brightens the nose during high-speed re-entry.
+    const plasma = ctx.createRadialGradient(bodyRadius * 0.2, 0, 0, bodyRadius * 0.45, 0, noseLength * 1.55);
+    plasma.addColorStop(0, `rgba(255, 251, 235, ${0.18 + intensity * 0.18})`);
+    plasma.addColorStop(0.22, `rgba(253, 186, 116, ${0.14 + intensity * 0.20})`);
+    plasma.addColorStop(0.52, `rgba(251, 146, 60, ${0.08 + intensity * 0.16})`);
+    plasma.addColorStop(0.86, `rgba(125, 211, 252, ${0.04 + intensity * 0.08})`);
+    plasma.addColorStop(1, 'rgba(125, 211, 252, 0)');
+    ctx.fillStyle = plasma;
     ctx.beginPath();
-    ctx.ellipse(-wakeLength * 0.08, 0, wakeWidth * 0.82, wakeWidth * 0.48, 0, 0, Math.PI * 2);
+    ctx.ellipse(bodyRadius * 0.46, 0, noseLength, noseWidth, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.lineCap = "round";
-    ctx.lineWidth = Math.max(1, (0.9 + intensity * 1.15) * this.dpr);
-    const streaks = 3;
-    for (let i = 0; i < streaks; i += 1) {
-      const offset = (i - 1) * wakeWidth * 0.28;
-      const alpha = 0.045 + intensity * (0.13 - Math.abs(i - 1) * 0.025);
-      ctx.strokeStyle = `rgba(191, 219, 254, ${alpha})`;
-      ctx.beginPath();
-      ctx.moveTo(-wakeLength * 0.18, offset);
-      ctx.quadraticCurveTo(-wakeLength * 0.55, offset * 0.8, -wakeLength, offset * 0.35);
-      ctx.stroke();
-    }
+    // A faint sheath tilts toward the rocket body orientation so angled flight looks different.
+    ctx.save();
+    ctx.rotate(angleDelta * 0.3);
+    ctx.strokeStyle = `rgba(254, 240, 138, ${0.03 + intensity * 0.16})`;
+    ctx.lineWidth = Math.max(1, (0.85 + intensity * 1.2) * this.dpr);
+    ctx.beginPath();
+    ctx.ellipse(bodyRadius * 0.08, 0, noseLength * (0.72 + alignment * 0.1), noseWidth * 0.9, 0, Math.PI * 0.72, Math.PI * 1.28);
+    ctx.stroke();
+    ctx.restore();
 
-    if (intensity > 0.64) {
-      ctx.strokeStyle = `rgba(254, 240, 138, ${(intensity - 0.64) * 0.18})`;
-      ctx.lineWidth = Math.max(1, 1.2 * this.dpr);
+    // The trailing slipstream stretches behind the rocket and becomes wider in crossflow.
+    const wake = ctx.createRadialGradient(-trailLength * 0.14, sideBias * 0.14, 0, -trailLength * 0.28, sideBias * 0.14, trailLength * 0.96);
+    wake.addColorStop(0, `rgba(186, 230, 253, ${0.06 + intensity * 0.12})`);
+    wake.addColorStop(0.42, `rgba(125, 211, 252, ${0.04 + intensity * 0.10})`);
+    wake.addColorStop(1, 'rgba(125, 211, 252, 0)');
+    ctx.fillStyle = wake;
+    ctx.beginPath();
+    ctx.ellipse(-trailLength * 0.24, sideBias * 0.12, trailWidth * (1.02 + crossflow * 0.18), trailWidth * (0.40 + alignment * 0.08), 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.lineCap = 'round';
+    const streamOffsets = [-0.92, -0.42, 0, 0.42, 0.92].map((value) => value * trailWidth * 0.32);
+    streamOffsets.forEach((offset, index) => {
+      const startY = offset * (0.78 + alignment * 0.12) + sideBias * 0.08;
+      const endY = offset * (0.24 + crossflow * 0.34) + sideBias * (0.52 + Math.abs(offset) / (trailWidth + 1));
+      const alpha = 0.032 + intensity * (0.09 - Math.abs(index - 2) * 0.012);
+      ctx.strokeStyle = `rgba(191, 219, 254, ${Math.max(0.018, alpha)})`;
+      ctx.lineWidth = Math.max(1, (0.72 + intensity * 0.95 - Math.abs(index - 2) * 0.08) * this.dpr);
       ctx.beginPath();
-      ctx.ellipse(0, 0, wakeWidth * 0.66, wakeWidth * 0.38, 0, Math.PI * 0.72, Math.PI * 1.28);
+      ctx.moveTo(-bodyRadius * 0.1, startY);
+      ctx.bezierCurveTo(
+        -trailLength * 0.24, startY + sideBias * 0.08,
+        -trailLength * 0.56, endY,
+        -trailLength, endY + sideBias * 0.16
+      );
+      ctx.stroke();
+    });
+
+    if (crossflow > 0.18) {
+      ctx.strokeStyle = `rgba(103, 232, 249, ${0.04 + intensity * 0.12})`;
+      ctx.lineWidth = Math.max(1, (0.95 + intensity * 1.05) * this.dpr);
+      ctx.beginPath();
+      ctx.moveTo(bodyRadius * 0.05, sideBias * 0.34);
+      ctx.quadraticCurveTo(-trailLength * 0.3, sideBias * 0.85, -trailLength * 0.86, sideBias * 1.08);
       ctx.stroke();
     }
 
