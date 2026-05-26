@@ -1,77 +1,112 @@
-# NovaLift v0.9.4 — Identity + Progression Presentation
+# NovaLift v0.6.3 — Research Pacing Fix
 
-NovaLift is a portrait/mobile-first 2D rocket company game prototype. This patch adds a stronger product wrapper around the existing game: a real title screen, a branded launchpad lockup, visual campaign chapters, system badges, richer reward cards, and a more dramatic planet registry.
+NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version fixes the early Research pacing so Orbital Telemetry cannot become a dead-end gate.
 
-## What is new in v0.9.4
 
-- Added a full-screen NovaLift title/home screen with:
-  - Logo mark
-  - Tagline
-  - Continue Program action
-  - Tucked-away New Company reset action
-  - Build / Orbit / Discover game-pillar strip
-- Added a reusable NovaLift logo mark to the Launchpad header.
-- Added system badges/icons for Research, Orbital Network, Planet Registry, Earth Mines, and Rocket Presets.
-- Reworked the expanded mission view into a campaign road grouped by chapter:
-  - Flight School
-  - Orbit Program
-  - Orbital Business
-  - Exploration Program
-- Added chapter cards with progress bars, numbered mission nodes, current-chapter styling, and claimed reward labels.
-- Improved the Current Objective card with a chapter emblem and clearer mission/reward chips.
-- Improved reward reveal cards with a larger badge icon and customizable kicker text for:
-  - Mission Complete
-  - Campaign Progress
-  - Program Unlock
-  - Discovery
-- Improved the Planet Registry presentation:
-  - Planet orb visuals
-  - Locked unknown-signal silhouettes
-  - Per-planet scan progress bars
-  - Discovered planet descriptions
-- Added `visualColor` to planet registry data so UI cards can style each world even before full physical details are revealed.
-- Updated project version and syntax-check script.
+## What is new in v0.6.3
 
-## Previous v0.9.3 features retained
+- Reduced **Orbital Telemetry** from 25R to 20R so it is reachable from the first small set of mission Research rewards.
+- Added a mission-research backfill on save load: if a player completed missions before the current Research rewards were balanced, the game grants any missing Research they should have earned.
+- This keeps existing saves from getting stuck short of the first passive-R/sec unlock.
 
-- Reordered the Launchpad around the player’s next action:
-  - Current Objective
-  - Rocket Preview
-  - Rocket Readiness
-  - Launch
-  - Optional Editor
-  - Program Systems
-- Added prominent World View entry from the Launchpad header.
-- Added Goal, Rocket, Upgrades, and World sticky Launchpad navigation.
-- Added mission progress bars and quick objective actions.
-- Moved Research, Orbital Network, Planet Registry, Earth Mines, and Rocket Presets into Program Systems.
-- Improved mobile spacing, tap targets, and card hierarchy.
-- Improved World View focus and object tracking clarity.
-- Grouped the object tracker into Payloads, Command Pods, and Debris.
-- Added stronger selected-object tracker styling, labels, icons, and current-rocket selection rings.
+## What was new in v0.6.2
 
-## Previous v0.9.2 features retained
+- Reduced launch-view congestion on mobile by shrinking bottom flight controls, stage preview, fuel bars, and the top HUD.
+- Removed the keyboard help text from the bottom of the flight view to free up more viewport space.
+- Hid the mission description panel on phone-sized flight screens so the rocket/world view stays cleaner.
+- Replaced the long inline Research section with a compact builder card and a dedicated **Research Lab** page.
+- Added a Research guide that explains how to earn R:
+  - Complete missions for direct R rewards.
+  - Research **Orbital Telemetry** so online satellites and data centers generate R/sec.
+- Added a recommended research card so the next useful unlock is easier to identify.
+- Research-producing parts now say **Research after Orbital Telemetry** until that upgrade is complete.
+- Tracker/object inspector research rates now reflect whether Orbital Telemetry is actually unlocked.
+- Passive income and Research/sec now continue while the player is in the builder or Research Lab.
 
-- Reusable feedback event pipeline from game logic to the UI.
-- Toast notifications for launches, staging, mission completion, research, discovery, economy events, and warnings.
-- Reward reveal cards for major milestones and unlocks.
-- Mobile haptic feedback through `navigator.vibrate` where supported.
-- Optional generated Web Audio sound system with HUD toggle.
-- Tactile button press states and animated launch-button sheen.
-- Flight-view juice including launch smoke, stage burst particles, crash glow, landing dust, reward/unlock pings, engine sparkle trails, and camera shake.
+## What was fixed in v0.6.1
 
-## Core features
+- Launching a new rocket now explicitly clears any old tracked-object camera target.
+- The **Current Command Pod** tracker row now forces the camera back to the active rocket instead of re-centering on the last selected object.
+- Opening the builder clears object-follow state so the next launch starts focused on the new rocket.
+- Closing or destroying a tracked object releases object-follow mode and returns the camera to the active rocket.
+- Added renderer helpers for `followRocket()` and `clearObjectTracking()` so future world-view features can deliberately choose between rocket-follow and object-follow modes.
 
+## What is new in v0.6.0
+
+- Added a **Research Lab** to the builder screen.
+- Missions now award both cash and Research.
+- Added persistent company research state: current Research, total earned, completed nodes, and Research/sec.
+- Added an **Orbital Telemetry** research node so online payloads can generate Research over time.
+- Added research-gated parts:
+  - Skyburner Engine
+  - Titan Engine
+  - Composite Fuel Tank
+  - Efficient Data Center
+  - Exploration Satellite
+- Locked parts now appear in the catalog with their required research instead of silently disappearing.
+- Career launches are blocked if the stack contains a locked part.
+- Added Research readouts to the HUD, builder, tracker, object inspector, and flight summary.
+- Added the first exploration hook: the Exploration Satellite is now unlockable, ready for planet discovery in the next milestone.
+
+## What was new in v0.5.5
+
+- Added a **World View** button directly in the builder so players can inspect the persistent orbital world anytime.
+- Added builder shortcut buttons for Rocket, Parts, and Missions sections.
+- Mission Board now defaults to a shorter recommended view with a **View All** toggle.
+- Selecting an object from Track now centers it, follows it, and keeps it highly visible.
+- The Center button now restores tracked-object or active-vessel follow behavior instead of just jumping once.
+- Added stronger pulsing rings and labels for selected satellites, data centers, command pods, and debris.
+- Added World View mode that hides flight controls and focuses on Build / Track / Pause.
+- Increased engine thrust by 20%.
+
+## What was new in v0.5.3
+
+### Cleaner starter planet
+
+- Homeworld is now a simpler bluish-green sphere.
+- Removed the busy landmass/cloud treatment from the starter planet.
+- Added soft spherical shading, a subtle rim highlight, and a light atmosphere glow.
+
+### Cleaner air-resistance visuals
+
+- Replaced the harsher atmospheric streak effect with a softer bow-wave/wake effect.
+- Drag visuals are now subtler at medium speed and only become more noticeable under heavier atmospheric load.
+- Rocket readability should be improved during launch and descent.
+
+### Larger Homeworld
+
+- Increased Homeworld radius by 5x.
+- Scaled atmosphere height with the planet.
+- Scaled gravity parameter to preserve a familiar surface-gravity launch feel.
+- Extended trajectory prediction so arcs still read better around the larger world.
+- Lowered automatic/manual minimum camera scale so the player can still zoom out meaningfully.
+
+### Economy scale rebalance
+
+- Increased all part costs by 20x.
+- Increased starting career cash from $25,000 to $500,000.
+- Increased mission rewards by 20x.
+- Scaled payload income to match the larger economy:
+  - Satellite: $140/sec
+  - Data Center: $360/sec
+- Older company/object saves migrate into the new economy scale when loaded.
+
+## Existing features retained
+
+- Mobile-first vertical flight view.
 - Rocket construction from a vertical stack of parts.
 - Live builder preview.
 - Quick Build templates, Auto-Stage, part category tabs, recommended parts, and +3 quick-add controls.
-- Staging, decouplers, satellites, data centers, parachutes, landing legs, and recovery cash-in.
-- Career Mode, Sandbox Mode, launch costs, mission rewards, recurring payload income, Research, and Scan progression.
-- Persistent world objects and company state saved to `localStorage`.
-- Procedural starfield, color-coded trajectory lines, planet shading, atmosphere, drag, and orbital prediction.
-- World View with object tracking, command-vessel switching, selling, and destroying.
-- Physical discovered planets with gravity wells and landing surfaces.
-- Stage fuel bars that combine tanks by stage.
+- Stage preview text in flight.
+- Staging, decouplers, satellites, data centers, parachutes, and landing legs.
+- Basic atmosphere, drag, parachute recovery, and per-part hitboxes.
+- Mission Board, Career Mode, Sandbox Mode, launch costs, mission rewards, recovery cash-in, and recurring payload income.
+- The **Track** button toggles an orbit tracker panel for command pods, satellites, data centers, and debris.
+- Separated stages become tracked debris objects instead of vanishing.
+- Tap/click a deployed object in flight to inspect it.
+- Tap orbital debris and choose **Explode Debris** to remove it.
+- Persistent world objects and company state save to `localStorage`.
+- Procedural starfield, color-coded trajectory lines, lightweight engine effects, and builder hangar visuals.
 
 ## Controls
 
@@ -90,9 +125,8 @@ Mobile:
 - Touch **Thrust**, **Left**, **Right**, **Stage**, **Track**, **Pause**, **Build**, and **Center** buttons.
 - Drag the flight view to pan the camera.
 - Pinch the flight view to zoom.
-- Tap **Center** to return to rocket or tracked-object follow mode.
-- Tap **SND Off / SND On** to toggle optional game sounds.
+- Tap **Center** to return to rocket follow mode.
 
 ## Testing
 
-Open `index.html` directly or host the folder through GitHub Pages/Netlify. No build step is required. Run `npm run check` to syntax-check all source files.
+Open `index.html` directly or host the folder through GitHub Pages/Netlify. No build step is required.
