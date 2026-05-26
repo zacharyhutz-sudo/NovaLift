@@ -1,4 +1,19 @@
-# NovaLift v0.9.4.2 — World View Control Polish
+# NovaLift v0.9.4.3 — Research RPG Tree Redesign
+
+NovaLift is a portrait/mobile-first 2D rocket company game prototype. This patch redesigns the Research Lab into a more polished RPG-style skill progression screen inspired by mobile talent trees, without using emoji icons.
+
+## What is new in v0.9.4.3
+
+- Rebuilt the Research Lab around a top Recommended upgrade card.
+- Replaced the previous roadmap layout with four RPG-style research paths: Propulsion, Orbital Ops, Exploration, and Planetary Systems.
+- Added large circular node treatments with clear READY, DONE, LOCKED, and research-shortfall states.
+- Added lane-colored progression styling and tier labels: Common, Uncommon, Rare, Epic, and Legendary.
+- Added a selected-upgrade detail panel with effect, requirements, and research action.
+- Added a compact tier/status legend.
+- Converted research node icons to text-based badges and initials instead of emojis.
+- Preserved existing research costs, unlock logic, prerequisites, and save compatibility.
+
+## Previous v0.9.4.2 — World View Control Polish
 
 NovaLift is a portrait/mobile-first 2D rocket company game prototype. This patch tightens the World View tracker so command pods can be inspected, controlled, and destroyed more reliably, reduces engine camera shake, and clears finished craft from the world after crashes or recovery cash-in.
 

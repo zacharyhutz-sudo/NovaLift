@@ -154,6 +154,7 @@ let missionsExpanded = false;
 let builderAdvancedOpen = false;
 let lastShownFlightSummaryKey = "";
 let lastResearchLiveRenderAt = 0;
+let selectedResearchId = null;
 const PART_CATEGORIES = [
   { id: "all", label: "All" },
   { id: "core", label: "Core", types: ["command", "decoupler"] },
@@ -285,13 +286,20 @@ function bindBuilderEvents() {
     renderBuilder();
   });
   bindDelegatedActivation(researchTreeEl, "[data-buy-research]", (button) => {
+    selectedResearchId = button.dataset.buyResearch || selectedResearchId;
     game.purchaseResearch(button.dataset.buyResearch);
+    renderBuilder();
+  });
+  bindDelegatedActivation(researchTreeEl, "[data-select-research]", (button, event) => {
+    if (event?.target?.closest?.("[data-buy-research]")) return;
+    selectedResearchId = button.dataset.selectResearch || selectedResearchId;
     renderBuilder();
   });
   bindDelegatedActivation(researchTreeEl, "[data-research-lane-jump]", (button) => {
     scrollToResearchLane(button.dataset.researchLaneJump);
   });
   bindDelegatedActivation(researchGuideEl, "[data-buy-research]", (button) => {
+    selectedResearchId = button.dataset.buyResearch || selectedResearchId;
     game.purchaseResearch(button.dataset.buyResearch);
     renderBuilder();
   });
@@ -1085,48 +1093,76 @@ function renderResearchLab(data) {
   const company = data.company ?? game.company;
   const researchPoints = company.researchPoints ?? 0;
   const researchRate = company.researchPerSecond ?? 0;
-  const completed = data.research?.filter((node) => node.complete).length ?? 0;
-  const total = data.research?.length ?? 0;
+  const nodes = data.research ?? [];
+  const completed = nodes.filter((node) => node.complete).length;
+  const total = nodes.length;
   const miniText = `${formatResearch(researchPoints, researchPoints < 10 ? 1 : 0)}R · ${formatResearchRate(researchRate)}R/sec`;
   if (builderResearchMiniStatusEl) builderResearchMiniStatusEl.textContent = miniText;
 
   if (!researchSummaryEl || !researchTreeEl) return;
 
-  researchSummaryEl.innerHTML = `
-    <div><span>R</span><strong>${formatResearch(researchPoints, researchPoints < 10 ? 1 : 0)}</strong></div>
-    <div><span>R/sec</span><strong>${formatResearchRate(researchRate)}</strong></div>
-    <div><span>Done</span><strong>${completed}/${total}</strong></div>
-  `;
-
-  const nodes = data.research ?? [];
   const nextMission = data.nextMission;
   const nextNode = getRecommendedResearchNode(nodes);
+  const selectedNode = getSelectedResearchNode(nodes, nextNode);
   const telemetryComplete = Boolean(company.completedResearch?.includes("orbital_telemetry"));
   const missionReward = nextMission?.researchReward ?? 0;
+  const labLevel = Math.max(1, completed + 1);
+
+  researchSummaryEl.innerHTML = `
+    <div><span>Research Points</span><strong>${formatResearch(researchPoints, researchPoints < 10 ? 1 : 0)}</strong></div>
+    <div><span>Data Rate</span><strong>${formatResearchRate(researchRate)}R/s</strong></div>
+    <div><span>Lab Level</span><strong>${labLevel}</strong></div>
+    <div><span>Progress</span><strong>${completed}/${total}</strong></div>
+  `;
 
   if (researchGuideEl) {
-    researchGuideEl.innerHTML = `
-      <article class="research-recommend-card research-recommend-card-hero">
-        <span>Recommended Next</span>
-        <strong>${escapeHtml(nextNode?.name ?? "Tree complete")}</strong>
-        <p>${escapeHtml(getResearchRecommendationText(nextNode, researchPoints))}</p>
-        ${nextNode?.available ? `<button type="button" data-buy-research="${escapeHtml(nextNode.id)}">Unlock for ${formatResearch(nextNode.cost)}R</button>` : ""}
-      </article>
-      <div class="research-earn-strip" aria-label="How to earn Research">
-        <div><span>Missions</span><strong>+${formatResearch(missionReward)}R next</strong></div>
-        <div><span>Telemetry</span><strong>${telemetryComplete ? "Online" : "Unlock first"}</strong></div>
-        <div><span>Payloads</span><strong>${formatResearchRate(researchRate)}R/s</strong></div>
-      </div>
-    `;
+    researchGuideEl.innerHTML = renderRpgRecommendedCard(nextNode, {
+      researchPoints,
+      researchRate,
+      missionReward,
+      telemetryComplete
+    });
   }
 
-  const laneConfig = [
-    { id: "propulsion", label: "Propulsion", icon: "P", summary: "Engines and lift" },
-    { id: "orbital", label: "Orbital Ops", icon: "O", summary: "Income and infrastructure" },
-    { id: "exploration", label: "Exploration", icon: "E", summary: "Survey new worlds" },
-    { id: "planetary", label: "Planetary", icon: "R", summary: "Probes and landers" }
-  ];
+  const laneConfig = getResearchLanes();
+  const nodesByLane = getResearchNodesByLane(nodes, laneConfig);
 
+  researchTreeEl.innerHTML = `
+    <section class="research-rpg-card">
+      <div class="research-rpg-map-top">
+        <div>
+          <span class="eyebrow">Skill Progression</span>
+          <strong>Upgrade your space program through four research paths.</strong>
+          <p>Tap a node to inspect it. Ready nodes glow. Locked nodes show what the program needs next.</p>
+        </div>
+        <div class="research-rpg-core" aria-label="Rocket Program Core">
+          <span>NL</span>
+          <strong>Rocket Program</strong>
+          <em>${completed}/${total} online</em>
+        </div>
+      </div>
+      <div class="research-lane-jumps research-rpg-tabs" aria-label="Jump to a research path">
+        ${laneConfig.map((lane) => renderResearchLaneJump(lane, nodesByLane.get(lane.id) ?? [])).join("")}
+      </div>
+      <div class="research-rpg-lanes">
+        ${laneConfig.map((lane) => renderResearchLane(lane, nodesByLane.get(lane.id) ?? [], selectedNode, researchPoints)).join("")}
+      </div>
+      ${renderSelectedResearchPanel(selectedNode, researchPoints)}
+      ${renderResearchLegend()}
+    </section>
+  `;
+}
+
+function getResearchLanes() {
+  return [
+    { id: "propulsion", label: "Propulsion", icon: "PX", summary: "Engines, tanks, and lift systems" },
+    { id: "orbital", label: "Orbital Ops", icon: "OO", summary: "Telemetry, payloads, and data" },
+    { id: "exploration", label: "Exploration", icon: "EX", summary: "Survey tools and planet discovery" },
+    { id: "planetary", label: "Planetary Systems", icon: "PS", summary: "Registry, transfer, and lander prep" }
+  ];
+}
+
+function getResearchNodesByLane(nodes = [], laneConfig = getResearchLanes()) {
   const nodesByLane = new Map(laneConfig.map((lane) => [lane.id, []]));
   nodes.forEach((node) => {
     const laneId = node.lane && nodesByLane.has(node.lane) ? node.lane : "orbital";
@@ -1135,39 +1171,59 @@ function renderResearchLab(data) {
   laneConfig.forEach((lane) => {
     nodesByLane.get(lane.id).sort((a, b) => (a.laneOrder ?? 0) - (b.laneOrder ?? 0) || a.cost - b.cost);
   });
+  return nodesByLane;
+}
 
-  researchTreeEl.innerHTML = `
-    <section class="research-map-card">
-      <div class="research-map-top">
-        <span class="eyebrow">Research Path</span>
-        <strong>Unlock one node to reach the next.</strong>
-        <p>Follow the four lanes below. Completed upgrades glow. Locked upgrades tell you what to finish first.</p>
-      </div>
-      <div class="research-lane-jumps" aria-label="Jump to a research lane">
-        ${laneConfig.map((lane) => renderResearchLaneJump(lane, nodesByLane.get(lane.id) ?? [])).join("")}
-      </div>
-      <div class="research-root">
-        <span class="research-root-kicker">Program Start</span>
-        <article class="research-root-node">
-          <div class="research-root-icon">N</div>
-          <strong>Rocket Program</strong>
-          <span>${completed}/${total} upgrades online</span>
-        </article>
-        <div class="research-root-links" aria-hidden="true">
-          <span></span><span></span><span></span><span></span>
+function renderRpgRecommendedCard(node, context = {}) {
+  const researchPoints = context.researchPoints ?? 0;
+  const researchRate = context.researchRate ?? 0;
+  const missionReward = context.missionReward ?? 0;
+  const telemetryComplete = Boolean(context.telemetryComplete);
+  const lane = getResearchLane(node?.lane);
+  const tier = getResearchTier(node);
+  if (!node) {
+    return `
+      <article class="research-rpg-hero tier-legendary lane-orbital">
+        <div class="research-rpg-hero-icon"><span>OK</span></div>
+        <div class="research-rpg-hero-copy">
+          <span class="research-rpg-kicker">Research Complete</span>
+          <strong>All current upgrades are online.</strong>
+          <p>Your current research program is fully upgraded for this version.</p>
+        </div>
+      </article>
+    `;
+  }
+  return `
+    <article class="research-rpg-hero tier-${escapeHtml(tier)} lane-${escapeHtml(lane.id)}">
+      <div class="research-rpg-hero-icon"><span>${escapeHtml(node.icon ?? lane.icon)}</span></div>
+      <div class="research-rpg-hero-copy">
+        <span class="research-rpg-kicker">Recommended</span>
+        <strong>${escapeHtml(node.name)}</strong>
+        <p>${escapeHtml(getResearchRecommendationText(node, researchPoints))}</p>
+        <div class="research-rpg-tags">
+          <span>${escapeHtml(getTierLabel(tier))}</span>
+          <span>${escapeHtml(lane.label)}</span>
+          <span>Tier ${getResearchTierNumber(node)}</span>
         </div>
       </div>
-      <div class="research-lane-grid">
-        ${laneConfig.map((lane) => renderResearchLane(lane, nodesByLane.get(lane.id) ?? [], researchPoints)).join("")}
+      <div class="research-rpg-hero-effect">
+        <span>${escapeHtml(node.effectLabel ?? "Program Upgrade")}</span>
+        <strong>${node.available ? "Ready" : node.waitingForPoints ? `${formatResearch(Math.max(0, node.cost - researchPoints))}R short` : "Locked"}</strong>
       </div>
-    </section>
+      <button type="button" data-buy-research="${escapeHtml(node.id)}" ${node.available ? "" : "disabled"}>Research ${formatResearch(node.cost)}R</button>
+      <div class="research-earn-strip research-rpg-earn" aria-label="How to earn Research">
+        <div><span>Missions</span><strong>+${formatResearch(missionReward)}R next</strong></div>
+        <div><span>Telemetry</span><strong>${telemetryComplete ? "Online" : "Unlock first"}</strong></div>
+        <div><span>Payloads</span><strong>${formatResearchRate(researchRate)}R/s</strong></div>
+      </div>
+    </article>
   `;
 }
 
 function renderResearchLaneJump(lane, nodes = []) {
   const completeCount = nodes.filter((node) => node.complete).length;
   return `
-    <button type="button" class="research-lane-jump" data-research-lane-jump="${escapeHtml(lane.id)}">
+    <button type="button" class="research-lane-jump lane-${escapeHtml(lane.id)}" data-research-lane-jump="${escapeHtml(lane.id)}">
       <span>${escapeHtml(lane.icon)}</span>
       <strong>${escapeHtml(lane.label)}</strong>
       <em>${completeCount}/${nodes.length}</em>
@@ -1175,20 +1231,20 @@ function renderResearchLaneJump(lane, nodes = []) {
   `;
 }
 
-function renderResearchLane(lane, nodes = [], researchPoints = 0) {
+function renderResearchLane(lane, nodes = [], selectedNode = null, researchPoints = 0) {
   const completeCount = nodes.filter((node) => node.complete).length;
   return `
-    <section id="research-lane-${escapeHtml(lane.id)}" class="research-flow-lane" tabindex="-1">
-      <div class="research-flow-lane-head">
-        <div class="research-flow-lane-icon">${escapeHtml(lane.icon)}</div>
+    <section id="research-lane-${escapeHtml(lane.id)}" class="research-rpg-lane lane-${escapeHtml(lane.id)}" tabindex="-1">
+      <div class="research-rpg-lane-head">
+        <div class="research-rpg-lane-emblem">${escapeHtml(lane.icon)}</div>
         <div>
           <h3>${escapeHtml(lane.label)}</h3>
           <p>${escapeHtml(lane.summary)}</p>
         </div>
         <span>${completeCount}/${nodes.length}</span>
       </div>
-      <div class="research-flow-stack">
-        ${nodes.map((node, index) => renderResearchFlowNode(node, researchPoints, index < nodes.length - 1)).join("")}
+      <div class="research-rpg-path">
+        ${nodes.map((node, index) => renderResearchFlowNode(node, selectedNode, researchPoints, index < nodes.length - 1)).join("")}
       </div>
     </section>
   `;
@@ -1203,40 +1259,128 @@ function scrollToResearchLane(laneId) {
   window.setTimeout(() => lane.classList.remove("research-lane-pulse"), 900);
 }
 
-function renderResearchFlowNode(node, researchPoints = 0, showConnector = false) {
+function renderResearchFlowNode(node, selectedNode = null, researchPoints = 0, showConnector = false) {
   const statusClass = node.complete ? "complete" : node.locked ? "locked" : node.available ? "available" : "waiting";
-  const statusText = getResearchNodeStatusText(node, researchPoints);
-  const buttonText = getResearchNodeButtonText(node);
+  const tier = getResearchTier(node);
+  const isSelected = selectedNode?.id === node.id;
+  const isRecommended = getRecommendedResearchNode(game.getHudData().research ?? [])?.id === node.id;
   return `
-    <article class="research-flow-node ${statusClass} ${showConnector ? "has-connector" : ""}">
-      <div class="research-flow-node-top">
-        <div class="research-flow-node-icon">${escapeHtml(node.icon ?? "N")}</div>
-        <div class="research-flow-node-copy">
-          <strong>${escapeHtml(node.treeName ?? node.name)}</strong>
-          <span>${escapeHtml(statusText)}</span>
+    <div class="research-rpg-node-wrap ${showConnector ? "has-connector" : ""}">
+      <button type="button" class="research-rpg-node ${statusClass} tier-${escapeHtml(tier)} ${isSelected ? "selected" : ""} ${isRecommended ? "recommended" : ""}" data-select-research="${escapeHtml(node.id)}" aria-pressed="${isSelected ? "true" : "false"}">
+        <span class="research-rpg-node-ring"><span>${escapeHtml(node.icon ?? "NL")}</span></span>
+        <span class="research-rpg-node-status">${escapeHtml(getResearchNodeStatusText(node, researchPoints))}</span>
+        <strong>${escapeHtml(node.treeName ?? node.name)}</strong>
+        <em>${escapeHtml(getTierLabel(tier))} · Tier ${getResearchTierNumber(node)}</em>
+      </button>
+    </div>
+  `;
+}
+
+function renderSelectedResearchPanel(node, researchPoints = 0) {
+  if (!node) return "";
+  const lane = getResearchLane(node.lane);
+  const tier = getResearchTier(node);
+  const prerequisites = node.prerequisites ?? [];
+  const pointShortfall = Math.max(0, Number(node.cost ?? 0) - researchPoints);
+  const requirementRows = [
+    ...prerequisites.map((id) => {
+      const met = !(node.missingPrerequisites ?? []).includes(id);
+      const label = node.missingPrerequisiteNames?.find((name) => name === id) ?? getResearchPrerequisiteLabel(id);
+      return `<li class="${met ? "met" : "unmet"}"><span>${met ? "Met" : "Need"}</span><strong>${escapeHtml(label)}</strong></li>`;
+    }),
+    `<li class="${pointShortfall <= 0 ? "met" : "unmet"}"><span>${pointShortfall <= 0 ? "Met" : "Need"}</span><strong>${pointShortfall <= 0 ? `${formatResearch(node.cost)}R available` : `${formatResearch(pointShortfall)}R more`}</strong></li>`
+  ].join("");
+
+  return `
+    <article class="research-selected-upgrade tier-${escapeHtml(tier)} lane-${escapeHtml(lane.id)}">
+      <div class="research-selected-icon"><span>${escapeHtml(node.icon ?? lane.icon)}</span></div>
+      <div class="research-selected-copy">
+        <span class="research-rpg-kicker">Selected Upgrade</span>
+        <h3>${escapeHtml(node.name)}</h3>
+        <div class="research-rpg-tags">
+          <span>${escapeHtml(lane.label)}</span>
+          <span>${escapeHtml(getTierLabel(tier))}</span>
+          <span>Tier ${getResearchTierNumber(node)}</span>
         </div>
-        <b>${node.complete ? "✓" : `${formatResearch(node.cost)}R`}</b>
+        <p>${escapeHtml(node.description ?? node.unlockText ?? "Upgrade your research program.")}</p>
+        <small>${escapeHtml(node.unlockText ?? node.shortUnlockText ?? "Adds a new program capability.")}</small>
       </div>
-      <small>${escapeHtml(node.shortUnlockText ?? node.unlockText ?? node.description ?? "")}</small>
-      <div class="research-flow-node-actions">
-        <button type="button" data-buy-research="${escapeHtml(node.id)}" ${node.available ? "" : "disabled"}>${escapeHtml(buttonText)}</button>
+      <div class="research-selected-effects">
+        <span>Effect</span>
+        <strong>${escapeHtml(node.effectLabel ?? node.shortUnlockText ?? "Program Upgrade")}</strong>
+        <ul>${requirementRows}</ul>
+        <button type="button" data-buy-research="${escapeHtml(node.id)}" ${node.available ? "" : "disabled"}>${escapeHtml(getResearchNodeButtonText(node))}</button>
       </div>
     </article>
   `;
 }
 
+function renderResearchLegend() {
+  return `
+    <div class="research-rpg-legend" aria-label="Research legend">
+      <span class="tier-common">Common</span>
+      <span class="tier-uncommon">Uncommon</span>
+      <span class="tier-rare">Rare</span>
+      <span class="tier-epic">Epic</span>
+      <span class="tier-legendary">Legendary</span>
+      <em>DONE Researched</em>
+      <em>READY Available</em>
+      <em>LOCKED Requires another node</em>
+    </div>
+  `;
+}
+
+function getSelectedResearchNode(nodes = [], nextNode = null) {
+  const selected = nodes.find((node) => node.id === selectedResearchId);
+  const fallback = nextNode
+    ?? nodes.find((node) => node.available)
+    ?? nodes.find((node) => node.waitingForPoints && !node.locked)
+    ?? nodes.find((node) => node.complete)
+    ?? nodes[0]
+    ?? null;
+  selectedResearchId = selected?.id ?? fallback?.id ?? null;
+  return selected ?? fallback;
+}
+
+function getResearchLane(laneId) {
+  return getResearchLanes().find((lane) => lane.id === laneId) ?? getResearchLanes()[1];
+}
+
+function getResearchTier(node = {}) {
+  if (node?.tier) return node.tier;
+  const cost = Number(node?.cost ?? 0);
+  if (cost >= 220) return "epic";
+  if (cost >= 120) return "rare";
+  if (cost >= 55) return "uncommon";
+  return "common";
+}
+
+function getTierLabel(tier = "common") {
+  const labels = { common: "Common", uncommon: "Uncommon", rare: "Rare", epic: "Epic", legendary: "Legendary" };
+  return labels[tier] ?? "Common";
+}
+
+function getResearchTierNumber(node = {}) {
+  return Math.max(1, Number(node.laneOrder ?? 1));
+}
+
+function getResearchPrerequisiteLabel(id) {
+  const view = game.getHudData().research ?? [];
+  return view.find((node) => node.id === id)?.name ?? id;
+}
+
 function getResearchNodeStatusText(node, researchPoints = 0) {
-  if (node.complete) return "Complete";
-  if (node.locked) return `Needs ${node.missingPrerequisiteNames.join(", ")}`;
-  if (node.available) return "Ready to unlock";
+  if (node.complete) return "DONE";
+  if (node.locked) return "LOCKED";
+  if (node.available) return "READY";
   return `${formatResearch(Math.max(0, node.cost - researchPoints))}R short`;
 }
 
 function getResearchNodeButtonText(node) {
-  if (node.complete) return "Done";
+  if (node.complete) return "Researched";
   if (node.locked) return "Locked";
-  if (node.available) return `Unlock`;
-  return "Need R";
+  if (node.available) return `Research ${formatResearch(node.cost)}R`;
+  return "Need Research";
 }
 
 function getRecommendedResearchNode(nodes = []) {
@@ -1248,7 +1392,7 @@ function getRecommendedResearchNode(nodes = []) {
 
 function getResearchRecommendationText(node, researchPoints = 0) {
   if (!node) return "You have finished the current research tree.";
-  if (node.complete) return "Already complete.";
+  if (node.complete) return "Already researched.";
   if (node.locked) return `Finish ${node.missingPrerequisiteNames.join(", ")} first.`;
   if (node.available) return `${node.unlockText ?? "This upgrade is ready."}`;
   return `Earn ${formatResearch(Math.max(0, node.cost - researchPoints))} more R from missions or payload data.`;
