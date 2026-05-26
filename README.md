@@ -1,7 +1,18 @@
-# NovaLift v0.6.3 — Research Pacing Fix
+# NovaLift v0.6.4 — Mines + Orbital Revenue Rebalance
 
-NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version fixes the early Research pacing so Orbital Telemetry cannot become a dead-end gate.
+NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version lowers orbital payload revenue, adds low-cost Earth mines for early cash flow, and keeps Research progression intact.
 
+
+
+## What is new in v0.6.4
+
+- Reduced cash and Research/sec output from orbital satellites and data centers by 50x so orbital infrastructure no longer overwhelms the economy.
+- Added **Earth Mines** as an early-game cash floor.
+  - Each mine costs $100,000.
+  - Each mine produces $1/sec.
+  - Players can own up to 10 mines.
+- Existing saved payload objects migrate to the new lower payload rates when loaded.
+- Added an Earth Mines builder card with mine count, income, lifetime mine earnings, and a buy button.
 
 ## What is new in v0.6.3
 

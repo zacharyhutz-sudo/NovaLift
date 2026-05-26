@@ -102,6 +102,15 @@ const openResearchLabButton = document.querySelector("#openResearchLab");
 const closeResearchLabButton = document.querySelector("#closeResearchLab");
 const researchScreenEl = document.querySelector("#researchScreen");
 const researchGuideEl = document.querySelector("#researchGuide");
+const earthMineCountEl = document.querySelector("#earthMineCount");
+const earthMineIncomeEl = document.querySelector("#earthMineIncome");
+const earthMineTotalIncomeEl = document.querySelector("#earthMineTotalIncome");
+const earthMineStatusEl = document.querySelector("#earthMineStatus");
+const buyEarthMineButton = document.querySelector("#buyEarthMine");
+
+const EARTH_MINE_COST = 100000;
+const EARTH_MINE_INCOME_RATE = 1;
+const EARTH_MINE_MAX = 10;
 
 let builderStack = [];
 let screenMode = "builder";
@@ -215,6 +224,10 @@ function bindBuilderEvents() {
   bindActivation(builderJumpToResearchButton, showResearchLab);
   bindActivation(openResearchLabButton, showResearchLab);
   bindActivation(closeResearchLabButton, hideResearchLab);
+  bindActivation(buyEarthMineButton, () => {
+    game.buyEarthMine();
+    renderBuilder();
+  });
   bindActivation(toggleMissionBoardViewButton, () => {
     missionsExpanded = !missionsExpanded;
     renderBuilder();
@@ -333,6 +346,7 @@ if (trackerListEl) {
 }
 
 function bindActivation(element, handler) {
+  if (!element) return;
   let lastPointerActivation = 0;
   const activate = (event) => {
     if (element.disabled) return;
@@ -348,6 +362,7 @@ function bindActivation(element, handler) {
 }
 
 function bindDelegatedActivation(container, selector, handler) {
+  if (!container) return;
   let lastPointerActivation = 0;
   const activate = (event) => {
     const button = event.target.closest(selector);
@@ -480,6 +495,7 @@ function renderBuilder(highlightErrors = false) {
   renderSelectedPart();
   const hudData = game.getHudData();
   renderMissionBoard(hudData);
+  renderEarthMines(hudData);
   renderResearchLab(hudData);
   renderValidation(validation, highlightErrors, canAfford, stats.cost, lockedParts);
 
@@ -583,7 +599,7 @@ function renderPartsCatalog(nextMission = null) {
           <span>Mass ${formatStatNumber(part.dryMass)}t</span>
           ${part.fuelCapacity ? `<span>Fuel ${Math.round(part.fuelCapacity)}</span>` : ""}
           ${part.thrust ? `<span>Thrust ${Math.round(part.thrust)}</span>` : ""}
-          ${part.incomeRate ? `<span>Income ${formatMoney(part.incomeRate)}/s</span>` : ""}
+          ${part.incomeRate ? `<span>Income ${formatMoneyRate(part.incomeRate)}/s</span>` : ""}
           ${part.researchRate ? `<span>${escapeHtml(getPartResearchMetric(part))}</span>` : ""}
           <span>Drag ${formatStatNumber(part.dragArea ?? 0, 1)}</span>
           ${part.stageAction ? `<span>Staged</span>` : ""}
@@ -612,7 +628,7 @@ function renderSelectedPart() {
     `Mass ${formatStatNumber(part.dryMass)}t`,
     part.fuelCapacity ? `Fuel ${Math.round(part.fuelCapacity)}` : "",
     part.thrust ? `Thrust ${Math.round(part.thrust)}` : "",
-    part.incomeRate ? `Income ${formatMoney(part.incomeRate)}/s` : "",
+    part.incomeRate ? `Income ${formatMoneyRate(part.incomeRate)}/s` : "",
     part.researchRate ? getPartResearchMetric(part) : "",
     `Drag ${formatStatNumber(part.dragArea ?? 0, 1)}`,
     part.stageAction ? `Default ${getStageLabel(getDefaultStageForPart(part))}` : "Flight part"
@@ -684,20 +700,44 @@ function renderMissionBoard(data) {
   `).join("");
 }
 
+function renderEarthMines(data = game.getHudData()) {
+  if (!earthMineCountEl || !earthMineIncomeEl || !earthMineTotalIncomeEl || !earthMineStatusEl || !buyEarthMineButton) return;
+  const company = data.company ?? game.company;
+  const count = Math.max(0, Math.min(EARTH_MINE_MAX, Math.floor(Number(company.earthMineCount ?? 0))));
+  const mineIncome = count * EARTH_MINE_INCOME_RATE;
+  const canBuy = count < EARTH_MINE_MAX && (company.mode === "sandbox" || Number(company.money ?? 0) >= EARTH_MINE_COST);
+  const remaining = Math.max(0, EARTH_MINE_MAX - count);
+
+  earthMineCountEl.textContent = `${count}/${EARTH_MINE_MAX}`;
+  earthMineIncomeEl.textContent = `${formatMoneyRate(mineIncome)}/s`;
+  earthMineTotalIncomeEl.textContent = formatMoney(company.totalMineRevenue ?? 0);
+  earthMineStatusEl.textContent = count >= EARTH_MINE_MAX
+    ? "Mine limit reached."
+    : canBuy
+      ? `${remaining} mine${remaining === 1 ? "" : "s"} available. Each adds ${formatMoneyRate(EARTH_MINE_INCOME_RATE)}/s.`
+      : `Need ${formatMoney(Math.max(0, EARTH_MINE_COST - Number(company.money ?? 0)))} more cash.`;
+  buyEarthMineButton.disabled = !canBuy;
+  buyEarthMineButton.textContent = count >= EARTH_MINE_MAX
+    ? "All Mines Built"
+    : company.mode === "sandbox"
+      ? `Add Mine (${count}/${EARTH_MINE_MAX})`
+      : `Buy Mine for ${formatMoney(EARTH_MINE_COST)}`;
+}
+
 function renderResearchLab(data) {
   const company = data.company ?? game.company;
   const researchPoints = company.researchPoints ?? 0;
   const researchRate = company.researchPerSecond ?? 0;
   const completed = data.research?.filter((node) => node.complete).length ?? 0;
   const total = data.research?.length ?? 0;
-  const miniText = `${formatResearch(researchPoints, researchPoints < 10 ? 1 : 0)}R · ${formatResearch(researchRate, 2)}R/sec`;
+  const miniText = `${formatResearch(researchPoints, researchPoints < 10 ? 1 : 0)}R · ${formatResearchRate(researchRate)}R/sec`;
   if (builderResearchMiniStatusEl) builderResearchMiniStatusEl.textContent = miniText;
 
   if (!researchSummaryEl || !researchTreeEl) return;
 
   researchSummaryEl.innerHTML = `
     <div><span>Available R</span><strong>${formatResearch(researchPoints, researchPoints < 10 ? 1 : 0)}</strong></div>
-    <div><span>R/sec</span><strong>${formatResearch(researchRate, 2)}</strong></div>
+    <div><span>R/sec</span><strong>${formatResearchRate(researchRate)}</strong></div>
     <div><span>Completed</span><strong>${completed}/${total}</strong></div>
   `;
 
@@ -708,7 +748,7 @@ function renderResearchLab(data) {
     const missionReward = nextMission?.researchReward ?? 0;
     const autoResearchText = telemetryComplete
       ? researchRate > 0
-        ? `Your online payloads are producing ${formatResearch(researchRate, 2)}R/sec.`
+        ? `Your online payloads are producing ${formatResearchRate(researchRate)}R/sec.`
         : "Orbital Telemetry is researched. Deploy an online satellite or data center to start passive R/sec."
       : "Buy Orbital Telemetry, then online satellites and data centers start producing R/sec.";
     researchGuideEl.innerHTML = `
@@ -797,7 +837,7 @@ function getPartResearchMetric(part) {
   const telemetryComplete = game.company.mode === "sandbox" || game.company.completedResearch?.includes("orbital_telemetry");
   if (!part.researchRate) return "";
   return telemetryComplete
-    ? `Research ${formatStatNumber(part.researchRate, 2)}/s`
+    ? `Research ${formatResearchRate(part.researchRate)}/s`
     : "Research after Orbital Telemetry";
 }
 
@@ -809,7 +849,7 @@ function updateHud(data) {
   statusEl.title = data.status;
   fpsEl.textContent = `${Math.round(data.fps)}`;
   if (companyCashHudEl) companyCashHudEl.textContent = data.company?.mode === "sandbox" ? "∞" : formatMoney(data.company?.money ?? 0);
-  if (companyIncomeHudEl) companyIncomeHudEl.textContent = `${formatMoney(data.company?.incomePerSecond ?? 0)}/s`;
+  if (companyIncomeHudEl) companyIncomeHudEl.textContent = `${formatMoneyRate(data.company?.incomePerSecond ?? 0)}/s`;
   if (companyResearchHudEl) companyResearchHudEl.textContent = `${formatResearch(data.company?.researchPoints ?? 0, 0)}R`;
   if (screenMode === "builder" && researchScreenEl && !researchScreenEl.classList.contains("hidden") && performance.now() - lastResearchLiveRenderAt > 500) {
     lastResearchLiveRenderAt = performance.now();
@@ -818,6 +858,7 @@ function updateHud(data) {
   gameShellEl.classList.toggle("income-active", (data.company?.incomePerSecond ?? 0) > 0);
   if (builderCashEl) builderCashEl.textContent = data.company?.mode === "sandbox" ? "∞" : formatMoney(data.company?.money ?? 0);
   if (builderModeLabelEl) builderModeLabelEl.textContent = data.company?.mode === "sandbox" ? "Sandbox Mode" : "Career Mode";
+  if (screenMode === "builder") renderEarthMines(data);
   if (nextStageActionEl) nextStageActionEl.textContent = screenMode === "builder" ? "Build a rocket first" : screenMode === "world" ? "Viewing persistent orbit network" : data.nextStageDescription;
   updateStageFuelPanel(data.stageFuel ?? []);
   updateObjectInspector(data.selectedObject);
@@ -829,13 +870,13 @@ function updateHud(data) {
     missionResultEl.textContent = next ? `Next mission: ${next.title} — ${next.objective}` : "All starter missions complete. Keep expanding your orbital network.";
     missionResultEl.classList.remove("success");
   } else if (screenMode === "world") {
-    missionResultEl.textContent = `World view: ${data.savedOrbitalObjects} payloads · ${data.debrisCount} debris · ${formatMoney(data.company?.incomePerSecond ?? 0)}/s income. Use Track to inspect objects.`;
+    missionResultEl.textContent = `World view: ${data.savedOrbitalObjects} payloads · ${data.debrisCount} debris · ${formatMoneyRate(data.company?.incomePerSecond ?? 0)}/s income. Use Track to inspect objects.`;
     missionResultEl.classList.toggle("success", (data.company?.incomePerSecond ?? 0) > 0);
   } else if (data.stageMessage) {
     missionResultEl.textContent = data.stageMessage;
     missionResultEl.classList.toggle("success", data.stageMessage.includes("Mission complete"));
   } else if (data.missionComplete) {
-    missionResultEl.textContent = data.onlinePayloads > 0 ? `Payload online: ${data.onlinePayloads} active · ${formatMoney(data.company?.incomePerSecond ?? 0)}/s income · ${data.debrisCount} debris.` : "Mission complete: stable orbit achieved.";
+    missionResultEl.textContent = data.onlinePayloads > 0 ? `Payload online: ${data.onlinePayloads} active · ${formatMoneyRate(data.company?.incomePerSecond ?? 0)}/s income · ${data.debrisCount} debris.` : "Mission complete: stable orbit achieved.";
     missionResultEl.classList.add("success");
   } else if (data.flightSummary) {
     const refundText = data.flightSummary.recoveryRefund > 0 ? ` Refund ${formatMoney(data.flightSummary.recoveryRefund)}.` : "";
@@ -898,7 +939,7 @@ function updateTrackerPanel(objects = []) {
   const income = payloads.reduce((total, object) => total + (object.incomeRate ?? 0), 0);
   const research = payloads.reduce((total, object) => total + (object.researchRate ?? 0), 0);
 
-  trackerSummaryEl.textContent = `${payloads.length} payloads · ${vessels.length} command pods · ${debris.length} debris · ${formatMoney(income)}/s · ${formatResearch(research, 2)}R/s`;
+  trackerSummaryEl.textContent = `${payloads.length} payloads · ${vessels.length} command pods · ${debris.length} debris · ${formatMoneyRate(income)}/s · ${formatResearchRate(research)}R/s`;
 
   if (!objects.length) {
     trackerListEl.innerHTML = `<div class="tracker-empty">No orbital objects yet. Deploy a satellite or data center to start earning income.</div>`;
@@ -908,9 +949,9 @@ function updateTrackerPanel(objects = []) {
   trackerListEl.innerHTML = objects.map((object) => {
     const onlineClass = object.online ? " online" : "";
     const selectedClass = game.selectedObjectId === object.id ? " selected" : "";
-    const income = object.incomeRate > 0 ? `${formatMoney(object.incomeRate)}/s` : "—";
+    const income = object.incomeRate > 0 ? `${formatMoneyRate(object.incomeRate)}/s` : "—";
     const research = object.researchRate > 0
-      ? `${formatResearch(object.researchRate, 2)}R/s`
+      ? `${formatResearchRate(object.researchRate)}R/s`
       : object.baseResearchRate > 0 && !object.researchUnlocked
         ? "Telemetry locked"
         : "—";
@@ -995,8 +1036,8 @@ function updateObjectInspector(info) {
     ["Status", titleCase(info.status)],
     ["Altitude", formatDistance(info.altitude)],
     ["Speed", `${info.speed.toFixed(1)} m/s`],
-    ["Income", info.incomeRate > 0 ? `${formatMoney(info.incomeRate)}/s` : "—"],
-    ["Research", info.researchRate > 0 ? `${formatResearch(info.researchRate, 2)}R/s` : info.baseResearchRate > 0 && !info.researchUnlocked ? "Needs Orbital Telemetry" : "—"],
+    ["Income", info.incomeRate > 0 ? `${formatMoneyRate(info.incomeRate)}/s` : "—"],
+    ["Research", info.researchRate > 0 ? `${formatResearchRate(info.researchRate)}R/s` : info.baseResearchRate > 0 && !info.researchUnlocked ? "Needs Orbital Telemetry" : "—"],
     ["Earned", formatMoney(info.revenueEarned ?? 0)],
     ["Data", `${formatResearch(info.researchEarned ?? 0, 1)}R`]
   ]
@@ -1061,6 +1102,21 @@ function getDefaultStageForPart(part) {
   if (part.stageAction === "decoupleBelow") return 1;
   if (part.stageAction === "deployPayload") return 2;
   return 3;
+}
+
+function formatMoneyRate(value) {
+  const amount = Number(value ?? 0);
+  if (!Number.isFinite(amount)) return "$0";
+  const decimals = Math.abs(amount) > 0 && Math.abs(amount) < 10 && !Number.isInteger(amount) ? 1 : 0;
+  return `$${amount.toLocaleString(undefined, { maximumFractionDigits: decimals, minimumFractionDigits: decimals })}`;
+}
+
+function formatResearchRate(value) {
+  const amount = Number(value ?? 0);
+  if (!Number.isFinite(amount) || amount <= 0) return "0";
+  if (amount < 0.01) return formatResearch(amount, 4);
+  if (amount < 1) return formatResearch(amount, 3);
+  return formatResearch(amount, 2);
 }
 
 function formatDistance(value) {

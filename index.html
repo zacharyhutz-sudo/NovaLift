@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050816" />
-    <title>NovaLift v0.6.2</title>
+    <title>NovaLift v0.6.4</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -15,7 +15,7 @@
         <section id="hud" class="compact-hud" aria-label="Flight status">
           <div class="brand-chip">
             <strong>NovaLift</strong>
-            <span>v0.6.2</span>
+            <span>v0.6.4</span>
           </div>
           <div class="hud-stats">
             <div class="hud-stat"><span>Alt</span><strong id="altitude">0 m</strong></div>
@@ -69,6 +69,23 @@
             </div>
           </div>
           <div id="missionBoard" class="mission-board"></div>
+        </section>
+
+        <section class="builder-card earth-mines-card" id="builderMinesSection" aria-label="Earth mines">
+          <div class="builder-section-title">
+            <h2>Earth Mines</h2>
+            <span>Stable starter income</span>
+          </div>
+          <div class="earth-mines-grid">
+            <div class="earth-mine-stat"><span>Mines</span><strong id="earthMineCount">0/10</strong></div>
+            <div class="earth-mine-stat"><span>Mine Income</span><strong id="earthMineIncome">$0/s</strong></div>
+            <div class="earth-mine-stat"><span>Earned</span><strong id="earthMineTotalIncome">$0</strong></div>
+          </div>
+          <p class="earth-mines-copy">Buy cheap Homeworld mines for a slow but reliable cash floor while orbital satellites and data centers become long-term infrastructure.</p>
+          <div class="earth-mines-actions">
+            <span id="earthMineStatus">Each mine costs $100,000 and produces $1/s.</span>
+            <button id="buyEarthMine" type="button" class="mini-button earth-mine-button">Buy Mine for $100,000</button>
+          </div>
         </section>
 
         <section class="builder-card research-teaser-card" id="builderResearchSection" aria-label="Research overview">

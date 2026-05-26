@@ -41,6 +41,10 @@ const CAREER_LAUNCHES_CHARGE_MONEY = true;
 const MAX_PERSISTENT_OBJECTS = 80;
 const ECONOMY_SCALE_VERSION = "v0.5.3-20x";
 const LEGACY_ECONOMY_MULTIPLIER = 20;
+const PAYLOAD_RATE_VERSION = "v0.6.4-payload-rates-50x";
+const EARTH_MINE_COST = 100000;
+const EARTH_MINE_INCOME_RATE = 1;
+const EARTH_MINE_MAX = 10;
 
 export class Game {
   constructor(input, renderer, rocketTemplate = ROCKET) {
@@ -250,16 +254,19 @@ export class Game {
   }
 
   updateEconomy(dt) {
-    let incomeRate = 0;
+    const mineCount = clampMineCount(this.company.earthMineCount);
+    const mineIncomeRate = mineCount * EARTH_MINE_INCOME_RATE;
+    let orbitalIncomeRate = 0;
     let researchRate = 0;
     const telemetryOnline = isResearchComplete(this.company, "orbital_telemetry");
+
     for (const object of this.objects) {
       if (!object || object.crashed || object.exploded) continue;
       updateDetachedObjectStatus(object, PLANET);
       if (object.kind === "payload" && object.online) {
         const rate = Number(object.incomeRate ?? 0);
         if (rate > 0) {
-          incomeRate += rate;
+          orbitalIncomeRate += rate;
           const earned = rate * dt;
           object.revenueEarned = (object.revenueEarned ?? 0) + earned;
         }
@@ -273,18 +280,55 @@ export class Game {
       }
     }
 
+    const incomeRate = mineIncomeRate + orbitalIncomeRate;
+    this.company.earthMineCount = mineCount;
+    this.company.earthMineIncomePerSecond = mineIncomeRate;
+    this.company.orbitalIncomePerSecond = orbitalIncomeRate;
     this.company.incomePerSecond = incomeRate;
     this.company.researchPerSecond = researchRate;
     if (incomeRate > 0) {
       const earned = incomeRate * dt;
       this.company.money += earned;
       this.company.totalRevenue += earned;
+      this.company.totalMineRevenue = (this.company.totalMineRevenue ?? 0) + mineIncomeRate * dt;
     }
     if (researchRate > 0) {
       const dataEarned = researchRate * dt;
       this.company.researchPoints = (this.company.researchPoints ?? 0) + dataEarned;
       this.company.totalResearchEarned = (this.company.totalResearchEarned ?? 0) + dataEarned;
     }
+  }
+
+  canBuyEarthMine() {
+    if (clampMineCount(this.company.earthMineCount) >= EARTH_MINE_MAX) return false;
+    if (this.company.mode === "sandbox") return true;
+    return Number(this.company.money ?? 0) >= EARTH_MINE_COST;
+  }
+
+  buyEarthMine() {
+    const current = clampMineCount(this.company.earthMineCount);
+    if (current >= EARTH_MINE_MAX) {
+      this.stageMessage = "Earth mine limit reached.";
+      this.stageMessageTimer = 5;
+      return { ok: false, reason: "Mine limit reached." };
+    }
+
+    if (this.company.mode !== "sandbox" && Number(this.company.money ?? 0) < EARTH_MINE_COST) {
+      this.stageMessage = `Need ${formatMoney(EARTH_MINE_COST)} to buy another Earth mine.`;
+      this.stageMessageTimer = 5;
+      return { ok: false, reason: "Not enough cash." };
+    }
+
+    if (this.company.mode !== "sandbox") {
+      this.company.money = Math.max(0, Number(this.company.money ?? 0) - EARTH_MINE_COST);
+      this.company.totalMineBuildCosts = (this.company.totalMineBuildCosts ?? 0) + EARTH_MINE_COST;
+    }
+    this.company.earthMineCount = current + 1;
+    this.company.earthMineIncomePerSecond = this.company.earthMineCount * EARTH_MINE_INCOME_RATE;
+    this.stageMessage = `Earth mine purchased. Mines now produce ${formatMoney(this.company.earthMineIncomePerSecond)}/sec.`;
+    this.stageMessageTimer = 7;
+    this.saveCompany();
+    return { ok: true, mineCount: this.company.earthMineCount };
   }
 
   updateMissions() {
@@ -464,6 +508,10 @@ export class Game {
         totalDestroyed: Number(parsed.totalDestroyed ?? 0),
         totalMissionRewards: scaleLegacyMoney(Number(parsed.totalMissionRewards ?? 0), isLegacyEconomy),
         totalLaunchCosts: scaleLegacyMoney(Number(parsed.totalLaunchCosts ?? 0), isLegacyEconomy),
+        earthMineCount: clampMineCount(parsed.earthMineCount),
+        earthMineIncomePerSecond: clampMineCount(parsed.earthMineCount) * EARTH_MINE_INCOME_RATE,
+        totalMineRevenue: Number(parsed.totalMineRevenue ?? 0),
+        totalMineBuildCosts: scaleLegacyMoney(Number(parsed.totalMineBuildCosts ?? 0), isLegacyEconomy),
         researchPoints: Number(parsed.researchPoints ?? STARTING_RESEARCH),
         totalResearchEarned: Number(parsed.totalResearchEarned ?? 0),
         completedResearch: normalizeResearchState(parsed.completedResearch),
@@ -474,6 +522,8 @@ export class Game {
         lastLaunchCost: scaleLegacyMoney(Number(parsed.lastLaunchCost ?? 0), isLegacyEconomy),
         missions: normalizeMissionState(parsed.missions),
         incomePerSecond: 0,
+        earthMineIncomePerSecond: clampMineCount(parsed.earthMineCount) * EARTH_MINE_INCOME_RATE,
+        orbitalIncomePerSecond: 0,
         researchPerSecond: 0
       };
       return backfillMissionResearchRewards(company);
@@ -496,6 +546,9 @@ export class Game {
         totalDestroyed: this.company.totalDestroyed,
         totalMissionRewards: this.company.totalMissionRewards ?? 0,
         totalLaunchCosts: this.company.totalLaunchCosts ?? 0,
+        earthMineCount: clampMineCount(this.company.earthMineCount),
+        totalMineRevenue: this.company.totalMineRevenue ?? 0,
+        totalMineBuildCosts: this.company.totalMineBuildCosts ?? 0,
         researchPoints: this.company.researchPoints ?? 0,
         totalResearchEarned: this.company.totalResearchEarned ?? 0,
         completedResearch: normalizeResearchState(this.company.completedResearch),
@@ -687,6 +740,8 @@ export class Game {
       `Payloads:      ${this.objects.filter((object) => object.kind === "payload" && object.online).length}`,
       `Debris:        ${this.objects.filter((object) => object.kind === "debris").length}`,
       `Income:        ${formatMoney(this.company.incomePerSecond)}/sec`,
+      `Earth mines:   ${clampMineCount(this.company.earthMineCount)} / ${EARTH_MINE_MAX} (${formatMoney(this.company.earthMineIncomePerSecond ?? 0)}/sec)`,
+      `Orbital income:${formatMoney(this.company.orbitalIncomePerSecond ?? 0)}/sec`,
       `Research:      ${fmt(this.company.researchPoints ?? 0)} (${fmt(this.company.researchPerSecond ?? 0)}/sec)`,
       `Cash:          ${formatMoney(this.company.money)}`,
       `Mode:          ${this.company.mode}`,
@@ -729,10 +784,17 @@ function createDefaultCompany() {
     totalDestroyed: 0,
     totalMissionRewards: 0,
     totalLaunchCosts: 0,
+    earthMineCount: 0,
+    earthMineIncomePerSecond: 0,
+    orbitalIncomePerSecond: 0,
+    totalMineRevenue: 0,
+    totalMineBuildCosts: 0,
     researchPoints: STARTING_RESEARCH,
     totalResearchEarned: 0,
     completedResearch: normalizeResearchState(),
     incomePerSecond: 0,
+    earthMineIncomePerSecond: 0,
+    orbitalIncomePerSecond: 0,
     researchPerSecond: 0,
     lastRecoveryRefund: 0,
     lastMissionReward: 0,
@@ -748,8 +810,16 @@ function scaleLegacyMoney(value, shouldScale) {
   return shouldScale ? value * LEGACY_ECONOMY_MULTIPLIER : value;
 }
 
+function clampMineCount(value) {
+  const count = Math.floor(Number(value ?? 0));
+  if (!Number.isFinite(count)) return 0;
+  return Math.max(0, Math.min(EARTH_MINE_MAX, count));
+}
+
 function normalizeStoredObject(object) {
   const isLegacyEconomy = object?.economyScaleVersion !== ECONOMY_SCALE_VERSION;
+  const payloadRates = getCurrentPayloadRates(object);
+  const shouldRefreshPayloadRates = normalizeObjectKind(object) === "payload" && object?.payloadRateVersion !== PAYLOAD_RATE_VERSION;
   const normalized = {
     ...object,
     kind: normalizeObjectKind(object),
@@ -766,12 +836,15 @@ function normalizeStoredObject(object) {
     dragArea: Number(object.dragArea ?? 1),
     collisionRadius: Number(object.collisionRadius ?? 10),
     economyScaleVersion: ECONOMY_SCALE_VERSION,
+    payloadRateVersion: PAYLOAD_RATE_VERSION,
     cost: scaleLegacyMoney(Number(object.cost ?? 0), isLegacyEconomy),
     recoveryValue: scaleLegacyMoney(Number(object.recoveryValue ?? 0), isLegacyEconomy),
-    incomeRate: object.incomeRate == null
-      ? inferIncomeRate(object)
-      : scaleLegacyMoney(Number(object.incomeRate), isLegacyEconomy),
-    researchRate: object.researchRate == null ? inferResearchRate(object) : Number(object.researchRate),
+    incomeRate: shouldRefreshPayloadRates || object.incomeRate == null
+      ? payloadRates.incomeRate
+      : Number(object.incomeRate),
+    researchRate: shouldRefreshPayloadRates || object.researchRate == null
+      ? payloadRates.researchRate
+      : Number(object.researchRate),
     revenueEarned: Number(object.revenueEarned ?? 0),
     researchEarned: Number(object.researchEarned ?? 0),
     parts: Array.isArray(object.parts) ? object.parts.map((part) => ({ ...part, active: part.active !== false })) : [],
@@ -794,6 +867,7 @@ function normalizeStoredObject(object) {
 function serializeObject(object) {
   return {
     economyScaleVersion: ECONOMY_SCALE_VERSION,
+    payloadRateVersion: PAYLOAD_RATE_VERSION,
     id: object.id,
     name: object.name,
     kind: object.kind,
@@ -868,23 +942,36 @@ function defaultObjectName(kind, payloadType) {
 }
 
 function inferIncomeRate(object) {
-  if (normalizeObjectKind(object) !== "payload") return 0;
-  const payloadType = inferPayloadType(object);
-  const name = `${object.name ?? ""} ${object.payloadType ?? ""}`.toLowerCase();
-  if (payloadType === "data_center" || name.includes("data")) return 360;
-  if (payloadType === "exploration_satellite" || name.includes("exploration")) return 80;
-  if (payloadType === "satellite" || name.includes("satellite")) return 140;
-  return 100;
+  return getCurrentPayloadRates(object).incomeRate;
 }
 
 function inferResearchRate(object) {
-  if (normalizeObjectKind(object) !== "payload") return 0;
-  const payloadType = inferPayloadType(object);
-  const name = `${object.name ?? ""} ${object.payloadType ?? ""}`.toLowerCase();
-  if (payloadType === "data_center" || name.includes("data")) return 0.28;
-  if (payloadType === "exploration_satellite" || name.includes("exploration")) return 0.9;
-  if (payloadType === "satellite" || name.includes("satellite")) return 0.16;
-  return 0.1;
+  return getCurrentPayloadRates(object).researchRate;
+}
+
+function getCurrentPayloadRates(object) {
+  const partId = inferPayloadPartId(object);
+  if (partId === "data_center_efficient") return { incomeRate: 15.2, researchRate: 0.011 };
+  if (partId === "exploration_satellite_basic") return { incomeRate: 1.6, researchRate: 0.018 };
+  if (partId === "satellite_basic") return { incomeRate: 2.8, researchRate: 0.0032 };
+  if (partId === "data_center_basic") return { incomeRate: 7.2, researchRate: 0.0056 };
+  return normalizeObjectKind(object) === "payload" ? { incomeRate: 2, researchRate: 0.002 } : { incomeRate: 0, researchRate: 0 };
+}
+
+function inferPayloadPartId(object) {
+  const parts = Array.isArray(object?.parts) ? object.parts : [];
+  const ids = parts.map((part) => String(part.id ?? "").toLowerCase());
+  if (ids.includes("data_center_efficient")) return "data_center_efficient";
+  if (ids.includes("exploration_satellite_basic")) return "exploration_satellite_basic";
+  if (ids.includes("satellite_basic")) return "satellite_basic";
+  if (ids.includes("data_center_basic")) return "data_center_basic";
+
+  const text = `${object?.name ?? ""} ${object?.id ?? ""} ${object?.payloadType ?? ""}`.toLowerCase();
+  if (text.includes("efficient") || text.includes("cloud")) return "data_center_efficient";
+  if (text.includes("exploration") || text.includes("explorer")) return "exploration_satellite_basic";
+  if (text.includes("data") || text.includes("center") || text.includes("dc")) return "data_center_basic";
+  if (text.includes("satellite") || text.includes("sat")) return "satellite_basic";
+  return "";
 }
 
 function objectToInfo(object, company = {}) {
