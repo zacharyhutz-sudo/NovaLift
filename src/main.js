@@ -312,12 +312,11 @@ function bindBuilderEvents() {
   });
   bindActivation(controlObjectButton, () => {
     const id = game.selectedObjectId;
-    if (id && id !== "current-rocket") {
-      game.controlObject(id);
-      renderer.followRocket?.(game.rocket);
-      updateObjectInspector(null);
-      updateTrackerPanel(game.getHudData().trackedObjects);
-    }
+    if (!id || id === "current-rocket") return;
+    game.controlObject(id);
+    renderer.followRocket?.(game.rocket);
+    updateObjectInspector(null);
+    updateTrackerPanel(game.getHudData().trackedObjects);
   });
   bindActivation(sellObjectButton, () => {
     const id = game.selectedObjectId;
@@ -331,6 +330,7 @@ function bindBuilderEvents() {
   });
   bindActivation(explodeObjectButton, () => {
     const id = game.selectedObjectId;
+    if (!id) return;
     game.explodeObject(id);
     renderer.followRocket?.(game.rocket);
     updateObjectInspector(null);
@@ -409,6 +409,21 @@ function bindBuilderEvents() {
 if (trackerListEl) {
   bindDelegatedActivation(trackerListEl, "[data-track-object]", (button) => {
     const id = button.dataset.trackObject;
+    const action = button.dataset.trackAction ?? "inspect";
+    if (action === "control" && id && id !== "current-rocket") {
+      game.controlObject(id);
+      renderer.followRocket?.(game.rocket);
+      updateObjectInspector(null);
+      updateTrackerPanel(game.getHudData().trackedObjects);
+      return;
+    }
+    if (action === "destroy" && id) {
+      game.explodeObject(id);
+      renderer.followRocket?.(game.rocket);
+      updateObjectInspector(null);
+      updateTrackerPanel(game.getHudData().trackedObjects);
+      return;
+    }
     if (id === "current-rocket") {
       game.selectedObjectId = "current-rocket";
       if (renderer.followRocket) {
@@ -1390,7 +1405,13 @@ function renderTrackerItem(object) {
       ? "Telemetry locked"
       : "—";
   const scan = object.scanRate > 0 ? `${formatScanRate(object.scanRate)}/s Scan` : "—";
-  const actionText = object.canControl && !object.isCurrentRocket ? "Track" : object.isCurrentRocket ? "Track" : "Select";
+  const inspectText = object.isCurrentRocket ? "Track Current" : object.canControl ? "Inspect" : "Track";
+  const controlButton = object.canControl && !object.isCurrentRocket
+    ? `<button type="button" class="mini-button tracker-control-button" data-track-object="${escapeHtml(object.id)}" data-track-action="control">Control</button>`
+    : "";
+  const destroyButton = object.canExplode
+    ? `<button type="button" class="mini-button tracker-destroy-button" data-track-object="${escapeHtml(object.id)}" data-track-action="destroy">Destroy</button>`
+    : "";
   return `
     <article class="tracker-item ${escapeHtml(object.kind)}${onlineClass}${selectedClass}">
       <div class="tracker-icon" aria-hidden="true">${escapeHtml(getTrackedObjectIcon(object))}</div>
@@ -1405,7 +1426,11 @@ function renderTrackerItem(object) {
         <span><b>R</b>${research}</span>
         <span><b>Scan</b>${scan}</span>
       </div>
-      <button type="button" class="mini-button" data-track-object="${escapeHtml(object.id)}">${actionText}</button>
+      <div class="tracker-actions">
+        <button type="button" class="mini-button" data-track-object="${escapeHtml(object.id)}" data-track-action="inspect">${inspectText}</button>
+        ${controlButton}
+        ${destroyButton}
+      </div>
     </article>
   `;
 }

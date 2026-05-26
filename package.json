@@ -1,7 +1,7 @@
 {
   "name": "novalift",
-  "version": "0.9.4.1",
-  "description": "Vertical mobile-first 2D rocket company prototype with a title screen, polished progression presentation, and a no-sideways-scroll research roadmap.",
+  "version": "0.9.4.2",
+  "description": "Vertical mobile-first 2D rocket company prototype with improved world-view command switching, object actions, and calmer launch camera shake.",
   "type": "module",
   "private": true,
   "scripts": {

@@ -4461,6 +4461,26 @@ button:active:not(:disabled),
   }
 }
 
+.tracker-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.tracker-control-button {
+  border-color: rgba(125, 211, 252, 0.38);
+  background: rgba(125, 211, 252, 0.14);
+  color: #bae6fd;
+}
+
+.tracker-destroy-button {
+  border-color: rgba(251, 113, 133, 0.42);
+  background: rgba(251, 113, 133, 0.12);
+  color: #fecdd3;
+}
+
 @media (min-width: 720px) {
   .toast-stack {
     left: auto;
@@ -4946,8 +4966,13 @@ button:active:not(:disabled),
     grid-template-columns: 30px minmax(0, 1fr);
   }
 
-  .tracker-item > button {
+  .tracker-actions {
     grid-column: 1 / -1;
+    justify-content: stretch;
+  }
+
+  .tracker-actions > button {
+    flex: 1 1 96px;
     min-height: 34px;
   }
 

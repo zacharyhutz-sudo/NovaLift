@@ -185,6 +185,7 @@ export class Game {
   persistActiveCommandVessel(reason = "left flight", options = {}) {
     if (!this.rocket || this.rocket.archived) return false;
     const keepLanded = Boolean(options.includeLanded);
+    if (this.rocket.crashed && !options.includeCrashed) return false;
     if ((this.rocket.crashed || this.rocket.landed) && !keepLanded) return false;
     if (!keepLanded && !this.flightStats?.hasLaunched && getSpeed(this.rocket) < 1) return false;
     const activeParts = Array.isArray(this.rocket.parts)
@@ -318,10 +319,10 @@ export class Game {
 
   trimObjects() {
     this.objects = this.objects
-      .filter((object) => object && !object.exploded)
+      .filter((object) => object && !object.exploded && !object.crashed)
       .slice(-MAX_PERSISTENT_OBJECTS);
 
-    if (this.selectedObjectId && !this.objects.some((object) => object.id === this.selectedObjectId)) {
+    if (this.selectedObjectId && this.selectedObjectId !== "current-rocket" && !this.objects.some((object) => object.id === this.selectedObjectId)) {
       this.selectedObjectId = null;
     }
   }
@@ -545,13 +546,26 @@ export class Game {
       this.flightStats.tip = this.getFlightTip();
       this.emitFeedback({
         title: this.rocket.crashed ? "Vehicle lost" : "Rocket recovered",
-        message: this.rocket.crashed ? "Review the flight result and rebuild." : `Recovery value: ${formatMoney(this.flightStats.recoveryAvailable ?? 0)}.`,
+        message: this.rocket.crashed ? "The wreckage has been cleared from the world." : `Recovery value: ${formatMoney(this.flightStats.recoveryAvailable ?? 0)}.`,
         tone: this.rocket.crashed ? "danger" : "success",
         sound: this.rocket.crashed ? "crash" : "reward",
         haptic: this.rocket.crashed ? "heavy" : "success",
         worldEffect: { type: this.rocket.crashed ? "crash" : "landing", x: this.rocket.x, y: this.rocket.y }
       });
+      if (this.rocket.crashed) this.removeFinishedActiveRocket("crashed");
     }
+  }
+
+  removeFinishedActiveRocket(reason = "finished") {
+    if (!this.rocket) return false;
+    const shouldClear = reason === "crashed" || reason === "recovered" || this.rocket.crashed;
+    if (!shouldClear) return false;
+
+    this.rocket.archived = true;
+    this.rocket = cloneRocket(this.rocketTemplate);
+    if (this.selectedObjectId === "current-rocket") this.selectedObjectId = null;
+    this.renderer.followRocket?.(this.rocket, { snap: true });
+    return true;
   }
 
   prepareRecoveryRefund() {
@@ -583,6 +597,7 @@ export class Game {
     }
     this.flightStats.recoveryCashedIn = true;
     this.flightStats.recoveryAvailable = 0;
+    this.removeFinishedActiveRocket("recovered");
     return amount;
   }
 
@@ -648,7 +663,8 @@ export class Game {
 
   controlObject(objectId = this.selectedObjectId) {
     const object = this.objects.find((candidate) => candidate.id === objectId && !candidate.exploded);
-    if (!object || normalizeObjectKind(object) !== "vessel" || !objectContainsPartType(object, "command")) {
+    if (objectId === "current-rocket") return true;
+    if (!object || normalizeObjectKind(object) !== "vessel" || !objectContainsPartType(object, "command") || object.crashed) {
       this.stageMessage = "Select a command module to control it.";
       this.stageMessageTimer = 5;
       this.emitFeedback({ title: "Command required", message: "Select a command module to control it.", tone: "warning", sound: "error", haptic: "error" });
@@ -870,8 +886,9 @@ export class Game {
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) return [];
       return parsed
-        .filter((object) => object && !object.exploded)
+        .filter((object) => object && !object.exploded && !object.crashed)
         .map((object) => normalizeStoredObject(object))
+        .filter((object) => object && !object.exploded && !object.crashed)
         .slice(-MAX_PERSISTENT_OBJECTS);
     } catch (error) {
       console.warn("NovaLift could not load saved orbital objects.", error);
@@ -884,7 +901,7 @@ export class Game {
       const storage = globalThis.localStorage;
       if (!storage) return;
       const objects = this.objects
-        .filter((object) => object && !object.exploded)
+        .filter((object) => object && !object.exploded && !object.crashed)
         .slice(-MAX_PERSISTENT_OBJECTS)
         .map((object) => serializeObject(object));
       storage.setItem(WORLD_OBJECTS_STORAGE_KEY, JSON.stringify(objects));
@@ -984,7 +1001,8 @@ export class Game {
           canSell: Boolean((this.rocket.landed || this.rocket.crashed) && saleValue > 0),
           saleValue,
           canExplode: true,
-          isCurrentRocket: true
+          isCurrentRocket: true,
+          isCommandCenter: true
         });
       }
     }
@@ -1340,10 +1358,11 @@ function objectToInfo(object, company = {}, planet = PLANET) {
     scanEarned: Number(object.scanEarned ?? 0),
     cost: Number(object.cost ?? 0),
     online: Boolean(object.online),
-    canControl: kind === "vessel" && objectContainsPartType(object, "command") && !object.exploded,
+    canControl: kind === "vessel" && objectContainsPartType(object, "command") && !object.exploded && !object.crashed,
     canSell: Boolean((object.landed || object.crashed) && getObjectSaleValue(object) > 0),
     saleValue: getObjectSaleValue(object),
-    canExplode: kind === "debris" || kind === "vessel" || kind === "payload"
+    canExplode: kind === "debris" || kind === "vessel" || kind === "payload",
+    isCommandCenter: kind === "vessel" && objectContainsPartType(object, "command")
   };
 }
 

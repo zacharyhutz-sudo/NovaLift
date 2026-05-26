@@ -1,5 +1,5 @@
 import { PHYSICS, PLANET, RENDER } from "./config.js";
-import { getGravityVector, predictTrajectory } from "./physics.js";
+import { getAltitude, getGravityVector, predictTrajectory } from "./physics.js";
 import { getPartWorldLength, getPartWorldWidth, ROCKET_WORLD_LINE } from "./dimensions.js";
 
 function makeStars(count) {
@@ -41,6 +41,7 @@ export class Renderer {
     this.effects = [];
     this.shakeOffset = { x: 0, y: 0 };
     this.impactShake = { until: 0, strength: 0 };
+    this.lastImpactShakeStart = 0;
     this.lastRocketEffectState = { landed: null, crashed: null, thrusting: false };
     this.lastEffectObjectIds = new Set();
 
@@ -364,28 +365,39 @@ export class Renderer {
 
     if (["crash", "stage", "launch", "reward"].includes(type)) {
       this.impactShake = {
-        until: now + (type === "crash" ? 720 : type === "launch" ? 420 : 300),
-        strength: type === "crash" ? 7 : type === "launch" ? 3.2 : 2.6
+        until: now + (type === "crash" ? 560 : type === "launch" ? 300 : 260),
+        strength: type === "crash" ? 4.2 : type === "launch" ? 1.6 : 1.5
       };
+      this.lastImpactShakeStart = now;
     }
   }
 
-  updateRenderShake(thrusting, rocket) {
+  updateRenderShake(thrusting, rocket, activePlanet = PLANET) {
     const now = performance.now();
     let strength = 0;
-    if (thrusting && !rocket?.landed && !rocket?.crashed) strength += 1.35 * this.dpr;
-    if (now < this.impactShake.until) {
-      const remaining = (this.impactShake.until - now) / Math.max(1, this.impactShake.until - (this.impactShake.until - 1));
-      const fade = clamp((this.impactShake.until - now) / 720, 0, 1);
-      strength += this.impactShake.strength * this.dpr * (0.25 + fade * 0.75) * (remaining > 0 ? 1 : 0);
+    const altitude = rocket ? getAltitude(rocket, activePlanet) : Number.POSITIVE_INFINITY;
+
+    // Engine rumble should sell the launch, not make the whole flight feel shaky.
+    // Keep it subtle and only while the craft is still close to the pad.
+    if (thrusting && !rocket?.landed && !rocket?.crashed && altitude < 100) {
+      const proximity = clamp(1 - altitude / 100, 0, 1);
+      strength += 0.36 * this.dpr * proximity;
     }
+
+    if (now < this.impactShake.until) {
+      const duration = Math.max(1, this.impactShake.until - (this.lastImpactShakeStart || now));
+      const fade = clamp((this.impactShake.until - now) / duration, 0, 1);
+      strength += this.impactShake.strength * this.dpr * (0.22 + fade * 0.78);
+    }
+
     if (strength <= 0.01) {
       this.shakeOffset = { x: 0, y: 0 };
       return;
     }
+
     this.shakeOffset = {
-      x: Math.sin(now / 23) * strength + Math.sin(now / 43) * strength * 0.46,
-      y: Math.cos(now / 29) * strength * 0.82 + Math.sin(now / 53) * strength * 0.35
+      x: Math.sin(now / 31) * strength + Math.sin(now / 61) * strength * 0.32,
+      y: Math.cos(now / 37) * strength * 0.68 + Math.sin(now / 71) * strength * 0.24
     };
   }
 
@@ -445,7 +457,7 @@ export class Renderer {
     this.selectedObjectId = selectedObjectId;
     const thrusting = state.input.thrusting && rocket.fuel > 0 && !rocket.landed && !rocket.crashed;
     this.updateCamera(rocket);
-    this.updateRenderShake(thrusting, rocket);
+    this.updateRenderShake(thrusting, rocket, activePlanet);
     this.updateEffectTriggers(rocket, thrusting);
     this.updateWorldEffects();
     ctx.clearRect(0, 0, this.width, this.height);

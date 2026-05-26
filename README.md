@@ -1,4 +1,19 @@
-# NovaLift v0.9.4.1 — Research Usability Patch
+# NovaLift v0.9.4.2 — World View Control Polish
+
+NovaLift is a portrait/mobile-first 2D rocket company game prototype. This patch tightens the World View tracker so command pods can be inspected, controlled, and destroyed more reliably, reduces engine camera shake, and clears finished craft from the world after crashes or recovery cash-in.
+
+## What is new in v0.9.4.2
+
+- Added direct Control and Destroy actions to tracker rows.
+- Fixed current-rocket selection getting cleared by object cleanup logic.
+- Improved command-center switching so saved command pods can become the active rocket more intuitively from World View.
+- Prevented crashed active rockets from being re-persisted as switchable command pods.
+- Removed crashed detached objects from persistent world objects.
+- Cleared the active rocket from the world after a crash, while preserving the flight result summary.
+- Cleared recovered rockets after cashing in recovery value.
+- Reduced camera shake from engine thrust and limited thrust rumble to the first 100m of altitude.
+
+## Previous v0.9.4.1 — Research Usability Patch
 
 NovaLift is a portrait/mobile-first 2D rocket company game prototype. This patch keeps the v0.9.4 identity/progression polish and fixes the Research Lab so players can navigate it with normal vertical scrolling instead of hidden sideways scrolling.
 
