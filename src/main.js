@@ -209,11 +209,10 @@ function bindBuilderEvents() {
     renderBuilder();
   });
   bindDelegatedActivation(templateDeckEl, "[data-template]", (button) => {
-    const template = ROCKET_TEMPLATES.find((candidate) => candidate.id === button.dataset.template);
-    if (!template || (template.requiresResearch && !game.company.completedResearch?.includes(template.requiresResearch) && game.company.mode !== "sandbox")) return;
-    builderStack = autoStageStack(template.stack.map((id) => ({ id, stage: 0 })));
-    selectedPartId = builderStack[0]?.id ?? selectedPartId;
-    renderBuilder();
+    applyRocketTemplate(button.dataset.template);
+  });
+  bindDelegatedActivation(missionBoardEl, "[data-template]", (button) => {
+    applyRocketTemplate(button.dataset.template, { scrollToRocket: true });
   });
   bindDelegatedActivation(partCategoryTabsEl, "[data-part-category]", (button) => {
     activePartCategory = button.dataset.partCategory || "all";
@@ -486,6 +485,16 @@ function launchBuiltRocket() {
   hideBuilder();
 }
 
+function applyRocketTemplate(templateId, options = {}) {
+  const template = ROCKET_TEMPLATES.find((candidate) => candidate.id === templateId);
+  if (!template || (template.requiresResearch && !game.company.completedResearch?.includes(template.requiresResearch) && game.company.mode !== "sandbox")) return false;
+  builderStack = autoStageStack(template.stack.map((id) => ({ id, stage: 0 })));
+  selectedPartId = builderStack[0]?.id ?? selectedPartId;
+  renderBuilder();
+  if (options.scrollToRocket) setTimeout(() => scrollBuilderSection(builderRocketSectionEl), 0);
+  return true;
+}
+
 function renderBuilder(highlightErrors = false) {
   builderStack = normalizeStack(builderStack);
   const validation = validateBuild(builderStack);
@@ -716,24 +725,61 @@ function renderMissionBoard(data) {
   if (!missionBoardEl || !missionBoardSummaryEl) return;
   const missions = data.missions ?? [];
   const completed = missions.filter((mission) => mission.completed).length;
-  const nextMission = data.nextMission ?? missions.find((mission) => !mission.completed) ?? missions[0];
-  missionBoardSummaryEl.textContent = `${completed}/${missions.length} complete`;
+  const nextMission = data.nextMission ?? missions.find((mission) => !mission.completed) ?? missions[missions.length - 1];
+  const chapter = nextMission?.chapterProgress ?? data.missionChapters?.find((candidate) => !candidate.complete) ?? data.missionChapters?.[0];
+
+  missionBoardSummaryEl.textContent = chapter
+    ? `${chapter.title} ${chapter.completed}/${chapter.total}`
+    : `${completed}/${missions.length} complete`;
 
   if (toggleMissionBoardViewButton) toggleMissionBoardViewButton.textContent = missionsExpanded ? "Show Less" : "View All";
   missionBoardEl.classList.toggle("expanded", missionsExpanded);
-  const visibleMissions = missionsExpanded ? missions : nextMission ? [nextMission] : [];
-  missionBoardEl.innerHTML = visibleMissions.map((mission) => {
+
+  if (!missionsExpanded && nextMission) {
+    const reward = `${formatMoney(nextMission.reward)}${nextMission.researchReward ? ` + ${formatResearch(nextMission.researchReward)}R` : ""}`;
+    const template = ROCKET_TEMPLATES.find((candidate) => candidate.id === nextMission.recommendedTemplateId);
+    const templateLocked = template?.requiresResearch && !game.company.completedResearch?.includes(template.requiresResearch) && game.company.mode !== "sandbox";
+    const chapterText = chapter ? `${chapter.title} · ${chapter.completed}/${chapter.total}` : "Campaign";
+    missionBoardEl.innerHTML = `
+      <article class="mission-card current-objective">
+        <div class="campaign-chip-row">
+          <span class="campaign-chip">${escapeHtml(chapterText)}</span>
+          <span class="campaign-chip reward-chip">${reward}</span>
+        </div>
+        <div class="mission-card-top">
+          <div>
+            <small>Current Objective</small>
+            <strong>${escapeHtml(nextMission.title)}</strong>
+            <span>${escapeHtml(nextMission.objective)}</span>
+          </div>
+        </div>
+        <div class="mission-progress current-progress">${escapeHtml(nextMission.progress)}</div>
+        <div class="mission-action-row">
+          <button type="button" data-template="${escapeHtml(nextMission.recommendedTemplateId ?? "")}" ${!template || templateLocked ? "disabled" : ""}>
+            Use ${escapeHtml(nextMission.recommendedTemplateLabel ?? template?.name ?? "Recommended Rocket")}
+          </button>
+          <span>${templateLocked ? "Research required" : "Recommended build"}</span>
+        </div>
+      </article>
+    `;
+    return;
+  }
+
+  missionBoardEl.innerHTML = missions.map((mission) => {
     const reward = mission.completed ? "✓" : `${formatMoney(mission.reward)}${mission.researchReward ? ` + ${formatResearch(mission.researchReward)}R` : ""}`;
+    const chapterLabel = mission.chapterTitle ? `${mission.chapterTitle}` : "Campaign";
     return `
     <article class="mission-card ${mission.completed ? "complete" : ""}">
+      <div class="campaign-chip-row">
+        <span class="campaign-chip">${escapeHtml(chapterLabel)}</span>
+        <span class="campaign-chip reward-chip">${reward}</span>
+      </div>
       <div class="mission-card-top">
         <div>
           <strong>${escapeHtml(mission.title)}</strong>
           <span>${escapeHtml(mission.objective)}</span>
         </div>
-        <b>${reward}</b>
       </div>
-      <p>${escapeHtml(mission.description)}</p>
       <div class="mission-progress">${escapeHtml(mission.progress)}</div>
     </article>`;
   }).join("");
@@ -805,9 +851,9 @@ function renderResearchLab(data) {
   }
 
   const laneConfig = [
-    { id: "propulsion", label: "Propulsion", icon: "🚀", summary: "Engines and lift" },
-    { id: "orbital", label: "Orbital Ops", icon: "📡", summary: "Income and infrastructure" },
-    { id: "exploration", label: "Exploration", icon: "🛰️", summary: "Survey new worlds" }
+    { id: "propulsion", label: "Propulsion", icon: "P", summary: "Engines and lift" },
+    { id: "orbital", label: "Orbital Ops", icon: "O", summary: "Income and infrastructure" },
+    { id: "exploration", label: "Exploration", icon: "E", summary: "Survey new worlds" }
   ];
 
   const nodesByLane = new Map(laneConfig.map((lane) => [lane.id, []]));
@@ -829,7 +875,7 @@ function renderResearchLab(data) {
       <div class="research-root">
         <span class="research-root-kicker">Program Start</span>
         <article class="research-root-node">
-          <div class="research-root-icon">✦</div>
+          <div class="research-root-icon">N</div>
           <strong>Rocket Program</strong>
           <span>${completed}/${total} upgrades online</span>
         </article>
@@ -870,7 +916,7 @@ function renderResearchFlowNode(node, researchPoints = 0, showConnector = false)
   return `
     <article class="research-flow-node ${statusClass} ${showConnector ? "has-connector" : ""}">
       <div class="research-flow-node-top">
-        <div class="research-flow-node-icon">${escapeHtml(node.icon ?? "✦")}</div>
+        <div class="research-flow-node-icon">${escapeHtml(node.icon ?? "N")}</div>
         <div class="research-flow-node-copy">
           <strong>${escapeHtml(node.treeName ?? node.name)}</strong>
           <span>${escapeHtml(statusText)}</span>

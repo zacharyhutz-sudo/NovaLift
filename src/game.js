@@ -1,5 +1,5 @@
 import { PHYSICS, PLANET, ROCKET } from "./config.js";
-import { MISSIONS, STARTING_CASH, evaluateMissions, getMissionView, getNextMission, normalizeMissionState } from "./missions.js";
+import { MISSIONS, STARTING_CASH, evaluateMissions, getMissionChapterProgress, getMissionView, getNextMission, normalizeMissionState } from "./missions.js";
 import {
   STARTING_RESEARCH,
   getResearchView,
@@ -643,6 +643,7 @@ export class Game {
       company: { ...this.company },
       research: getResearchView(this.company),
       missions: getMissionView(this.getMissionContext()),
+      missionChapters: getMissionChapterProgress(this.getMissionContext()),
       nextMission: getNextMission(this.getMissionContext()),
       flightSummary: this.getFlightSummary(),
       selectedObject: this.getSelectedObjectInfo(),
