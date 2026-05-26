@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050816" />
-    <title>NovaLift v0.9.9</title>
+    <title>NovaLift v0.9.10</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -27,7 +27,7 @@
             <button id="titleContinue" class="title-primary-button" type="button">Continue Program</button>
             <button id="titleNewCompany" class="title-secondary-button" type="button">New Company</button>
           </div>
-          <small>v0.9.9 · Hangar hub prototype</small>
+          <small>v0.9.10 · Hangar navigation consolidation</small>
         </div>
       </section>
 
@@ -35,7 +35,7 @@
         <section id="hud" class="compact-hud" aria-label="Flight status">
           <div class="brand-chip">
             <strong>NovaLift</strong>
-            <span>v0.9.9</span>
+            <span>v0.9.10</span>
           </div>
           <div class="hud-stats">
             <div class="hud-stat"><span>Alt</span><strong id="altitude">0 m</strong></div>
@@ -67,7 +67,7 @@
             <div>
               <p class="eyebrow">Hangar Hub</p>
               <h1>Build. Research. Launch.</h1>
-              <p class="builder-copy">Use the hangar stations around your rocket to run the company without living in spreadsheets.</p>
+              <p class="builder-copy">Use the hangar stations around your rocket to open each company page. The old dashboard now lives behind these buttons.</p>
             </div>
           </div>
           <div class="builder-header-actions">
@@ -85,13 +85,24 @@
         </div>
 
         <nav class="builder-top-actions" aria-label="Builder navigation and quick actions">
-          <button id="builderJumpToMissions" type="button" class="nav-pill primary">Goal</button>
-          <button id="builderJumpToPreview" type="button" class="nav-pill">Build</button>
-          <button id="builderJumpToResearch" type="button" class="nav-pill">Research</button>
-          <button id="builderWorldView" type="button" class="nav-pill">World</button>
+          <button id="builderJumpToMissions" type="button" class="nav-pill primary">Mission Control</button>
+          <button id="builderJumpToPreview" type="button" class="nav-pill">Build Bay</button>
+          <button id="builderJumpToResearch" type="button" class="nav-pill">Research Lab</button>
+          <button id="builderWorldView" type="button" class="nav-pill">World View</button>
         </nav>
 
         <section id="hangarHub" class="hangar-hub" aria-label="Interactive launchpad hangar hub"></section>
+
+        <section id="hangarStationWorkspace" class="hangar-station-workspace" aria-label="Selected hangar station">
+          <div class="hangar-station-header">
+            <div>
+              <p id="hangarStationEyebrow" class="eyebrow">Rocket Bay</p>
+              <h2 id="hangarStationTitle">Build Rocket</h2>
+              <p id="hangarStationDescription">Edit the current stack, review readiness, choose presets, and prepare the vehicle for launch.</p>
+            </div>
+            <span class="hangar-station-hint">Use the hangar buttons above to switch pages.</span>
+          </div>
+        </section>
 
         <section class="builder-card progression-card support-systems-card" id="programProgressionSection" aria-label="Space program progression">
           <div class="builder-section-title">

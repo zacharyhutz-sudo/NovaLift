@@ -1,7 +1,7 @@
 {
   "name": "novalift",
-  "version": "0.9.9",
-  "description": "Vertical 2D rocket company prototype with an in-game hangar hub launchpad UI pass.",
+  "version": "0.9.10",
+  "description": "Vertical 2D rocket company prototype with consolidated hangar station navigation.",
   "type": "module",
   "private": true,
   "scripts": {

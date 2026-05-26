@@ -7989,3 +7989,156 @@ button:active:not(:disabled),
     right: 14%;
   }
 }
+
+/* v0.9.10 Hangar Navigation Consolidation */
+.builder-screen.hangar-consolidated .builder-top-actions {
+  display: none;
+}
+
+.hangar-station-workspace {
+  margin: 0 0 12px;
+  border: 1px solid rgba(125, 211, 252, 0.20);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(56, 189, 248, 0.11), transparent 32%),
+    rgba(8, 11, 20, 0.72);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  padding: 14px;
+}
+
+.hangar-station-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.hangar-station-header h2 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: clamp(1.35rem, 4vw, 2.1rem);
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
+.hangar-station-header p:not(.eyebrow) {
+  max-width: 46rem;
+  margin: 8px 0 0;
+  color: rgba(203, 213, 225, 0.78);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.hangar-station-hint {
+  flex: 0 0 auto;
+  max-width: 13rem;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 999px;
+  padding: 8px 11px;
+  color: rgba(226, 232, 240, 0.64);
+  background: rgba(15, 23, 42, 0.62);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-align: center;
+}
+
+.builder-screen.hangar-consolidated #programProgressionSection,
+.builder-screen.hangar-consolidated #builderMissionsSection,
+.builder-screen.hangar-consolidated .builder-primary-grid,
+.builder-screen.hangar-consolidated .builder-editor-toggle,
+.builder-screen.hangar-consolidated #advancedBuilderPanel,
+.builder-screen.hangar-consolidated .builder-program-section {
+  display: none;
+}
+
+.builder-screen.hangar-consolidated.station-build .builder-primary-grid {
+  display: grid;
+}
+
+.builder-screen.hangar-consolidated.station-build .builder-editor-toggle {
+  display: flex;
+}
+
+.builder-screen.hangar-consolidated.station-build #advancedBuilderPanel:not(.hidden) {
+  display: grid;
+}
+
+.builder-screen.hangar-consolidated.station-collect #programProgressionSection,
+.builder-screen.hangar-consolidated.station-contracts #programProgressionSection,
+.builder-screen.hangar-consolidated.station-engineers #programProgressionSection,
+.builder-screen.hangar-consolidated.station-contracts #builderMissionsSection,
+.builder-screen.hangar-consolidated.station-build .builder-program-section,
+.builder-screen.hangar-consolidated.station-collect .builder-program-section,
+.builder-screen.hangar-consolidated.station-research .builder-program-section,
+.builder-screen.hangar-consolidated.station-planets .builder-program-section {
+  display: block;
+}
+
+.builder-screen.hangar-consolidated #programProgressionSection #spaceCenterMap,
+.builder-screen.hangar-consolidated #programProgressionSection #programSummary,
+.builder-screen.hangar-consolidated #programProgressionSection #recommendedActionCard {
+  display: none;
+}
+
+.builder-screen.hangar-consolidated #programProgressionSection .progression-grid {
+  grid-template-columns: 1fr;
+}
+
+.builder-screen.hangar-consolidated #programProgressionSection .progression-grid > * {
+  display: none;
+}
+
+.builder-screen.hangar-consolidated.station-collect #passiveBankCard,
+.builder-screen.hangar-consolidated.station-contracts #dailyContractList,
+.builder-screen.hangar-consolidated.station-engineers #engineerQueueCard {
+  display: block;
+}
+
+.builder-screen.hangar-consolidated .builder-program-section .program-card-grid {
+  grid-template-columns: 1fr;
+}
+
+.builder-screen.hangar-consolidated .builder-program-section .program-card-grid > section {
+  display: none;
+}
+
+.builder-screen.hangar-consolidated.station-build .builder-program-section .template-card-wrap,
+.builder-screen.hangar-consolidated.station-collect .builder-program-section #builderMinesSection,
+.builder-screen.hangar-consolidated.station-research .builder-program-section #builderResearchSection,
+.builder-screen.hangar-consolidated.station-planets .builder-program-section #builderNetworkSection,
+.builder-screen.hangar-consolidated.station-planets .builder-program-section #builderPlanetSection {
+  display: block;
+}
+
+.builder-screen.hangar-consolidated.station-planets .builder-program-section .program-card-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.hangar-action-card.active {
+  border-color: rgba(125, 211, 252, 0.64);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(125, 211, 252, 0.20), transparent 42%),
+    rgba(14, 116, 144, 0.22);
+  box-shadow: 0 20px 44px rgba(14, 165, 233, 0.16), inset 0 0 0 1px rgba(125, 211, 252, 0.10);
+}
+
+.hangar-action-card.active em {
+  color: #7dd3fc;
+}
+
+@media (max-width: 760px) {
+  .hangar-station-header {
+    display: grid;
+  }
+
+  .hangar-station-hint {
+    max-width: none;
+    justify-self: start;
+    border-radius: 14px;
+    text-align: left;
+  }
+
+  .builder-screen.hangar-consolidated.station-planets .builder-program-section .program-card-grid {
+    grid-template-columns: 1fr;
+  }
+}

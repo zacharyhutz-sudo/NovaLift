@@ -1,8 +1,22 @@
-# NovaLift v0.9.9 — Hangar Hub UI Pass
+# NovaLift v0.9.10 — Hangar Navigation Consolidation
+
+
+## v0.9.10 Hotfix: consolidated hangar navigation
+
+This update converts the Hangar Hub from a decorative section into the primary launchpad navigation. The old builder, mission, resource, engineer, research, and planetary panels are no longer stacked underneath the hangar all at once. Each hangar station now opens the matching workspace page:
+
+- Build Rocket: rocket preview, readiness, presets, and the expandable editor.
+- Collect Resources: storage collection and Earth economy.
+- Research: research teaser and full Research Lab entry point.
+- Contracts: current objective plus daily client contracts.
+- Engineers: named crew and facility project queue.
+- Planetary Ops: orbital network, planet registry, colony targets, and colony upgrades.
+
+The Launch button remains a direct action from the hangar. Flight warp remains flight-only and does not accelerate company income.
 
 This patch replaces the Launchpad's spreadsheet-first feel with an in-game Hangar Hub. The rocket is now the visual centerpiece, with animated engineer life, action stations, visible resource storage, crew status, mission context, and launch readiness all presented as a physical space.
 
-## What is new in v0.9.9
+## What is new in v0.9.10
 
 - Added a new interactive Hangar Hub at the top of the Launchpad.
 - The current rocket is now visualized in the middle of the hangar using the actual current build stack.
@@ -13,7 +27,7 @@ This patch replaces the Launchpad's spreadsheet-first feel with an in-game Hanga
 - Added an Engineer Crew side panel with named crew and active assignments.
 - Added a Systems card showing structure, propulsion, mission payload, budget, and checklist readiness.
 - Added a large rocket status badge and Launch button that reflect whether the rocket is ready, missing parts, locked, or unaffordable.
-- The existing detailed Space Program, Mission Board, Rocket Editor, Research, and Planet Registry systems remain available below the hangar.
+- The detailed Space Program, Mission Board, Rocket Editor, Research, and Planet Registry systems are now consolidated into station pages opened from the Hangar Hub instead of stacking below it all at once.
 - Added a wider desktop shell layout so the hangar has room to breathe while preserving mobile support.
 
 ## Previous v0.9.8 — Colonization Research + Payload Missions

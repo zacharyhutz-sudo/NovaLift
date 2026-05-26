@@ -144,6 +144,11 @@ const passiveBankCardEl = document.querySelector("#passiveBankCard");
 const engineerQueueCardEl = document.querySelector("#engineerQueueCard");
 const dailyContractListEl = document.querySelector("#dailyContractList");
 const hangarHubEl = document.querySelector("#hangarHub");
+const programProgressionSection = document.querySelector("#programProgressionSection");
+const hangarStationWorkspaceEl = document.querySelector("#hangarStationWorkspace");
+const hangarStationEyebrowEl = document.querySelector("#hangarStationEyebrow");
+const hangarStationTitleEl = document.querySelector("#hangarStationTitle");
+const hangarStationDescriptionEl = document.querySelector("#hangarStationDescription");
 
 const EARTH_MINE_COST = 100000;
 const EARTH_MINE_INCOME_RATE = 1;
@@ -162,9 +167,44 @@ let selectedPartId = AVAILABLE_PARTS[0]?.id ?? null;
 let activePartCategory = "all";
 let missionsExpanded = false;
 let builderAdvancedOpen = false;
+let activeHangarStation = "build";
 let lastShownFlightSummaryKey = "";
 let lastResearchLiveRenderAt = 0;
 let selectedResearchId = null;
+const HANGAR_STATIONS = {
+  build: {
+    eyebrow: "Rocket Bay",
+    title: "Build Rocket",
+    description: "Edit the current stack, review readiness, choose presets, and prepare the vehicle for launch."
+  },
+  collect: {
+    eyebrow: "Storage Yard",
+    title: "Collect Resources",
+    description: "Collect banked cash, research, and scan. Expand the Earth-side economy without hiding the rocket hub."
+  },
+  research: {
+    eyebrow: "Research Lab",
+    title: "Research",
+    description: "Open the research lab, review the next unlock, and turn mission progress into new capabilities."
+  },
+  contracts: {
+    eyebrow: "Mission Control",
+    title: "Contracts & Objectives",
+    description: "Choose company goals, claim client contracts, and pick recommended rocket templates for the next launch."
+  },
+  engineers: {
+    eyebrow: "Engineering Bay",
+    title: "Engineers",
+    description: "Assign named engineers to facility upgrades and keep construction projects moving."
+  },
+  planets: {
+    eyebrow: "Planetary Ops",
+    title: "Planetary Ops",
+    description: "Track orbital networks, select colony targets, and manage discovered planets from one station."
+  }
+};
+const HANGAR_STATION_IDS = Object.keys(HANGAR_STATIONS);
+
 const PART_CATEGORIES = [
   { id: "all", label: "All" },
   { id: "core", label: "Core", types: ["command", "decoupler"] },
@@ -314,9 +354,9 @@ function bindBuilderEvents() {
   });
   bindActivation(builderWorldViewButton, showWorldView);
   bindActivation(builderWorldViewHeroButton, showWorldView);
-  bindActivation(builderJumpToPreviewButton, () => scrollBuilderSection(builderRocketSectionEl));
-  bindActivation(builderJumpToMissionsButton, () => scrollBuilderSection(builderMissionsSectionEl));
-  bindActivation(builderJumpToResearchButton, showResearchLab);
+  bindActivation(builderJumpToPreviewButton, () => navigateHangarStation("build", { expandBuilder: true }));
+  bindActivation(builderJumpToMissionsButton, () => navigateHangarStation("contracts"));
+  bindActivation(builderJumpToResearchButton, () => navigateHangarStation("research"));
   bindActivation(openResearchLabButton, showResearchLab);
   bindActivation(toggleAdvancedBuilderButton, () => {
     builderAdvancedOpen = !builderAdvancedOpen;
@@ -745,6 +785,7 @@ function renderBuilder(highlightErrors = false) {
   renderSelectedPart();
   const hudData = game.getHudData();
   renderHangarHub(hudData, stats, validation, canAfford, lockedParts);
+  updateHangarStationWorkspace();
   renderProgressionDashboard(hudData);
   renderMissionBoard(hudData);
   renderEarthMines(hudData);
@@ -987,10 +1028,10 @@ function renderHangarHub(data = game.getHudData(), stats = calculateBuildStats(b
       </div>
 
       <div class="hangar-rail left-rail">
-        ${renderHangarAction("build", "Build Rocket", "Design, stage, and upgrade", "↟", "blue")}
-        ${renderHangarAction("collect", "Collect Resources", hasCollectable ? "Crates ready in storage" : "Storage is filling", "▣", "green", !hasCollectable)}
-        ${renderHangarAction("research", "Research", availableResearch ? `${availableResearch} node${availableResearch === 1 ? "" : "s"} available` : "Unlock new systems", "⌬", "purple")}
-        ${renderHangarAction("contracts", "Contracts", completedDaily ? `${completedDaily} reward ready` : "Client missions", "▤", "gold")}
+        ${renderHangarAction("build", "Build Rocket", "Design, stage, and upgrade", "↟", "blue", false, activeHangarStation === "build")}
+        ${renderHangarAction("collect", "Collect Resources", hasCollectable ? "Crates ready in storage" : "Storage is filling", "▣", "green", false, activeHangarStation === "collect")}
+        ${renderHangarAction("research", "Research", availableResearch ? `${availableResearch} node${availableResearch === 1 ? "" : "s"} available` : "Unlock new systems", "⌬", "purple", false, activeHangarStation === "research")}
+        ${renderHangarAction("contracts", "Contracts", completedDaily ? `${completedDaily} reward ready` : "Client missions", "▤", "gold", false, activeHangarStation === "contracts")}
       </div>
 
       <div class="hangar-centerpiece" aria-label="Current rocket in hangar">
@@ -1015,8 +1056,8 @@ function renderHangarHub(data = game.getHudData(), stats = calculateBuildStats(b
       </div>
 
       <div class="hangar-rail right-rail">
-        ${renderHangarAction("engineers", "Engineers", `${engineer.active?.length ?? 0}/${engineer.slots ?? 1} assigned`, "◉", "orange")}
-        ${renderHangarAction("planets", "Planetary Ops", `${discoveredPlanets} mapped · ${colonies} colonies`, "◌", "blue")}
+        ${renderHangarAction("engineers", "Engineers", `${engineer.active?.length ?? 0}/${engineer.slots ?? 1} assigned`, "◉", "orange", false, activeHangarStation === "engineers")}
+        ${renderHangarAction("planets", "Planetary Ops", `${discoveredPlanets} mapped · ${colonies} colonies`, "◌", "blue", false, activeHangarStation === "planets")}
         <div class="hangar-systems-card">
           <div><strong>Systems</strong><span>${escapeHtml(`${stats.count ?? 0} parts · ${formatStatNumber(stats.launchMass ?? 0)}t`)}</span></div>
           ${systems.map((system) => `
@@ -1049,9 +1090,9 @@ function renderHangarHub(data = game.getHudData(), stats = calculateBuildStats(b
   `;
 }
 
-function renderHangarAction(action, title, subtitle, icon, tone = "blue", disabled = false) {
+function renderHangarAction(action, title, subtitle, icon, tone = "blue", disabled = false, active = false) {
   return `
-    <button type="button" class="hangar-action-card tone-${escapeHtml(tone)}" data-hangar-action="${escapeHtml(action)}" ${disabled ? "disabled" : ""}>
+    <button type="button" class="hangar-action-card tone-${escapeHtml(tone)} ${active ? "active" : ""}" data-hangar-action="${escapeHtml(action)}" ${disabled ? "disabled" : ""} aria-pressed="${active ? "true" : "false"}">
       <span class="hangar-action-icon" aria-hidden="true">${escapeHtml(icon)}</span>
       <span class="hangar-action-copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(subtitle)}</small></span>
       <em aria-hidden="true">›</em>
@@ -1136,34 +1177,60 @@ function renderEngineerSvg() {
 }
 
 function handleHangarAction(action = "build") {
-  if (action === "collect") {
-    game.collectPassiveIncome();
-    renderBuilder();
-    return;
-  }
-  if (action === "research") {
-    showResearchLab();
-    return;
-  }
-  if (action === "contracts" || action === "missions") {
-    scrollBuilderSection(builderMissionsSectionEl);
-    return;
-  }
-  if (action === "engineers") {
-    engineerQueueCardEl?.scrollIntoView({ behavior: "smooth", block: "center" });
-    return;
-  }
-  if (action === "planets") {
-    scrollBuilderSection(document.querySelector("#builderPlanetSection"));
-    return;
-  }
   if (action === "launch") {
     launchBuiltRocket();
     return;
   }
-  builderAdvancedOpen = true;
+  const station = action === "missions" ? "contracts" : action;
+  navigateHangarStation(station, { expandBuilder: station === "build" });
+}
+
+function navigateHangarStation(station = "build", options = {}) {
+  const nextStation = HANGAR_STATIONS[station] ? station : "build";
+  activeHangarStation = nextStation;
+  if (nextStation === "build" && options.expandBuilder) builderAdvancedOpen = true;
   renderBuilder();
-  setTimeout(() => scrollBuilderSection(builderRocketSectionEl), 0);
+  if (options.scroll !== false) {
+    setTimeout(() => scrollBuilderSection(hangarStationWorkspaceEl ?? hangarHubEl), 0);
+  }
+}
+
+function updateHangarStationWorkspace() {
+  const station = HANGAR_STATIONS[activeHangarStation] ?? HANGAR_STATIONS.build;
+  builderScreenEl?.classList.add("hangar-consolidated");
+  HANGAR_STATION_IDS.forEach((id) => builderScreenEl?.classList.remove(`station-${id}`));
+  builderScreenEl?.classList.add(`station-${activeHangarStation}`);
+
+  if (hangarStationEyebrowEl) hangarStationEyebrowEl.textContent = station.eyebrow;
+  if (hangarStationTitleEl) hangarStationTitleEl.textContent = station.title;
+  if (hangarStationDescriptionEl) hangarStationDescriptionEl.textContent = station.description;
+
+  const progressionTitle = programProgressionSection?.querySelector(".builder-section-title h2");
+  const progressionSubtitle = programProgressionSection?.querySelector(".builder-section-title span");
+  if (progressionTitle && progressionSubtitle) {
+    const progressionLabels = {
+      collect: ["Storage Yard", "Banked resources and income collection"],
+      engineers: ["Engineering Bay", "Crew assignments and facility projects"],
+      contracts: ["Contract Office", "Daily client requests and claimable rewards"]
+    };
+    const [title, subtitle] = progressionLabels[activeHangarStation] ?? ["Space Program", "Short sessions, timed upgrades, daily goals"];
+    progressionTitle.textContent = title;
+    progressionSubtitle.textContent = subtitle;
+  }
+
+  const programTitle = document.querySelector(".program-section-title h2");
+  const programSubtitle = document.querySelector(".program-section-title span");
+  if (programTitle && programSubtitle) {
+    const programLabels = {
+      build: ["Rocket Presets", "Quick build templates"],
+      collect: ["Earth Economy", "Starter income and resource infrastructure"],
+      research: ["Research Lab", "Open the full skill tree"],
+      planets: ["Planetary Operations", "Network, registry, and colonies"]
+    };
+    const [title, subtitle] = programLabels[activeHangarStation] ?? ["Program Systems", "Optional upgrades, income, and discovery"];
+    programTitle.textContent = title;
+    programSubtitle.textContent = subtitle;
+  }
 }
 
 function renderProgressionDashboard(data = game.getHudData()) {
@@ -1311,31 +1378,32 @@ function renderRecommendedAction(data = game.getHudData()) {
 
 function handleRecommendedAction(target = "missions") {
   if (target === "bank") {
+    navigateHangarStation("collect", { scroll: false });
     game.collectPassiveIncome();
     renderBuilder();
     return;
   }
   if (target === "daily") {
-    dailyContractListEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+    navigateHangarStation("contracts");
     return;
   }
   if (target === "engineer") {
-    engineerQueueCardEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+    navigateHangarStation("engineers");
     return;
   }
   if (target === "research") {
-    showResearchLab();
+    navigateHangarStation("research");
     return;
   }
   if (target === "planets") {
-    scrollBuilderSection(document.querySelector("#builderPlanetSection"));
+    navigateHangarStation("planets");
     return;
   }
   if (target === "missions" || target === "launch") {
-    scrollBuilderSection(builderMissionsSectionEl);
+    navigateHangarStation("contracts");
     return;
   }
-  scrollBuilderSection(builderMissionsSectionEl);
+  navigateHangarStation("contracts");
 }
 
 function renderPassiveBank(data = game.getHudData()) {
