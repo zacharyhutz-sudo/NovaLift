@@ -202,6 +202,34 @@ const ROCKET_TEMPLATES = [
     stack: ["nose_cone_basic", "exploration_satellite_basic", "command_pod_basic", "parachute_basic", "fuel_tank_small", "engine_skyburner", "decoupler_basic", "fuel_tank_composite", "engine_titan"]
   },
   {
+    id: "colony_lander",
+    name: "Robotic Lander Mission",
+    description: "Heavy payload stack for the first colony delivery stage.",
+    requiresResearch: "robotic_landers",
+    stack: ["nose_cone_basic", "robotic_lander_payload", "command_pod_basic", "parachute_basic", "landing_legs_basic", "fuel_tank_composite", "engine_skyburner", "decoupler_basic", "fuel_tank_composite", "fuel_tank_medium", "engine_titan"]
+  },
+  {
+    id: "power_delivery",
+    name: "Power Module Delivery",
+    description: "Delivers surface power hardware to a targeted planet.",
+    requiresResearch: "surface_power_systems",
+    stack: ["nose_cone_basic", "power_module_payload", "command_pod_basic", "parachute_basic", "fuel_tank_composite", "engine_skyburner", "decoupler_basic", "fuel_tank_composite", "fuel_tank_medium", "engine_titan"]
+  },
+  {
+    id: "mining_delivery",
+    name: "Mining Rig Delivery",
+    description: "Very heavy colony launcher for automated mining rigs.",
+    requiresResearch: "offworld_mining",
+    stack: ["nose_cone_basic", "mining_rig_payload", "command_pod_basic", "parachute_basic", "fuel_tank_composite", "fuel_tank_composite", "engine_skyburner", "decoupler_basic", "fuel_tank_composite", "fuel_tank_composite", "engine_titan"]
+  },
+  {
+    id: "habitat_delivery",
+    name: "Habitat Delivery",
+    description: "Late-game starter colony payload with pressurized habitat hardware.",
+    requiresResearch: "habitat_modules",
+    stack: ["nose_cone_basic", "habitat_module_payload", "command_pod_basic", "parachute_basic", "fuel_tank_composite", "fuel_tank_composite", "engine_skyburner", "decoupler_basic", "fuel_tank_composite", "fuel_tank_composite", "engine_titan"]
+  },
+  {
     id: "recovery_test",
     name: "Recovery Test",
     description: "Small vehicle for practicing parachute and landing-leg cash-ins.",
@@ -323,6 +351,11 @@ function bindBuilderEvents() {
   });
   bindDelegatedActivation(planetRegistryListEl, "[data-colony-action]", (button) => {
     game.upgradeColony(button.dataset.colonyAction);
+    renderBuilder();
+    updateHud(game.getHudData());
+  });
+  bindDelegatedActivation(planetRegistryListEl, "[data-colony-target]", (button) => {
+    game.setColonyMissionTarget(button.dataset.colonyTarget);
     renderBuilder();
     updateHud(game.getHudData());
   });
@@ -1442,6 +1475,8 @@ function renderColonyPanel(planet, colony = {}) {
   const production = colony.production ?? {};
   const nextProduction = colony.nextProduction ?? production;
   const cost = colony.nextCost;
+  const mission = colony.mission ?? null;
+  const requiredPayload = colony.requiredPayloadType ? formatPayloadLabel(colony.requiredPayloadType) : "Payload";
   const outputText = colony.colonized
     ? `${formatMoneyRate(production.cash ?? 0)}/s · ${formatResearchRate(production.research ?? 0)}R/s · ${formatScanRate(production.scan ?? 0)}/s Scan`
     : `Projected: ${formatMoneyRate(nextProduction.cash ?? 0)}/s · ${formatResearchRate(nextProduction.research ?? 0)}R/s · ${formatScanRate(nextProduction.scan ?? 0)}/s Scan`;
@@ -1449,18 +1484,35 @@ function renderColonyPanel(planet, colony = {}) {
   const statusText = colony.colonized
     ? `Level ${colony.level}/${colony.maxLevel} · ${escapeHtml(colony.tierName)}`
     : escapeHtml(colony.role ?? "Robotic Outpost");
-  const button = colony.maxed
+  const missionStatus = colony.maxed
+    ? "All starter colony modules delivered."
+    : mission
+      ? `${mission.targetActive ? "Target active" : "Set as target"} · Needs ${requiredPayload}${mission.delivered ? " delivered" : ""}`
+      : `Needs ${requiredPayload}`;
+  const targetButton = colony.maxed
+    ? ""
+    : `<button type="button" class="mini-button colony-target-button ${colony.targetActive ? "active" : ""}" data-colony-target="${escapeHtml(planet.id)}">${colony.targetActive ? "Target Set" : "Target"}</button>`;
+  const buildButton = colony.maxed
     ? `<button type="button" class="mini-button colony-action-button" disabled>Max Colony</button>`
     : `<button type="button" class="mini-button colony-action-button" data-colony-action="${escapeHtml(planet.id)}" ${colony.canAct ? "" : "disabled"}>${escapeHtml(colony.actionLabel)}</button>`;
+  const blockedText = colony.canAct || colony.maxed
+    ? costText
+    : colony.missingPieces?.length
+      ? colony.missingPieces.join(" · ")
+      : colony.actionLabel;
 
   return `
-    <div class="colony-panel ${colony.colonized ? "online" : "offline"}">
+    <div class="colony-panel ${colony.colonized ? "online" : "offline"} ${colony.targetActive ? "targeted" : ""}">
       <div class="colony-copy">
         <span>${statusText}</span>
         <strong>${escapeHtml(outputText)}</strong>
-        <small>${escapeHtml(colony.canAct || colony.maxed ? costText : colony.actionLabel)}${cost && !colony.canAct && colony.roboticReady ? ` · ${escapeHtml(costText)}` : ""}</small>
+        <small>${escapeHtml(missionStatus)}</small>
+        <small>${escapeHtml(blockedText)}${cost && !colony.canAct && colony.deliveryReady && colony.researchReady ? ` · ${escapeHtml(costText)}` : ""}</small>
       </div>
-      ${button}
+      <div class="colony-panel-actions">
+        ${targetButton}
+        ${buildButton}
+      </div>
     </div>`;
 }
 
@@ -1971,6 +2023,7 @@ function renderTrackerItem(object) {
 function getTrackedObjectIcon(object) {
   if (object.kind === "payload" && object.payloadType === "exploration_satellite") return "✦";
   if (object.kind === "payload" && object.payloadType === "data_center") return "▣";
+  if (object.kind === "payload" && ["robotic_lander", "power_module", "mining_rig", "habitat_module"].includes(object.payloadType)) return "▤";
   if (object.kind === "payload") return "◇";
   if (object.kind === "vessel") return "◉";
   return "◆";
@@ -1979,6 +2032,12 @@ function getTrackedObjectIcon(object) {
 function getTrackedTypeLabel(info) {
   if (info.kind === "payload" && info.payloadType === "data_center") return "Data Center";
   if (info.kind === "payload" && info.payloadType === "exploration_satellite") return "Exploration Satellite";
+  if (info.kind === "payload" && info.payloadType === "survey_probe") return "Survey Probe";
+  if (info.kind === "payload" && info.payloadType === "robotic_lander") return "Robotic Lander";
+  if (info.kind === "payload" && info.payloadType === "cargo_pod") return "Cargo Pod";
+  if (info.kind === "payload" && info.payloadType === "power_module") return "Power Module";
+  if (info.kind === "payload" && info.payloadType === "mining_rig") return "Mining Rig";
+  if (info.kind === "payload" && info.payloadType === "habitat_module") return "Habitat Module";
   if (info.kind === "payload" && info.payloadType === "satellite") return "Satellite";
   if (info.kind === "payload") return "Payload";
   if (info.kind === "vessel") return "Command Pod";
@@ -2131,13 +2190,19 @@ function getRecommendedPartIds(nextMission) {
   const id = nextMission?.id ?? "";
   if (id === "deploy_satellite") return ["satellite_basic", "decoupler_basic", "fuel_tank_small", "engine_vacuum", "engine_basic"];
   if (id === "deploy_datacenter") return ["data_center_basic", "decoupler_basic", "fuel_tank_medium", "engine_vacuum", "engine_heavy"];
+  if (id === "launch_explorer" || id === "generate_scan_data" || id === "detect_unknown_signal") return ["exploration_satellite_basic", "fuel_tank_composite", "engine_skyburner", "engine_titan"];
+  if (id === "deliver_first_lander") return ["robotic_lander_payload", "fuel_tank_composite", "engine_skyburner", "engine_titan"];
+  if (id === "deliver_power_module") return ["power_module_payload", "fuel_tank_composite", "engine_skyburner", "engine_titan"];
+  if (id === "deliver_mining_rig") return ["mining_rig_payload", "fuel_tank_composite", "engine_titan"];
+  if (id === "deliver_habitat_module") return ["habitat_module_payload", "fuel_tank_composite", "engine_titan"];
   if (id === "recover_rocket") return ["command_pod_basic", "parachute_basic", "landing_legs_basic", "fuel_tank_small", "engine_basic"];
   if (id === "first_orbit" || id === "touch_space") return ["nose_cone_basic", "command_pod_basic", "fuel_tank_medium", "decoupler_basic", "engine_basic"];
   return ["command_pod_basic", "fuel_tank_small", "engine_basic"];
 }
 
 function getPartIconClass(part) {
-  const subtype = part.id?.includes("satellite") ? " satellite" : part.id?.includes("data_center") ? " data-center" : "";
+  const id = part.id ?? "";
+  const subtype = id.includes("satellite") ? " satellite" : id.includes("data_center") ? " data-center" : id.includes("payload") || id.includes("probe") ? " colony-payload" : "";
   return `type-${part.type}${subtype}`;
 }
 
@@ -2179,6 +2244,18 @@ function updateTestResourceToggle(company = {}) {
   toggleTestResourcesButton.setAttribute("aria-pressed", String(active));
   toggleTestResourcesButton.textContent = active ? "∞ $/R/S" : "TEST";
   toggleTestResourcesButton.title = active ? "Disable infinite cash, Research, and Scan" : "Enable infinite cash, Research, and Scan";
+}
+
+function formatPayloadLabel(payloadType = "") {
+  const labels = {
+    survey_probe: "Survey Probe",
+    robotic_lander: "Robotic Lander",
+    cargo_pod: "Cargo Pod",
+    power_module: "Power Module",
+    mining_rig: "Mining Rig",
+    habitat_module: "Habitat Module"
+  };
+  return labels[payloadType] ?? (payloadType.split("_").filter(Boolean).map((word) => word[0]?.toUpperCase() + word.slice(1)).join(" ") || "Payload");
 }
 
 function formatColonyCost(cost = {}) {

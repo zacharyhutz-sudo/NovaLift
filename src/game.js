@@ -9,17 +9,24 @@ import {
   purchaseResearch as purchaseResearchNode
 } from "./research.js";
 import {
+  COLONY_PAYLOAD_TYPES,
   COLONY_VERSION,
   PLANET_DISCOVERY_VERSION,
+  formatPayloadTypeLabel,
+  getActiveColonyMissionTarget,
+  getActiveColonyMissionView,
   getDiscoveredPhysicalPlanets,
   getNextPlanetSignal,
   getPlanetRegistryView,
   getTotalColonyProduction,
   hasCostBypass,
   hasInfiniteTestResources,
+  normalizeColonyDeliveryState,
   normalizeColonyState,
   normalizePlanetState,
   processPlanetDiscovery,
+  recordColonyPayloadDelivery,
+  setActiveColonyMissionTarget,
   upgradeColony as upgradePlanetColony
 } from "./planets.js";
 import {
@@ -328,12 +335,14 @@ export class Game {
 
   activateStage() {
     const result = activateNextStage(this.rocket, this.getDominantPlanetFor(this.rocket));
+    let colonyDeliveryMessages = [];
     if (result.objects?.length) {
       this.objects.push(...result.objects);
+      colonyDeliveryMessages = this.processColonyPayloadDeliveries(result.objects);
       this.trimObjects();
       this.saveWorldObjects();
     }
-    this.stageMessage = result.message;
+    this.stageMessage = [result.message, ...colonyDeliveryMessages].filter(Boolean).join(" ");
     this.stageMessageTimer = 6;
     const effectPoint = this.getRocketWorldEffectPoint(-90);
     this.emitFeedback({
@@ -595,6 +604,77 @@ export class Game {
       this.emitFeedback({ title: "Colony unavailable", message: result.reason ?? "Colony unavailable.", tone: "warning", sound: "error", haptic: "error" });
     }
     return result;
+  }
+
+  setColonyMissionTarget(planetId) {
+    const result = setActiveColonyMissionTarget(this.company, planetId);
+    if (result.ok) {
+      const mission = result.mission;
+      this.stageMessage = mission
+        ? `Colony target set: ${result.planet.name}. Next payload: ${formatPayloadTypeLabel(mission.requiredPayloadType)}.`
+        : `Colony target set: ${result.planet.name}.`;
+      this.stageMessageTimer = 7;
+      this.emitFeedback({
+        title: "Colony target set",
+        message: mission ? `${result.planet.name} needs ${formatPayloadTypeLabel(mission.requiredPayloadType)}.` : result.planet.name,
+        tone: "info",
+        sound: "select",
+        haptic: "light"
+      });
+      this.saveCompany();
+    } else {
+      this.stageMessage = result.reason ?? "Could not set target.";
+      this.stageMessageTimer = 5;
+      this.emitFeedback({ title: "Target unavailable", message: result.reason ?? "Could not set target.", tone: "warning", sound: "error", haptic: "error" });
+    }
+    return result;
+  }
+
+  processColonyPayloadDeliveries(objects = []) {
+    const messages = [];
+    const targetId = getActiveColonyMissionTarget(this.company);
+    if (!targetId) return messages;
+
+    for (const object of objects) {
+      if (!object || object.kind !== "payload" || !object.online || object.colonyDelivered) continue;
+      const payloadType = String(object.payloadType || object.payloadRole || "");
+      if (!COLONY_PAYLOAD_TYPES.has(payloadType)) continue;
+
+      const result = recordColonyPayloadDelivery(this.company, targetId, payloadType);
+      if (!result.ok) {
+        messages.push(result.reason ?? `${formatPayloadTypeLabel(payloadType)} is not needed yet.`);
+        continue;
+      }
+
+      object.colonyDelivered = true;
+      object.colonyTargetId = targetId;
+      object.colonyTargetName = result.planet?.name ?? "target planet";
+      object.statusReason = `delivered to ${object.colonyTargetName}`;
+      messages.push(`${formatPayloadTypeLabel(payloadType)} delivered to ${object.colonyTargetName}. Colony stage is ready to build.`);
+      this.company.totalColonyPayloadDeliveries = (this.company.totalColonyPayloadDeliveries ?? 0) + 1;
+      addProgramXp(this.company, 28, `${object.colonyTargetName} payload delivery`);
+      this.emitFeedback({
+        title: "Payload delivered",
+        message: `${formatPayloadTypeLabel(payloadType)} → ${object.colonyTargetName}`,
+        tone: "reward",
+        sound: "unlock",
+        haptic: "success",
+        reward: {
+          title: `${object.colonyTargetName} Delivery`,
+          subtitle: `${formatPayloadTypeLabel(payloadType)} confirmed by Mission Control.`,
+          stats: ["Colony stage ready"],
+          tone: "success",
+          kicker: "Planetary Mission",
+          icon: "OPS"
+        }
+      });
+    }
+
+    if (messages.length) {
+      this.updateMissions();
+      this.saveCompany();
+    }
+    return messages;
   }
 
   updateMissions() {
@@ -1083,8 +1163,12 @@ export class Game {
         scanPerSecond: 0,
         discoveredPlanets: normalizePlanetState(parsed.discoveredPlanets),
         colonies: normalizeColonyState(parsed.colonies),
+        colonyDeliveries: normalizeColonyDeliveryState(parsed.colonyDeliveries),
         colonyVersion: parsed.colonyVersion ?? COLONY_VERSION,
+        activeColonyMissionTargetId: parsed.activeColonyMissionTargetId ?? "",
         totalColoniesBuilt: Object.keys(normalizeColonyState(parsed.colonies)).length,
+        totalColonyPayloadDeliveries: Number(parsed.totalColonyPayloadDeliveries ?? 0),
+        lastColonyPayloadDelivery: parsed.lastColonyPayloadDelivery ?? null,
         lastColonizedPlanet: parsed.lastColonizedPlanet ?? "",
         colonyIncomePerSecond: 0,
         colonyResearchPerSecond: 0,
@@ -1138,8 +1222,12 @@ export class Game {
         totalScanGenerated: this.company.totalScanGenerated ?? 0,
         discoveredPlanets: normalizePlanetState(this.company.discoveredPlanets),
         colonies: normalizeColonyState(this.company.colonies),
+        colonyDeliveries: normalizeColonyDeliveryState(this.company.colonyDeliveries),
         colonyVersion: this.company.colonyVersion ?? COLONY_VERSION,
+        activeColonyMissionTargetId: this.company.activeColonyMissionTargetId ?? "",
         totalColoniesBuilt: Object.keys(normalizeColonyState(this.company.colonies)).length,
+        totalColonyPayloadDeliveries: this.company.totalColonyPayloadDeliveries ?? 0,
+        lastColonyPayloadDelivery: this.company.lastColonyPayloadDelivery ?? null,
         lastColonizedPlanet: this.company.lastColonizedPlanet ?? "",
         totalPlanetsDiscovered: normalizePlanetState(this.company.discoveredPlanets).length,
         lastDiscoveredPlanet: this.company.lastDiscoveredPlanet ?? "",
@@ -1249,6 +1337,7 @@ export class Game {
       nextMission: getNextMission(this.getMissionContext()),
       planets: getPlanetRegistryView(this.company),
       nextPlanetSignal: getNextPlanetSignal(this.company),
+      activeColonyMission: getActiveColonyMissionView(this.company),
       programLevel: getProgramLevelInfo(this.company),
       dailyContracts: getDailyContractsView(this.company),
       engineer: getEngineerView(this.company),
@@ -1437,8 +1526,12 @@ function createDefaultCompany() {
     scanPerSecond: 0,
     discoveredPlanets: normalizePlanetState(),
     colonies: normalizeColonyState(),
+    colonyDeliveries: normalizeColonyDeliveryState(),
     colonyVersion: COLONY_VERSION,
+    activeColonyMissionTargetId: "",
     totalColoniesBuilt: 0,
+    totalColonyPayloadDeliveries: 0,
+    lastColonyPayloadDelivery: null,
     lastColonizedPlanet: "",
     colonyIncomePerSecond: 0,
     colonyResearchPerSecond: 0,
@@ -1508,6 +1601,9 @@ function normalizeStoredObject(object) {
     crashed: Boolean(object.crashed),
     landed: Boolean(object.landed),
     exploded: Boolean(object.exploded),
+    colonyDelivered: Boolean(object.colonyDelivered),
+    colonyTargetId: object.colonyTargetId ?? "",
+    colonyTargetName: object.colonyTargetName ?? "",
     status: object.status ?? "drifting",
     offlineReason: object.offlineReason ?? ""
   };
@@ -1556,7 +1652,10 @@ function serializeObject(object) {
     online: Boolean(object.online),
     crashed: Boolean(object.crashed),
     landed: Boolean(object.landed),
-    exploded: Boolean(object.exploded)
+    exploded: Boolean(object.exploded),
+    colonyDelivered: Boolean(object.colonyDelivered),
+    colonyTargetId: object.colonyTargetId ?? "",
+    colonyTargetName: object.colonyTargetName ?? ""
   };
 }
 
@@ -1573,13 +1672,25 @@ function normalizeObjectKind(object) {
 }
 
 function inferPayloadType(object) {
-  const existing = String(object?.payloadType ?? "").toLowerCase();
+  const existing = String(object?.payloadType ?? object?.payloadRole ?? "").toLowerCase();
+  if (existing.includes("survey_probe")) return "survey_probe";
+  if (existing.includes("robotic_lander")) return "robotic_lander";
+  if (existing.includes("cargo_pod")) return "cargo_pod";
+  if (existing.includes("power_module")) return "power_module";
+  if (existing.includes("mining_rig")) return "mining_rig";
+  if (existing.includes("habitat_module")) return "habitat_module";
   if (existing.includes("data")) return "data_center";
   if (existing.includes("exploration")) return "exploration_satellite";
   if (existing.includes("satellite")) return "satellite";
 
   const text = `${object?.name ?? ""} ${object?.id ?? ""}`.toLowerCase();
   const parts = Array.isArray(object?.parts) ? object.parts : [];
+  if (text.includes("survey") || parts.some((part) => part.payloadRole === "survey_probe" || part.id?.includes("survey_probe") || /survey/i.test(part.name ?? ""))) return "survey_probe";
+  if (text.includes("lander") || parts.some((part) => part.payloadRole === "robotic_lander" || part.id?.includes("robotic_lander") || /lander/i.test(part.name ?? ""))) return "robotic_lander";
+  if (text.includes("cargo") || parts.some((part) => part.payloadRole === "cargo_pod" || part.id?.includes("cargo_pod") || /cargo/i.test(part.name ?? ""))) return "cargo_pod";
+  if (text.includes("power") || parts.some((part) => part.payloadRole === "power_module" || part.id?.includes("power_module") || /power/i.test(part.name ?? ""))) return "power_module";
+  if (text.includes("mining") || parts.some((part) => part.payloadRole === "mining_rig" || part.id?.includes("mining_rig") || /mining/i.test(part.name ?? ""))) return "mining_rig";
+  if (text.includes("habitat") || parts.some((part) => part.payloadRole === "habitat_module" || part.id?.includes("habitat_module") || /habitat/i.test(part.name ?? ""))) return "habitat_module";
   if (text.includes("data") || parts.some((part) => part.id?.includes("data_center") || /data/i.test(part.name ?? ""))) return "data_center";
   if (text.includes("exploration") || parts.some((part) => part.id?.includes("exploration_satellite") || /exploration/i.test(part.name ?? ""))) return "exploration_satellite";
   if (text.includes("satellite") || parts.some((part) => part.id?.includes("satellite") || /satellite/i.test(part.name ?? ""))) return "satellite";
@@ -1594,6 +1705,12 @@ function objectContainsPartType(object, type) {
 function defaultObjectName(kind, payloadType) {
   if (kind === "payload" && payloadType === "data_center") return "Orbital Data Center";
   if (kind === "payload" && payloadType === "exploration_satellite") return "Exploration Satellite";
+  if (kind === "payload" && payloadType === "survey_probe") return "Survey Probe";
+  if (kind === "payload" && payloadType === "robotic_lander") return "Robotic Lander";
+  if (kind === "payload" && payloadType === "cargo_pod") return "Cargo Pod";
+  if (kind === "payload" && payloadType === "power_module") return "Power Module";
+  if (kind === "payload" && payloadType === "mining_rig") return "Mining Rig";
+  if (kind === "payload" && payloadType === "habitat_module") return "Habitat Module";
   if (kind === "payload" && payloadType === "satellite") return "Small Satellite";
   if (kind === "payload") return "Payload";
   if (kind === "vessel") return "Command Pod";
@@ -1610,6 +1727,9 @@ function inferResearchRate(object) {
 
 function getCurrentPayloadRates(object) {
   const partId = inferPayloadPartId(object);
+  if (["survey_probe_basic", "robotic_lander_payload", "cargo_pod_payload", "power_module_payload", "mining_rig_payload", "habitat_module_payload"].includes(partId)) {
+    return { incomeRate: 0, researchRate: partId === "survey_probe_basic" ? 0.012 : 0, scanRate: partId === "survey_probe_basic" ? 0.1 : 0, payloadRole: inferPayloadType(object) || "payload" };
+  }
   if (partId === "data_center_efficient") return { incomeRate: 15.2, researchRate: 0.011, scanRate: 0, payloadRole: "data" };
   if (partId === "exploration_satellite_basic") return { incomeRate: 1.6, researchRate: 0.018, scanRate: 0.18, payloadRole: "exploration" };
   if (partId === "satellite_basic") return { incomeRate: 2.8, researchRate: 0.0032, scanRate: 0, payloadRole: "comms" };
@@ -1620,12 +1740,24 @@ function getCurrentPayloadRates(object) {
 function inferPayloadPartId(object) {
   const parts = Array.isArray(object?.parts) ? object.parts : [];
   const ids = parts.map((part) => String(part.id ?? "").toLowerCase());
+  if (ids.includes("survey_probe_basic")) return "survey_probe_basic";
+  if (ids.includes("robotic_lander_payload")) return "robotic_lander_payload";
+  if (ids.includes("cargo_pod_payload")) return "cargo_pod_payload";
+  if (ids.includes("power_module_payload")) return "power_module_payload";
+  if (ids.includes("mining_rig_payload")) return "mining_rig_payload";
+  if (ids.includes("habitat_module_payload")) return "habitat_module_payload";
   if (ids.includes("data_center_efficient")) return "data_center_efficient";
   if (ids.includes("exploration_satellite_basic")) return "exploration_satellite_basic";
   if (ids.includes("satellite_basic")) return "satellite_basic";
   if (ids.includes("data_center_basic")) return "data_center_basic";
 
   const text = `${object?.name ?? ""} ${object?.id ?? ""} ${object?.payloadType ?? ""}`.toLowerCase();
+  if (text.includes("survey")) return "survey_probe_basic";
+  if (text.includes("lander")) return "robotic_lander_payload";
+  if (text.includes("cargo")) return "cargo_pod_payload";
+  if (text.includes("power")) return "power_module_payload";
+  if (text.includes("mining")) return "mining_rig_payload";
+  if (text.includes("habitat")) return "habitat_module_payload";
   if (text.includes("efficient") || text.includes("cloud")) return "data_center_efficient";
   if (text.includes("exploration") || text.includes("explorer")) return "exploration_satellite_basic";
   if (text.includes("data") || text.includes("center") || text.includes("dc")) return "data_center_basic";

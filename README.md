@@ -1,8 +1,25 @@
-# NovaLift v0.9.7 — Space Center + Flight Warp Pass
+# NovaLift v0.9.8 — Colonization Research + Payload Missions
+
+This patch turns colonization from a menu-only upgrade into a staged planetary mission loop: research the right tech, select a discovered planet as the colony target, build a rocket with the required payload, deploy it in stable orbit, then build the next colony stage from the Planet Registry.
+
+## What is new in v0.9.8
+
+- Expanded the planetary research branch with Surface Mapping, Cargo Delivery Capsules, Surface Power Systems, Automated Construction, Offworld Mining, and Habitat Modules.
+- Added new physical payload parts: Survey Probe, Robotic Lander, Cargo Delivery Pod, Surface Power Module, Automated Mining Rig, and Habitat Module.
+- Added colonization rocket presets for lander, power module, mining rig, and habitat delivery missions.
+- Added active colony targeting from the Planet Registry. A discovered planet can now be selected as the target for payload deliveries.
+- Reworked colonies into staged progression: Robotic Lander, Powered Outpost, Mining Site, and Starter Colony.
+- Colony stages now require the matching delivered payload before they can be built in Career Mode.
+- TEST resources and Sandbox still bypass costs so colonization can be tested quickly.
+- Added delivery feedback/rewards when a colony payload is deployed successfully for the active target.
+- Expanded the Colonization Program mission chain around target selection, payload deliveries, and staged colony upgrades.
+- Updated save/load support for colony payload deliveries and active colony mission targets.
+
+## Previous v0.9.7 — Space Center + Flight Warp Pass
 
 This patch makes the company layer feel more like a playable space center and adds Space Flight Simulator-style flight time warp without accelerating passive income, scan, research, or engineer timers.
 
-## What is new in v0.9.7
+### What is new in v0.9.7
 
 - Added a Space Center facility map to the Launchpad with Mission Control, Engineering Bay, Contract Office, Storage Yard, Research Lab, and Planetary Ops.
 - Facilities now act as shortcuts into the relevant game systems instead of leaving everything as detached stat panels.

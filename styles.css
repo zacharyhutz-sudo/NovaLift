@@ -7243,3 +7243,43 @@ button:active:not(:disabled),
     min-height: 74px;
   }
 }
+
+/* v0.9.8 colonization research + payload mission pass */
+.colony-panel.targeted {
+  border-color: rgba(125, 211, 252, 0.32);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(125, 211, 252, 0.13), transparent 45%),
+    rgba(2, 6, 23, 0.34);
+}
+
+.colony-panel-actions {
+  display: grid;
+  gap: 6px;
+  justify-items: stretch;
+}
+
+.colony-target-button {
+  min-height: 30px;
+  color: #bfdbfe;
+  border-color: rgba(125, 211, 252, 0.25);
+  background: rgba(14, 165, 233, 0.10);
+  white-space: nowrap;
+}
+
+.colony-target-button.active {
+  color: #ecfeff;
+  border-color: rgba(125, 211, 252, 0.48);
+  background: rgba(14, 165, 233, 0.22);
+  box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.10);
+}
+
+.part-icon.colony-payload span {
+  border-radius: 10px 10px 5px 5px;
+  box-shadow: inset 0 -5px 0 rgba(15, 23, 42, 0.18);
+}
+
+@media (max-width: 520px) {
+  .colony-panel-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+}

@@ -817,6 +817,12 @@ export function makeCommandVesselObject(parts, rocket, name = "Command Pod") {
 
 function getPayloadTypeFromParts(parts) {
   if (!Array.isArray(parts)) return "";
+  if (parts.some((part) => part.payloadRole === "survey_probe" || part.id?.includes("survey_probe"))) return "survey_probe";
+  if (parts.some((part) => part.payloadRole === "robotic_lander" || part.id?.includes("robotic_lander") || /lander/i.test(part.name ?? ""))) return "robotic_lander";
+  if (parts.some((part) => part.payloadRole === "cargo_pod" || part.id?.includes("cargo_pod") || /cargo/i.test(part.name ?? ""))) return "cargo_pod";
+  if (parts.some((part) => part.payloadRole === "power_module" || part.id?.includes("power_module") || /power/i.test(part.name ?? ""))) return "power_module";
+  if (parts.some((part) => part.payloadRole === "mining_rig" || part.id?.includes("mining_rig") || /mining/i.test(part.name ?? ""))) return "mining_rig";
+  if (parts.some((part) => part.payloadRole === "habitat_module" || part.id?.includes("habitat_module") || /habitat/i.test(part.name ?? ""))) return "habitat_module";
   if (parts.some((part) => part.id?.includes("data_center") || /data/i.test(part.name ?? ""))) return "data_center";
   if (parts.some((part) => part.id?.includes("exploration_satellite") || /exploration/i.test(part.name ?? ""))) return "exploration_satellite";
   if (parts.some((part) => part.id?.includes("satellite") || /satellite/i.test(part.name ?? ""))) return "satellite";
@@ -826,6 +832,13 @@ function getPayloadTypeFromParts(parts) {
 
 function defaultDetachedName(kind, payloadType) {
   if (kind === "payload" && payloadType === "data_center") return "Orbital Data Center";
+  if (kind === "payload" && payloadType === "exploration_satellite") return "Exploration Satellite";
+  if (kind === "payload" && payloadType === "survey_probe") return "Survey Probe";
+  if (kind === "payload" && payloadType === "robotic_lander") return "Robotic Lander";
+  if (kind === "payload" && payloadType === "cargo_pod") return "Cargo Pod";
+  if (kind === "payload" && payloadType === "power_module") return "Power Module";
+  if (kind === "payload" && payloadType === "mining_rig") return "Mining Rig";
+  if (kind === "payload" && payloadType === "habitat_module") return "Habitat Module";
   if (kind === "payload" && payloadType === "satellite") return "Small Satellite";
   if (kind === "payload") return "Payload";
   if (kind === "vessel") return "Command Pod";

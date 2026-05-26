@@ -243,32 +243,130 @@ export const MISSIONS = [
     isComplete: (ctx) => Boolean(ctx.company?.completedResearch?.includes("robotic_landers"))
   },
   {
-    id: "establish_first_colony",
+    id: "target_first_colony",
     chapter: "colonization_program",
     chapterOrder: 1,
-    title: "First Offworld Outpost",
+    title: "Choose Colony Target",
+    reward: 900000,
+    researchReward: 35,
+    recommendedTemplateId: "colony_lander",
+    recommendedTemplateLabel: "Robotic Lander",
+    description: "Use the Planet Registry to select a discovered world as the active colony payload target.",
+    objective: "Set an active colony target.",
+    progressLabel: (ctx) => ctx.company?.activeColonyMissionTargetId ? "Target selected" : "No target",
+    isComplete: (ctx) => Boolean(ctx.company?.activeColonyMissionTargetId)
+  },
+  {
+    id: "deliver_first_lander",
+    chapter: "colonization_program",
+    chapterOrder: 2,
+    title: "Deliver Robotic Lander",
+    reward: 2200000,
+    researchReward: 80,
+    recommendedTemplateId: "colony_lander",
+    recommendedTemplateLabel: "Robotic Lander",
+    description: "Build a rocket with a Robotic Lander, reach stable orbit, and stage the payload while a colony target is active.",
+    objective: "Deliver one Robotic Lander payload.",
+    progressLabel: (ctx) => `${countColonyDeliveries(ctx, "robotic_lander")} / 1 landers`,
+    isComplete: (ctx) => countColonyDeliveries(ctx, "robotic_lander") >= 1
+  },
+  {
+    id: "establish_first_colony",
+    chapter: "colonization_program",
+    chapterOrder: 3,
+    title: "First Robotic Outpost",
     reward: 2600000,
     researchReward: 90,
-    recommendedTemplateId: "explorer_sat",
-    recommendedTemplateLabel: "Explorer Probe",
-    description: "Use the Planet Registry to establish a robotic outpost on any discovered planet.",
-    objective: "Establish one offworld colony.",
-    progressLabel: (ctx) => `${countColonies(ctx)} / 1 colonies`,
+    recommendedTemplateId: "colony_lander",
+    recommendedTemplateLabel: "Robotic Lander",
+    description: "After a lander is delivered, build the first outpost from the Planet Registry.",
+    objective: "Establish one offworld outpost.",
+    progressLabel: (ctx) => `${countColonies(ctx)} / 1 outposts`,
     isComplete: (ctx) => countColonies(ctx) >= 1
+  },
+  {
+    id: "deliver_power_module",
+    chapter: "colonization_program",
+    chapterOrder: 4,
+    title: "Power the Outpost",
+    reward: 3000000,
+    researchReward: 100,
+    recommendedTemplateId: "power_delivery",
+    recommendedTemplateLabel: "Power Delivery",
+    description: "Deliver a Surface Power Module to the active colony target so the outpost can grow.",
+    objective: "Deliver one Power Module payload.",
+    progressLabel: (ctx) => `${countColonyDeliveries(ctx, "power_module")} / 1 power modules`,
+    isComplete: (ctx) => countColonyDeliveries(ctx, "power_module") >= 1
   },
   {
     id: "upgrade_first_colony",
     chapter: "colonization_program",
-    chapterOrder: 2,
-    title: "Upgrade an Outpost",
+    chapterOrder: 5,
+    title: "Build a Powered Outpost",
     reward: 3200000,
     researchReward: 110,
-    recommendedTemplateId: "explorer_sat",
-    recommendedTemplateLabel: "Explorer Probe",
-    description: "Upgrade an outpost into a stronger colony so offworld income, Research, and Scan production begin to matter.",
+    recommendedTemplateId: "power_delivery",
+    recommendedTemplateLabel: "Power Delivery",
+    description: "Upgrade the first outpost into a powered base so production becomes meaningful.",
     objective: "Reach colony level 2 on any planet.",
     progressLabel: (ctx) => `${getHighestColonyLevel(ctx)} / 2 colony level`,
     isComplete: (ctx) => getHighestColonyLevel(ctx) >= 2
+  },
+  {
+    id: "deliver_mining_rig",
+    chapter: "colonization_program",
+    chapterOrder: 6,
+    title: "Deliver Mining Rig",
+    reward: 4200000,
+    researchReward: 135,
+    recommendedTemplateId: "mining_delivery",
+    recommendedTemplateLabel: "Mining Delivery",
+    description: "Send an Automated Mining Rig to expand the colony into an industrial site.",
+    objective: "Deliver one Mining Rig payload.",
+    progressLabel: (ctx) => `${countColonyDeliveries(ctx, "mining_rig")} / 1 mining rigs`,
+    isComplete: (ctx) => countColonyDeliveries(ctx, "mining_rig") >= 1
+  },
+  {
+    id: "upgrade_mining_site",
+    chapter: "colonization_program",
+    chapterOrder: 7,
+    title: "Start Offworld Mining",
+    reward: 5200000,
+    researchReward: 160,
+    recommendedTemplateId: "mining_delivery",
+    recommendedTemplateLabel: "Mining Delivery",
+    description: "Upgrade a powered outpost into a mining site for stronger offworld production.",
+    objective: "Reach colony level 3 on any planet.",
+    progressLabel: (ctx) => `${getHighestColonyLevel(ctx)} / 3 colony level`,
+    isComplete: (ctx) => getHighestColonyLevel(ctx) >= 3
+  },
+  {
+    id: "deliver_habitat_module",
+    chapter: "colonization_program",
+    chapterOrder: 8,
+    title: "Deliver Habitat Module",
+    reward: 6800000,
+    researchReward: 200,
+    recommendedTemplateId: "habitat_delivery",
+    recommendedTemplateLabel: "Habitat Delivery",
+    description: "Deliver the first Habitat Module to prepare a true starter colony.",
+    objective: "Deliver one Habitat Module payload.",
+    progressLabel: (ctx) => `${countColonyDeliveries(ctx, "habitat_module")} / 1 habitat modules`,
+    isComplete: (ctx) => countColonyDeliveries(ctx, "habitat_module") >= 1
+  },
+  {
+    id: "charter_starter_colony",
+    chapter: "colonization_program",
+    chapterOrder: 9,
+    title: "Charter Starter Colony",
+    reward: 9000000,
+    researchReward: 250,
+    recommendedTemplateId: "habitat_delivery",
+    recommendedTemplateLabel: "Habitat Delivery",
+    description: "Upgrade a mining site into the first crew-ready starter colony.",
+    objective: "Reach colony level 4 on any planet.",
+    progressLabel: (ctx) => `${getHighestColonyLevel(ctx)} / 4 colony level`,
+    isComplete: (ctx) => getHighestColonyLevel(ctx) >= 4
   }
 ];
 
@@ -376,6 +474,15 @@ function countColonies(ctx) {
 
 function getHighestColonyLevel(ctx) {
   return Object.values(ctx.company?.colonies ?? {}).reduce((highest, colony) => Math.max(highest, Number(colony?.level ?? 0)), 0);
+}
+
+function countColonyDeliveries(ctx, payloadType = "") {
+  const deliveries = ctx.company?.colonyDeliveries ?? {};
+  return Object.values(deliveries).reduce((total, planetDeliveries) => {
+    if (!planetDeliveries || typeof planetDeliveries !== "object") return total;
+    if (payloadType) return total + Math.max(0, Number(planetDeliveries[payloadType] ?? 0));
+    return total + Object.values(planetDeliveries).reduce((sum, count) => sum + Math.max(0, Number(count ?? 0)), 0);
+  }, 0);
 }
 
 function formatDistance(value) {
