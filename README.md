@@ -1,14 +1,21 @@
-# NovaLift v0.8.0 — Satellite Roles + Orbital Network
+# NovaLift v0.9.0 — Satellite Roles + Orbital Network
 
 This patch adds scan-producing exploration satellites, an Orbital Network dashboard, scan-based campaign objectives, and command-vessel control from World View.
 
-# NovaLift v0.8.0 — Mobile Launchpad + Research Simplification
+# NovaLift v0.9.0 — Mobile Launchpad + Research Simplification
 
 NovaLift is a portrait/mobile-first 2D rocket company game prototype. This version simplifies the Launchpad and Research Lab so the game feels more like a tap-first mobile game and less like a document to read.
 
 
 
-## What is new in v0.8.0
+## v0.9.0 Planet Discovery
+
+- Added a Planet Registry with Homeworld plus three discoverable planets.
+- Scan progress now reveals planets instead of only filling an Unknown Signal bar.
+- Added Exploration Program missions for discovering and surveying planets.
+- Added Planetary Robotics research placeholders for future probe missions.
+
+## What is new in v0.9.0
 
 - Renamed the builder experience into a simpler **Launchpad** flow.
 - Reworked the top navigation into four short actions: Mission, Rocket, Research, and World.
@@ -23,6 +30,13 @@ NovaLift is a portrait/mobile-first 2D rocket company game prototype. This versi
 - Kept all underlying v0.6.4 mines/research/economy logic intact.
 
 
+## v0.9.0 Planet Discovery
+
+- Added a Planet Registry with Homeworld plus three discoverable planets.
+- Scan progress now reveals planets instead of only filling an Unknown Signal bar.
+- Added Exploration Program missions for discovering and surveying planets.
+- Added Planetary Robotics research placeholders for future probe missions.
+
 ## What is new in v0.6.4
 
 - Reduced cash and Research/sec output from orbital satellites and data centers by 50x so orbital infrastructure no longer overwhelms the economy.
@@ -32,6 +46,13 @@ NovaLift is a portrait/mobile-first 2D rocket company game prototype. This versi
   - Players can own up to 10 mines.
 - Existing saved payload objects migrate to the new lower payload rates when loaded.
 - Added an Earth Mines builder card with mine count, income, lifetime mine earnings, and a buy button.
+
+## v0.9.0 Planet Discovery
+
+- Added a Planet Registry with Homeworld plus three discoverable planets.
+- Scan progress now reveals planets instead of only filling an Unknown Signal bar.
+- Added Exploration Program missions for discovering and surveying planets.
+- Added Planetary Robotics research placeholders for future probe missions.
 
 ## What is new in v0.6.3
 
@@ -60,6 +81,13 @@ NovaLift is a portrait/mobile-first 2D rocket company game prototype. This versi
 - Opening the builder clears object-follow state so the next launch starts focused on the new rocket.
 - Closing or destroying a tracked object releases object-follow mode and returns the camera to the active rocket.
 - Added renderer helpers for `followRocket()` and `clearObjectTracking()` so future world-view features can deliberately choose between rocket-follow and object-follow modes.
+
+## v0.9.0 Planet Discovery
+
+- Added a Planet Registry with Homeworld plus three discoverable planets.
+- Scan progress now reveals planets instead of only filling an Unknown Signal bar.
+- Added Exploration Program missions for discovering and surveying planets.
+- Added Planetary Robotics research placeholders for future probe missions.
 
 ## What is new in v0.6.0
 

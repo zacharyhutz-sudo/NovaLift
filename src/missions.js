@@ -190,10 +190,52 @@ export const MISSIONS = [
     researchReward: 40,
     recommendedTemplateId: "explorer_sat",
     recommendedTemplateLabel: "Explorer Probe",
-    description: "Accumulate enough scan data to identify a future planet-discovery target.",
+    description: "Accumulate enough scan data to identify the first planet-discovery target.",
     objective: "Reach 500 total Scan.",
     progressLabel: (ctx) => `${Math.floor(ctx.company?.totalScanGenerated ?? 0)} / 500 Scan`,
     isComplete: (ctx) => (ctx.company?.totalScanGenerated ?? 0) >= 500
+  },
+  {
+    id: "discover_first_planet",
+    chapter: "exploration_program",
+    chapterOrder: 5,
+    title: "Discover First Planet",
+    reward: 1500000,
+    researchReward: 50,
+    recommendedTemplateId: "explorer_sat",
+    recommendedTemplateLabel: "Explorer Probe",
+    description: "Use orbital scan data to reveal the first new world beyond Homeworld.",
+    objective: "Discover any planet.",
+    progressLabel: (ctx) => `${countDiscoveredPlanets(ctx)} / 1 discovered`,
+    isComplete: (ctx) => countDiscoveredPlanets(ctx) >= 1
+  },
+  {
+    id: "survey_brim",
+    chapter: "exploration_program",
+    chapterOrder: 6,
+    title: "Survey Brim",
+    reward: 1800000,
+    researchReward: 60,
+    recommendedTemplateId: "explorer_sat",
+    recommendedTemplateLabel: "Explorer Probe",
+    description: "Keep scanning after Brim is found so mission control can prepare robotic targets.",
+    objective: "Generate 1,000 total Scan after first discovery.",
+    progressLabel: (ctx) => `${Math.floor(Math.min(ctx.company?.totalScanGenerated ?? 0, 1000))} / 1000 Scan`,
+    isComplete: (ctx) => hasDiscoveredPlanet(ctx, "brim") && (ctx.company?.totalScanGenerated ?? 0) >= 1000
+  },
+  {
+    id: "prepare_probe_mission",
+    chapter: "exploration_program",
+    chapterOrder: 7,
+    title: "Prepare Probe Mission",
+    reward: 2200000,
+    researchReward: 75,
+    recommendedTemplateId: "explorer_sat",
+    recommendedTemplateLabel: "Explorer Probe",
+    description: "Research robotic landers so the next version can send probes to discovered planets.",
+    objective: "Research Robotic Landers.",
+    progressLabel: (ctx) => ctx.company?.completedResearch?.includes("robotic_landers") ? "Robotic landers ready" : "Research required",
+    isComplete: (ctx) => Boolean(ctx.company?.completedResearch?.includes("robotic_landers"))
   }
 ];
 
@@ -285,6 +327,14 @@ function countOnlinePayloads(ctx, payloadType = "") {
     !object.crashed &&
     !object.exploded
   ).length;
+}
+
+function countDiscoveredPlanets(ctx) {
+  return Array.isArray(ctx.company?.discoveredPlanets) ? ctx.company.discoveredPlanets.length : 0;
+}
+
+function hasDiscoveredPlanet(ctx, id) {
+  return Array.isArray(ctx.company?.discoveredPlanets) && ctx.company.discoveredPlanets.includes(id);
 }
 
 function formatDistance(value) {

@@ -8,6 +8,13 @@ import {
   purchaseResearch as purchaseResearchNode
 } from "./research.js";
 import {
+  PLANET_DISCOVERY_VERSION,
+  getNextPlanetSignal,
+  getPlanetRegistryView,
+  normalizePlanetState,
+  processPlanetDiscovery
+} from "./planets.js";
+import {
   activateNextStage,
   cloneRocket,
   getAltitude,
@@ -42,7 +49,7 @@ const CAREER_LAUNCHES_CHARGE_MONEY = true;
 const MAX_PERSISTENT_OBJECTS = 80;
 const ECONOMY_SCALE_VERSION = "v0.5.3-20x";
 const LEGACY_ECONOMY_MULTIPLIER = 20;
-const PAYLOAD_RATE_VERSION = "v0.8.0-payload-roles-scan";
+const PAYLOAD_RATE_VERSION = "v0.9.0-payload-roles-scan-planets";
 const EARTH_MINE_COST = 100000;
 const EARTH_MINE_INCOME_RATE = 1;
 const EARTH_MINE_MAX = 10;
@@ -318,6 +325,14 @@ export class Game {
       const scanEarned = scanRate * dt;
       this.company.scanPoints = (this.company.scanPoints ?? 0) + scanEarned;
       this.company.totalScanGenerated = (this.company.totalScanGenerated ?? 0) + scanEarned;
+    }
+
+    const discoveries = processPlanetDiscovery(this.company);
+    if (discoveries.length) {
+      const names = discoveries.map((planet) => planet.name).join(", ");
+      this.stageMessage = discoveries.length === 1 ? `Planet discovered: ${names}.` : `Planets discovered: ${names}.`;
+      this.stageMessageTimer = 10;
+      this.saveCompany();
     }
   }
 
@@ -642,6 +657,10 @@ export class Game {
         scanPoints: Number(parsed.scanPoints ?? 0),
         totalScanGenerated: Number(parsed.totalScanGenerated ?? 0),
         scanPerSecond: 0,
+        discoveredPlanets: normalizePlanetState(parsed.discoveredPlanets),
+        totalPlanetsDiscovered: normalizePlanetState(parsed.discoveredPlanets).length,
+        lastDiscoveredPlanet: parsed.lastDiscoveredPlanet ?? "",
+        planetDiscoveryVersion: PLANET_DISCOVERY_VERSION,
         lastRecoveryRefund: scaleLegacyMoney(Number(parsed.lastRecoveryRefund ?? 0), isLegacyEconomy),
         lastMissionReward: scaleLegacyMoney(Number(parsed.lastMissionReward ?? 0), isLegacyEconomy),
         lastLaunchCost: scaleLegacyMoney(Number(parsed.lastLaunchCost ?? 0), isLegacyEconomy),
@@ -682,6 +701,10 @@ export class Game {
         lastResearchPurchase: this.company.lastResearchPurchase ?? "",
         scanPoints: this.company.scanPoints ?? 0,
         totalScanGenerated: this.company.totalScanGenerated ?? 0,
+        discoveredPlanets: normalizePlanetState(this.company.discoveredPlanets),
+        totalPlanetsDiscovered: normalizePlanetState(this.company.discoveredPlanets).length,
+        lastDiscoveredPlanet: this.company.lastDiscoveredPlanet ?? "",
+        planetDiscoveryVersion: PLANET_DISCOVERY_VERSION,
         lastRecoveryRefund: this.company.lastRecoveryRefund ?? 0,
         lastMissionReward: this.company.lastMissionReward ?? 0,
         lastLaunchCost: this.company.lastLaunchCost ?? 0,
@@ -773,6 +796,8 @@ export class Game {
       missions: getMissionView(this.getMissionContext()),
       missionChapters: getMissionChapterProgress(this.getMissionContext()),
       nextMission: getNextMission(this.getMissionContext()),
+      planets: getPlanetRegistryView(this.company),
+      nextPlanetSignal: getNextPlanetSignal(this.company),
       flightSummary: this.getFlightSummary(),
       selectedObject: this.getSelectedObjectInfo(),
       trackedObjects: this.getTrackedObjects(),
@@ -885,6 +910,7 @@ export class Game {
       `Orbital income:${formatMoney(this.company.orbitalIncomePerSecond ?? 0)}/sec`,
       `Research:      ${fmt(this.company.researchPoints ?? 0)} (${fmt(this.company.researchPerSecond ?? 0)}/sec)`,
       `Scan:          ${fmt(this.company.scanPoints ?? 0)} (${fmt(this.company.scanPerSecond ?? 0)}/sec)`,
+      `Planets:       ${normalizePlanetState(this.company.discoveredPlanets).length} discovered`,
       `Cash:          ${formatMoney(this.company.money)}`,
       `Mode:          ${this.company.mode}`,
       `Mission rewards: ${formatMoney(this.company.totalMissionRewards ?? 0)}`,
@@ -941,6 +967,10 @@ function createDefaultCompany() {
     scanPoints: 0,
     totalScanGenerated: 0,
     scanPerSecond: 0,
+    discoveredPlanets: normalizePlanetState(),
+    totalPlanetsDiscovered: 0,
+    lastDiscoveredPlanet: "",
+    planetDiscoveryVersion: PLANET_DISCOVERY_VERSION,
     lastRecoveryRefund: 0,
     lastMissionReward: 0,
     lastResearchReward: 0,

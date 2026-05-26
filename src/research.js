@@ -98,9 +98,51 @@ export const RESEARCH_TREE = [
     name: "Deep Space Scanning",
     cost: 150,
     prerequisites: ["orbital_surveying", "cloud_processing"],
-    description: "Prototype research for the next milestone: discovering planets from orbit.",
-    unlockText: "Future hook: planet discovery scans.",
-    shortUnlockText: "Future: planet discovery"
+    description: "Improves the exploration program so scan data can identify planets beyond Homeworld.",
+    unlockText: "Planet discovery scans are now a strategic priority.",
+    shortUnlockText: "Improves planet discovery"
+  },
+  {
+    id: "planet_registry",
+    lane: "planetary",
+    laneOrder: 1,
+    icon: "R",
+    treeName: "Registry",
+    category: "Planetary Robotics",
+    name: "Planet Registry",
+    cost: 140,
+    prerequisites: ["deep_space_scanning"],
+    description: "Organizes discovered planets into a registry with distance, gravity, atmosphere, minerals, and habitability notes.",
+    unlockText: "Planet details become easier to compare.",
+    shortUnlockText: "Improves planet details"
+  },
+  {
+    id: "transfer_planning",
+    lane: "planetary",
+    laneOrder: 2,
+    icon: "T",
+    treeName: "Transfers",
+    category: "Planetary Robotics",
+    name: "Transfer Planning",
+    cost: 180,
+    prerequisites: ["planet_registry"],
+    description: "Prepares the company for future interplanetary transfer planning and destination selection.",
+    unlockText: "Future hook: choose planet destinations.",
+    shortUnlockText: "Future: planet targets"
+  },
+  {
+    id: "robotic_landers",
+    lane: "planetary",
+    laneOrder: 3,
+    icon: "L",
+    treeName: "Robotic Landers",
+    category: "Planetary Robotics",
+    name: "Robotic Landers",
+    cost: 220,
+    prerequisites: ["transfer_planning"],
+    description: "Unlocks the future path toward robotic probes, offworld mining, and early colonies.",
+    unlockText: "Future hook: robotic probe missions.",
+    shortUnlockText: "Prepares probe missions"
   }
 ];
 

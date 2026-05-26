@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050816" />
-    <title>NovaLift v0.8.0</title>
+    <title>NovaLift v0.9.0</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -15,7 +15,7 @@
         <section id="hud" class="compact-hud" aria-label="Flight status">
           <div class="brand-chip">
             <strong>NovaLift</strong>
-            <span>v0.8.0</span>
+            <span>v0.9.0</span>
           </div>
           <div class="hud-stats">
             <div class="hud-stat"><span>Alt</span><strong id="altitude">0 m</strong></div>
@@ -116,6 +116,19 @@
           <div class="scan-progress-card">
             <div><span>Unknown Signal</span><strong id="orbitalNetworkSignal">0 / 500 Scan</strong></div>
             <div class="scan-progress-track" aria-hidden="true"><span id="orbitalNetworkSignalBar"></span></div>
+          </div>
+        </section>
+
+        <section class="builder-card planet-registry-card" id="builderPlanetSection" aria-label="Planet registry">
+          <div class="builder-section-title">
+            <h2>Planet Registry</h2>
+            <span id="planetRegistryStatus">Homeworld only</span>
+          </div>
+          <div id="planetRegistryList" class="planet-registry-list"></div>
+          <div class="planet-signal-card">
+            <div><span>Next Signal</span><strong id="planetSignalName">Unknown</strong></div>
+            <div class="scan-progress-track" aria-hidden="true"><span id="planetSignalBar"></span></div>
+            <small id="planetSignalStatus">Launch explorers to scan for planets.</small>
           </div>
         </section>
 

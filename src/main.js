@@ -122,6 +122,11 @@ const orbitalNetworkResearchEl = document.querySelector("#orbitalNetworkResearch
 const orbitalNetworkScanEl = document.querySelector("#orbitalNetworkScan");
 const orbitalNetworkSignalEl = document.querySelector("#orbitalNetworkSignal");
 const orbitalNetworkSignalBarEl = document.querySelector("#orbitalNetworkSignalBar");
+const planetRegistryStatusEl = document.querySelector("#planetRegistryStatus");
+const planetRegistryListEl = document.querySelector("#planetRegistryList");
+const planetSignalNameEl = document.querySelector("#planetSignalName");
+const planetSignalBarEl = document.querySelector("#planetSignalBar");
+const planetSignalStatusEl = document.querySelector("#planetSignalStatus");
 
 const EARTH_MINE_COST = 100000;
 const EARTH_MINE_INCOME_RATE = 1;
@@ -566,6 +571,7 @@ function renderBuilder(highlightErrors = false) {
   renderEarthMines(hudData);
   renderResearchLab(hudData);
   renderOrbitalNetwork(hudData);
+  renderPlanetRegistry(hudData);
   renderValidation(validation, highlightErrors, canAfford, stats.cost, lockedParts);
 
   launchBuiltRocketButton.disabled = !validation.valid || !canAfford || lockedParts.length > 0;
@@ -847,23 +853,65 @@ function renderEarthMines(data = game.getHudData()) {
 function renderOrbitalNetwork(data = game.getHudData()) {
   if (!orbitalNetworkStatusEl || !orbitalNetworkPayloadsEl || !orbitalNetworkIncomeEl || !orbitalNetworkResearchEl || !orbitalNetworkScanEl || !orbitalNetworkSignalEl || !orbitalNetworkSignalBarEl) return;
   const payloads = (data.trackedObjects ?? []).filter((object) => object.kind === "payload" && object.online);
+  const signal = data.nextPlanetSignal ?? {};
   const scan = Number(data.company?.totalScanGenerated ?? 0);
   const scanRate = Number(data.company?.scanPerSecond ?? 0);
-  const target = 500;
-  const progress = Math.max(0, Math.min(1, scan / target));
+  const target = Number(signal.target ?? 500);
+  const progress = Number(signal.progress ?? (target > 0 ? scan / target : 1));
   orbitalNetworkPayloadsEl.textContent = String(payloads.length);
   orbitalNetworkIncomeEl.textContent = `${formatMoneyRate(data.company?.orbitalIncomePerSecond ?? 0)}/s`;
   orbitalNetworkResearchEl.textContent = `${formatResearchRate(data.company?.researchPerSecond ?? 0)}R/s`;
   orbitalNetworkScanEl.textContent = `${formatScanRate(scanRate)}/s`;
-  orbitalNetworkSignalEl.textContent = `${Math.floor(scan).toLocaleString()} / ${target.toLocaleString()} Scan`;
-  orbitalNetworkSignalBarEl.style.width = `${Math.round(progress * 100)}%`;
-  orbitalNetworkStatusEl.textContent = scan >= target
-    ? "Signal locked"
-    : scanRate > 0
-      ? `Scanning +${formatScanRate(scanRate)}/s`
-      : payloads.some((object) => object.payloadType === "exploration_satellite")
-        ? "Explorer offline"
-        : "Needs Explorer";
+  orbitalNetworkSignalEl.textContent = signal.complete
+    ? "All signals mapped"
+    : `${Math.floor(scan).toLocaleString()} / ${target.toLocaleString()} Scan`;
+  orbitalNetworkSignalBarEl.style.width = `${Math.round(Math.max(0, Math.min(1, progress)) * 100)}%`;
+  orbitalNetworkStatusEl.textContent = signal.complete
+    ? "Registry mapped"
+    : scan >= target
+      ? "Signal locked"
+      : scanRate > 0
+        ? `Scanning +${formatScanRate(scanRate)}/s`
+        : payloads.some((object) => object.payloadType === "exploration_satellite")
+          ? "Explorer offline"
+          : "Needs Explorer";
+}
+
+function renderPlanetRegistry(data = game.getHudData()) {
+  if (!planetRegistryStatusEl || !planetRegistryListEl || !planetSignalNameEl || !planetSignalBarEl || !planetSignalStatusEl) return;
+  const planets = data.planets ?? [];
+  const discovered = planets.filter((planet) => planet.discovered);
+  const signal = data.nextPlanetSignal ?? {};
+  const scan = Number(data.company?.totalScanGenerated ?? 0);
+  const scanRate = Number(data.company?.scanPerSecond ?? 0);
+
+  planetRegistryStatusEl.textContent = `${Math.max(0, discovered.length - 1)} discovered`;
+  planetRegistryListEl.innerHTML = planets.map((planet) => `
+    <article class="planet-card ${planet.discovered ? "discovered" : "locked"}">
+      <div>
+        <strong>${escapeHtml(planet.discovered ? planet.name : "Unknown Signal")}</strong>
+        <span>${escapeHtml(planet.discovered ? planet.classification : `${Math.floor(planet.scanProgress ?? 0)} / ${planet.scanRequired.toLocaleString()} Scan`)}</span>
+      </div>
+      <div class="planet-tags">
+        <span>${escapeHtml(planet.discovered ? planet.distanceLabel : "???")}</span>
+        <span>${escapeHtml(planet.discovered ? planet.mineralsLabel : "Minerals ?")}</span>
+        <span>${escapeHtml(planet.discovered ? planet.habitabilityLabel : "Hab ?")}</span>
+      </div>
+    </article>
+  `).join("");
+
+  if (signal.complete) {
+    planetSignalNameEl.textContent = "Survey Complete";
+    planetSignalStatusEl.textContent = "All starter planetary signals are mapped.";
+    planetSignalBarEl.style.width = "100%";
+    return;
+  }
+
+  planetSignalNameEl.textContent = "Unknown Signal";
+  planetSignalBarEl.style.width = `${Math.round(Math.max(0, Math.min(1, Number(signal.progress ?? 0))) * 100)}%`;
+  planetSignalStatusEl.textContent = scanRate > 0
+    ? `${Math.floor(scan).toLocaleString()} / ${Number(signal.target ?? 0).toLocaleString()} Scan · +${formatScanRate(scanRate)}/s`
+    : `Need exploration satellite Scan to reach ${Number(signal.target ?? 0).toLocaleString()}.`;
 }
 
 function renderResearchLab(data) {
@@ -908,7 +956,8 @@ function renderResearchLab(data) {
   const laneConfig = [
     { id: "propulsion", label: "Propulsion", icon: "P", summary: "Engines and lift" },
     { id: "orbital", label: "Orbital Ops", icon: "O", summary: "Income and infrastructure" },
-    { id: "exploration", label: "Exploration", icon: "E", summary: "Survey new worlds" }
+    { id: "exploration", label: "Exploration", icon: "E", summary: "Survey new worlds" },
+    { id: "planetary", label: "Planetary", icon: "R", summary: "Probes and landers" }
   ];
 
   const nodesByLane = new Map(laneConfig.map((lane) => [lane.id, []]));
@@ -925,7 +974,7 @@ function renderResearchLab(data) {
       <div class="research-map-top">
         <span class="eyebrow">Research Path</span>
         <strong>Unlock one node to reach the next.</strong>
-        <p>Follow the three lanes below. Completed upgrades glow. Locked upgrades tell you what to finish first.</p>
+        <p>Follow the four lanes below. Completed upgrades glow. Locked upgrades tell you what to finish first.</p>
       </div>
       <div class="research-root">
         <span class="research-root-kicker">Program Start</span>
@@ -935,7 +984,7 @@ function renderResearchLab(data) {
           <span>${completed}/${total} upgrades online</span>
         </article>
         <div class="research-root-links" aria-hidden="true">
-          <span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span>
         </div>
       </div>
       <div class="research-lane-grid">
@@ -1044,6 +1093,7 @@ function updateHud(data) {
   if (screenMode === "builder") {
     renderEarthMines(data);
     renderOrbitalNetwork(data);
+    renderPlanetRegistry(data);
   }
   if (nextStageActionEl) nextStageActionEl.textContent = screenMode === "builder" ? "Build a rocket first" : screenMode === "world" ? "Viewing persistent orbit network" : data.nextStageDescription;
   updateStageFuelPanel(data.stageFuel ?? []);
