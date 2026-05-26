@@ -6938,3 +6938,97 @@ button:active:not(:disabled),
     width: 100%;
   }
 }
+
+/* v0.9.6 test resources + first colonization pass */
+.test-resource-toggle {
+  min-width: 58px;
+}
+
+.test-resource-toggle.is-active {
+  color: #bbf7d0;
+  border-color: rgba(134, 239, 172, 0.42);
+  background: rgba(34, 197, 94, 0.16);
+  box-shadow: 0 0 0 1px rgba(134, 239, 172, 0.10), 0 10px 28px rgba(34, 197, 94, 0.12);
+}
+
+.planet-card.colonized {
+  border-color: rgba(134, 239, 172, 0.28);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(34, 197, 94, 0.11), transparent 46%),
+    rgba(15, 23, 42, 0.70);
+}
+
+.colony-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin-top: 9px;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(2, 6, 23, 0.30);
+}
+
+.colony-panel.online {
+  border-color: rgba(134, 239, 172, 0.18);
+  background: rgba(20, 83, 45, 0.13);
+}
+
+.colony-copy {
+  min-width: 0;
+}
+
+.colony-copy span,
+.colony-copy strong,
+.colony-copy small {
+  display: block;
+}
+
+.colony-copy span {
+  color: rgba(226, 232, 240, 0.72);
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.colony-copy strong {
+  margin-top: 3px;
+  color: #ecfeff;
+  font-size: 10px;
+  font-weight: 950;
+  line-height: 1.25;
+}
+
+.colony-copy small {
+  margin-top: 4px;
+  color: rgba(226, 232, 240, 0.54);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.colony-action-button {
+  min-height: 32px;
+  color: #bbf7d0;
+  border-color: rgba(134, 239, 172, 0.25);
+  background: rgba(34, 197, 94, 0.12);
+  white-space: nowrap;
+}
+
+.colony-action-button:disabled {
+  color: rgba(226, 232, 240, 0.42);
+  border-color: rgba(148, 163, 184, 0.14);
+  background: rgba(148, 163, 184, 0.07);
+}
+
+@media (max-width: 520px) {
+  .colony-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .colony-action-button {
+    width: 100%;
+  }
+}

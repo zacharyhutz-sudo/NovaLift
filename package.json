@@ -1,7 +1,7 @@
 {
   "name": "novalift",
-  "version": "0.9.5",
-  "description": "Vertical mobile-first 2D rocket company prototype with an RPG-style research skill tree and Clash-inspired program progression pass.",
+  "version": "0.9.6",
+  "description": "Vertical mobile-first 2D rocket company prototype with test resources and first-pass offworld colony outposts.",
   "type": "module",
   "private": true,
   "scripts": {

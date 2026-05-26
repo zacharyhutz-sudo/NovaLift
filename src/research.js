@@ -193,7 +193,7 @@ export function getResearchNode(id) {
 
 export function getResearchView(company = {}) {
   const completed = getCompletedResearchSet(company);
-  const availablePoints = Number(company.researchPoints ?? 0);
+  const availablePoints = getEffectiveResearchPoints(company);
 
   return RESEARCH_TREE.map((node) => {
     const prerequisites = node.prerequisites ?? [];
@@ -229,7 +229,7 @@ export function canPurchaseResearch(company = {}, id) {
       reason: `Requires ${missing.map((missingId) => getResearchNode(missingId)?.name ?? missingId).join(", ")}.`
     };
   }
-  if (Number(company.researchPoints ?? 0) < node.cost) return { ok: false, reason: `Need ${formatResearch(node.cost)} Research.` };
+  if (!hasInfiniteTestResources(company) && Number(company.researchPoints ?? 0) < node.cost) return { ok: false, reason: `Need ${formatResearch(node.cost)} Research.` };
   return { ok: true, reason: "Ready." };
 }
 
@@ -238,7 +238,7 @@ export function purchaseResearch(company = {}, id) {
   if (!check.ok) return { ok: false, reason: check.reason, node: getResearchNode(id) };
   const node = getResearchNode(id);
   const completed = normalizeResearchState(company.completedResearch);
-  company.researchPoints = Math.max(0, Number(company.researchPoints ?? 0) - node.cost);
+  if (!hasInfiniteTestResources(company)) company.researchPoints = Math.max(0, Number(company.researchPoints ?? 0) - node.cost);
   company.completedResearch = [...completed, node.id];
   company.lastResearchPurchase = node.id;
   return { ok: true, node };
@@ -263,4 +263,12 @@ export function formatResearch(value, decimals = 0) {
     maximumFractionDigits: decimals,
     minimumFractionDigits: decimals
   });
+}
+
+export function hasInfiniteTestResources(company = {}) {
+  return Boolean(company.testResourcesEnabled);
+}
+
+export function getEffectiveResearchPoints(company = {}) {
+  return hasInfiniteTestResources(company) ? 999999999 : Number(company.researchPoints ?? 0);
 }

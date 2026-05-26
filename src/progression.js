@@ -311,7 +311,7 @@ export function getAvailableEngineerProjects(company = {}) {
     const activeNow = Boolean(activeProject);
     const requiredLevel = Number(project.requiredProgramLevel ?? 1);
     const locked = level < requiredLevel;
-    const affordable = Number(company.money ?? 0) >= Number(project.cost ?? 0) || company.mode === "sandbox";
+    const affordable = Number(company.money ?? 0) >= Number(project.cost ?? 0) || hasCostBypass(company);
     return {
       ...project,
       complete,
@@ -334,8 +334,8 @@ export function startEngineerProject(company = {}, id) {
   const slots = getEngineerSlots(company);
   const queueState = syncProgressionState(company);
   if (queueState.activeEngineerProjects.length >= slots) return { ok: false, reason: "All engineers are busy." };
-  if (company.mode !== "sandbox" && Number(company.money ?? 0) < Number(project.cost ?? 0)) return { ok: false, reason: "Not enough cash." };
-  if (company.mode !== "sandbox") company.money = Math.max(0, Number(company.money ?? 0) - Number(project.cost ?? 0));
+  if (!hasCostBypass(company) && Number(company.money ?? 0) < Number(project.cost ?? 0)) return { ok: false, reason: "Not enough cash." };
+  if (!hasCostBypass(company)) company.money = Math.max(0, Number(company.money ?? 0) - Number(project.cost ?? 0));
   const now = Date.now();
   queueState.activeEngineerProjects.push({
     id: project.id,
@@ -576,4 +576,8 @@ export function formatDuration(ms = 0) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));
+}
+
+function hasCostBypass(company = {}) {
+  return Boolean(company.mode === "sandbox" || company.testResourcesEnabled);
 }

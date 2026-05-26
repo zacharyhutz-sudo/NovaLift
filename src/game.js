@@ -2,18 +2,25 @@ import { PHYSICS, PLANET, ROCKET } from "./config.js";
 import { MISSIONS, STARTING_CASH, evaluateMissions, getMissionChapterProgress, getMissionView, getNextMission, normalizeMissionState } from "./missions.js";
 import {
   STARTING_RESEARCH,
+  formatResearch,
   getResearchView,
   isResearchComplete,
   normalizeResearchState,
   purchaseResearch as purchaseResearchNode
 } from "./research.js";
 import {
+  COLONY_VERSION,
   PLANET_DISCOVERY_VERSION,
   getDiscoveredPhysicalPlanets,
   getNextPlanetSignal,
   getPlanetRegistryView,
+  getTotalColonyProduction,
+  hasCostBypass,
+  hasInfiniteTestResources,
+  normalizeColonyState,
   normalizePlanetState,
-  processPlanetDiscovery
+  processPlanetDiscovery,
+  upgradeColony as upgradePlanetColony
 } from "./planets.js";
 import {
   addProgramXp,
@@ -68,6 +75,7 @@ const MAX_PERSISTENT_OBJECTS = 80;
 const ECONOMY_SCALE_VERSION = "v0.5.3-20x";
 const LEGACY_ECONOMY_MULTIPLIER = 20;
 const PAYLOAD_RATE_VERSION = "v0.9.1-physical-planets";
+const TEST_RESOURCE_VERSION = "v0.9.6-infinite-resources";
 const EARTH_MINE_COST = 100000;
 const EARTH_MINE_INCOME_RATE = 1;
 const EARTH_MINE_MAX = 10;
@@ -176,7 +184,7 @@ export class Game {
   }
 
   canAffordLaunch(cost = 0) {
-    if (this.company.mode === "sandbox") return true;
+    if (hasCostBypass(this.company)) return true;
     if (!CAREER_LAUNCHES_CHARGE_MONEY) return true;
     return (this.company.money ?? 0) >= cost;
   }
@@ -184,7 +192,7 @@ export class Game {
   chargeLaunchCost(cost = 0) {
     const amount = Math.max(0, Math.round(cost));
     this.company.lastLaunchCost = amount;
-    if (this.company.mode === "sandbox" || !CAREER_LAUNCHES_CHARGE_MONEY || amount <= 0) return 0;
+    if (hasCostBypass(this.company) || !CAREER_LAUNCHES_CHARGE_MONEY || amount <= 0) return 0;
     this.company.money = Math.max(0, (this.company.money ?? 0) - amount);
     this.company.totalLaunchCosts = (this.company.totalLaunchCosts ?? 0) + amount;
     return amount;
@@ -200,6 +208,28 @@ export class Game {
 
   toggleEconomyMode() {
     this.setEconomyMode(this.company.mode === "sandbox" ? "career" : "sandbox");
+  }
+
+  setTestResourcesEnabled(enabled) {
+    this.company.testResourcesEnabled = Boolean(enabled);
+    this.company.testResourceVersion = TEST_RESOURCE_VERSION;
+    const discoveries = processPlanetDiscovery(this.company);
+    if (this.company.testResourcesEnabled) {
+      this.stageMessage = discoveries.length
+        ? `Test resources enabled. ${discoveries.map((planet) => planet.name).join(", ")} mapped.`
+        : "Test resources enabled: cash, Research, and Scan costs are bypassed.";
+      this.stageMessageTimer = 8;
+      this.emitFeedback({ title: "Test resources enabled", message: "Infinite cash, Research, and Scan are active for testing.", tone: "info", sound: "select", haptic: "medium" });
+    } else {
+      this.stageMessage = "Test resources disabled. Career balances are active again.";
+      this.stageMessageTimer = 7;
+      this.emitFeedback({ title: "Test resources disabled", message: "Career balances are active again.", tone: "info", sound: "select", haptic: "light" });
+    }
+    this.saveCompany();
+  }
+
+  toggleTestResources() {
+    this.setTestResourcesEnabled(!this.company.testResourcesEnabled);
   }
 
   persistActiveCommandVessel(reason = "left flight", options = {}) {
@@ -367,9 +397,10 @@ export class Game {
   updateEconomy(dt) {
     const mineCount = clampMineCount(this.company.earthMineCount);
     const mineIncomeRate = mineCount * EARTH_MINE_INCOME_RATE;
+    const colonyProduction = getTotalColonyProduction(this.company);
     let orbitalIncomeRate = 0;
-    let researchRate = 0;
-    let scanRate = 0;
+    let researchRate = Number(colonyProduction.research ?? 0);
+    let scanRate = Number(colonyProduction.scan ?? 0);
     const telemetryOnline = isResearchComplete(this.company, "orbital_telemetry");
 
     for (const object of this.objects) {
@@ -399,10 +430,14 @@ export class Game {
       }
     }
 
-    const incomeRate = mineIncomeRate + orbitalIncomeRate;
+    const colonyIncomeRate = Number(colonyProduction.cash ?? 0);
+    const incomeRate = mineIncomeRate + orbitalIncomeRate + colonyIncomeRate;
     this.company.earthMineCount = mineCount;
     this.company.earthMineIncomePerSecond = mineIncomeRate;
     this.company.orbitalIncomePerSecond = orbitalIncomeRate;
+    this.company.colonyIncomePerSecond = colonyIncomeRate;
+    this.company.colonyResearchPerSecond = Number(colonyProduction.research ?? 0);
+    this.company.colonyScanPerSecond = Number(colonyProduction.scan ?? 0);
     this.company.incomePerSecond = incomeRate;
     this.company.researchPerSecond = researchRate;
     this.company.scanPerSecond = scanRate;
@@ -442,7 +477,7 @@ export class Game {
 
   canBuyEarthMine() {
     if (clampMineCount(this.company.earthMineCount) >= EARTH_MINE_MAX) return false;
-    if (this.company.mode === "sandbox") return true;
+    if (hasCostBypass(this.company)) return true;
     return Number(this.company.money ?? 0) >= EARTH_MINE_COST;
   }
 
@@ -455,14 +490,14 @@ export class Game {
       return { ok: false, reason: "Mine limit reached." };
     }
 
-    if (this.company.mode !== "sandbox" && Number(this.company.money ?? 0) < EARTH_MINE_COST) {
+    if (!hasCostBypass(this.company) && Number(this.company.money ?? 0) < EARTH_MINE_COST) {
       this.stageMessage = `Need ${formatMoney(EARTH_MINE_COST)} to buy another Earth mine.`;
       this.stageMessageTimer = 5;
       this.emitFeedback({ title: "Not enough cash", message: `Need ${formatMoney(EARTH_MINE_COST)} to buy another Earth mine.`, tone: "warning", sound: "error", haptic: "error" });
       return { ok: false, reason: "Not enough cash." };
     }
 
-    if (this.company.mode !== "sandbox") {
+    if (!hasCostBypass(this.company)) {
       this.company.money = Math.max(0, Number(this.company.money ?? 0) - EARTH_MINE_COST);
       this.company.totalMineBuildCosts = (this.company.totalMineBuildCosts ?? 0) + EARTH_MINE_COST;
     }
@@ -479,6 +514,44 @@ export class Game {
     });
     this.saveCompany();
     return { ok: true, mineCount: this.company.earthMineCount };
+  }
+
+  upgradeColony(planetId) {
+    const result = upgradePlanetColony(this.company, planetId);
+    if (result.ok) {
+      const planetName = result.planet?.name ?? "planet";
+      const action = result.tier.level === 1 ? "Outpost established" : "Colony upgraded";
+      const production = result.view?.production ?? { cash: 0, research: 0, scan: 0 };
+      this.stageMessage = `${action}: ${planetName} is now ${result.tier.name}.`;
+      this.stageMessageTimer = 9;
+      addProgramXp(this.company, result.tier.level === 1 ? 60 : 40, `${planetName} ${result.tier.name}`);
+      this.emitFeedback({
+        title: action,
+        message: `${planetName} · ${result.tier.name}`,
+        tone: "reward",
+        sound: "unlock",
+        haptic: "success",
+        reward: {
+          title: `${planetName} ${result.tier.name}`,
+          subtitle: result.planet?.colony?.summary ?? "Offworld operations are now online.",
+          stats: [
+            `${formatMoney(production.cash)}/s`,
+            `${formatResearch(production.research, 3)}R/s`,
+            `${Math.round(production.scan * 100) / 100} Scan/s`
+          ],
+          tone: "reward",
+          kicker: "Colonization",
+          icon: "COL"
+        }
+      });
+      this.updateMissions();
+      this.saveCompany();
+    } else {
+      this.stageMessage = result.reason ?? "Colony unavailable.";
+      this.stageMessageTimer = 6;
+      this.emitFeedback({ title: "Colony unavailable", message: result.reason ?? "Colony unavailable.", tone: "warning", sound: "error", haptic: "error" });
+    }
+    return result;
   }
 
   updateMissions() {
@@ -743,7 +816,7 @@ export class Game {
       return false;
     }
     const refund = getObjectSaleValue(object);
-    if (refund > 0 && this.company.mode !== "sandbox") {
+    if (refund > 0 && !hasCostBypass(this.company)) {
       this.company.money = (this.company.money ?? 0) + refund;
       this.company.totalRecovery = (this.company.totalRecovery ?? 0) + refund;
     }
@@ -762,7 +835,7 @@ export class Game {
   sellActiveRocket() {
     if (!this.rocket || (!this.rocket.landed && !this.rocket.crashed)) return false;
     const refund = getObjectSaleValue(this.rocket);
-    if (refund > 0 && this.company.mode !== "sandbox") {
+    if (refund > 0 && !hasCostBypass(this.company)) {
       this.company.money = (this.company.money ?? 0) + refund;
       this.company.totalRecovery = (this.company.totalRecovery ?? 0) + refund;
     }
@@ -795,7 +868,7 @@ export class Game {
         reward: {
           title: result.node.name,
           subtitle: result.node.unlockText ?? "New program capability unlocked.",
-          stats: [`-${formatResearch(result.node.cost ?? 0)}R`, `+${xpResult.added} XP`],
+          stats: [hasInfiniteTestResources(this.company) ? "Test cost bypassed" : `-${formatResearch(result.node.cost ?? 0)}R`, `+${xpResult.added} XP`],
           tone: "reward",
           kicker: "Program Unlock",
           icon: "✦"
@@ -944,6 +1017,8 @@ export class Game {
         ...parsed,
         economyScaleVersion: ECONOMY_SCALE_VERSION,
         mode: hasMode && parsed.mode === "sandbox" ? "sandbox" : "career",
+        testResourcesEnabled: Boolean(parsed.testResourcesEnabled),
+        testResourceVersion: parsed.testResourceVersion ?? "",
         money: hasMode ? Math.max(money, 0) : Math.max(money, STARTING_CASH),
         totalRevenue: scaleLegacyMoney(Number(parsed.totalRevenue ?? 0), isLegacyEconomy),
         totalRecovery: scaleLegacyMoney(Number(parsed.totalRecovery ?? 0), isLegacyEconomy),
@@ -964,6 +1039,13 @@ export class Game {
         totalScanGenerated: Number(parsed.totalScanGenerated ?? 0),
         scanPerSecond: 0,
         discoveredPlanets: normalizePlanetState(parsed.discoveredPlanets),
+        colonies: normalizeColonyState(parsed.colonies),
+        colonyVersion: parsed.colonyVersion ?? COLONY_VERSION,
+        totalColoniesBuilt: Object.keys(normalizeColonyState(parsed.colonies)).length,
+        lastColonizedPlanet: parsed.lastColonizedPlanet ?? "",
+        colonyIncomePerSecond: 0,
+        colonyResearchPerSecond: 0,
+        colonyScanPerSecond: 0,
         totalPlanetsDiscovered: normalizePlanetState(parsed.discoveredPlanets).length,
         lastDiscoveredPlanet: parsed.lastDiscoveredPlanet ?? "",
         planetDiscoveryVersion: PLANET_DISCOVERY_VERSION,
@@ -992,6 +1074,8 @@ export class Game {
       storage.setItem(COMPANY_STORAGE_KEY, JSON.stringify({
         economyScaleVersion: ECONOMY_SCALE_VERSION,
         mode: this.company.mode,
+        testResourcesEnabled: Boolean(this.company.testResourcesEnabled),
+        testResourceVersion: this.company.testResourceVersion ?? "",
         money: this.company.money,
         totalRevenue: this.company.totalRevenue,
         totalRecovery: this.company.totalRecovery,
@@ -1010,6 +1094,10 @@ export class Game {
         scanPoints: this.company.scanPoints ?? 0,
         totalScanGenerated: this.company.totalScanGenerated ?? 0,
         discoveredPlanets: normalizePlanetState(this.company.discoveredPlanets),
+        colonies: normalizeColonyState(this.company.colonies),
+        colonyVersion: this.company.colonyVersion ?? COLONY_VERSION,
+        totalColoniesBuilt: Object.keys(normalizeColonyState(this.company.colonies)).length,
+        lastColonizedPlanet: this.company.lastColonizedPlanet ?? "",
         totalPlanetsDiscovered: normalizePlanetState(this.company.discoveredPlanets).length,
         lastDiscoveredPlanet: this.company.lastDiscoveredPlanet ?? "",
         planetDiscoveryVersion: PLANET_DISCOVERY_VERSION,
@@ -1239,8 +1327,9 @@ export class Game {
       `Research:      ${fmt(this.company.researchPoints ?? 0)} (${fmt(this.company.researchPerSecond ?? 0)}/sec)`,
       `Scan:          ${fmt(this.company.scanPoints ?? 0)} (${fmt(this.company.scanPerSecond ?? 0)}/sec)`,
       `Planets:       ${normalizePlanetState(this.company.discoveredPlanets).length} discovered`,
+      `Colonies:      ${Object.keys(normalizeColonyState(this.company.colonies)).length} (${formatMoney(this.company.colonyIncomePerSecond ?? 0)}/sec)`,
       `Cash:          ${formatMoney(this.company.money)}`,
-      `Mode:          ${this.company.mode}`,
+      `Mode:          ${this.company.mode}${hasInfiniteTestResources(this.company) ? " + test resources" : ""}`,
       `Mission rewards: ${formatMoney(this.company.totalMissionRewards ?? 0)}`,
       `Launch costs:  ${formatMoney(this.company.totalLaunchCosts ?? 0)}`,
       `World objects: ${this.objects.length}`,
@@ -1274,6 +1363,8 @@ function createDefaultCompany() {
   return {
     economyScaleVersion: ECONOMY_SCALE_VERSION,
     mode: "career",
+    testResourcesEnabled: false,
+    testResourceVersion: "",
     money: STARTING_CASH,
     totalRevenue: 0,
     totalRecovery: 0,
@@ -1297,6 +1388,13 @@ function createDefaultCompany() {
     totalScanGenerated: 0,
     scanPerSecond: 0,
     discoveredPlanets: normalizePlanetState(),
+    colonies: normalizeColonyState(),
+    colonyVersion: COLONY_VERSION,
+    totalColoniesBuilt: 0,
+    lastColonizedPlanet: "",
+    colonyIncomePerSecond: 0,
+    colonyResearchPerSecond: 0,
+    colonyScanPerSecond: 0,
     totalPlanetsDiscovered: 0,
     lastDiscoveredPlanet: "",
     planetDiscoveryVersion: PLANET_DISCOVERY_VERSION,

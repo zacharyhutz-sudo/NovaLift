@@ -1,3 +1,19 @@
+# NovaLift v0.9.6 — Offworld Colony Test Pass
+
+This patch keeps the existing planet discovery and physical planet system intact, then adds a first playable colonization layer plus a testing resource toggle.
+
+## What is new in v0.9.6
+
+- Added a visible TEST toggle in the top controls for infinite cash, Research, and Scan testing.
+- Test resources bypass launch, engineer, Earth mine, research, and colony resource costs so features can be tested without grinding resources.
+- Test resources also make Scan effectively infinite, which maps all starter planet signals for faster feature testing.
+- Added first-pass offworld colonies from the Planet Registry.
+- Discovered non-homeworld planets can now establish and upgrade robotic outposts after Robotic Landers research.
+- Added Brim, Auralis, and Vestae colony roles with distinct passive cash, Research, and Scan production.
+- Added colony save/load compatibility through the company save object.
+- Added two new Colonization Program missions: First Offworld Outpost and Upgrade an Outpost.
+- Updated the Planet Registry UI to show colony level, output, costs, requirements, and action buttons.
+
 # NovaLift v0.9.5 — Space Program Progression Pass
 
 NovaLift is a portrait/mobile-first 2D rocket company game prototype. This patch adds a first pass at Clash-inspired pacing: short launch sessions, daily goals, timed engineer projects, passive income storage, launch contract stars, and a stronger recommended-next-action loop.

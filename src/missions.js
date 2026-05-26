@@ -23,6 +23,11 @@ export const MISSION_CHAPTERS = [
     id: "exploration_program",
     title: "Exploration Program",
     description: "Prepare the company for planet discovery."
+  },
+  {
+    id: "colonization_program",
+    title: "Colonization Program",
+    description: "Build robotic outposts and turn discovered planets into operations hubs."
   }
 ];
 
@@ -232,10 +237,38 @@ export const MISSIONS = [
     researchReward: 75,
     recommendedTemplateId: "explorer_sat",
     recommendedTemplateLabel: "Explorer Probe",
-    description: "Research robotic landers so the next version can send probes to discovered planets.",
+    description: "Research robotic landers so mission control can establish robotic outposts on discovered planets.",
     objective: "Research Robotic Landers.",
     progressLabel: (ctx) => ctx.company?.completedResearch?.includes("robotic_landers") ? "Robotic landers ready" : "Research required",
     isComplete: (ctx) => Boolean(ctx.company?.completedResearch?.includes("robotic_landers"))
+  },
+  {
+    id: "establish_first_colony",
+    chapter: "colonization_program",
+    chapterOrder: 1,
+    title: "First Offworld Outpost",
+    reward: 2600000,
+    researchReward: 90,
+    recommendedTemplateId: "explorer_sat",
+    recommendedTemplateLabel: "Explorer Probe",
+    description: "Use the Planet Registry to establish a robotic outpost on any discovered planet.",
+    objective: "Establish one offworld colony.",
+    progressLabel: (ctx) => `${countColonies(ctx)} / 1 colonies`,
+    isComplete: (ctx) => countColonies(ctx) >= 1
+  },
+  {
+    id: "upgrade_first_colony",
+    chapter: "colonization_program",
+    chapterOrder: 2,
+    title: "Upgrade an Outpost",
+    reward: 3200000,
+    researchReward: 110,
+    recommendedTemplateId: "explorer_sat",
+    recommendedTemplateLabel: "Explorer Probe",
+    description: "Upgrade an outpost into a stronger colony so offworld income, Research, and Scan production begin to matter.",
+    objective: "Reach colony level 2 on any planet.",
+    progressLabel: (ctx) => `${getHighestColonyLevel(ctx)} / 2 colony level`,
+    isComplete: (ctx) => getHighestColonyLevel(ctx) >= 2
   }
 ];
 
@@ -335,6 +368,14 @@ function countDiscoveredPlanets(ctx) {
 
 function hasDiscoveredPlanet(ctx, id) {
   return Array.isArray(ctx.company?.discoveredPlanets) && ctx.company.discoveredPlanets.includes(id);
+}
+
+function countColonies(ctx) {
+  return Object.values(ctx.company?.colonies ?? {}).filter((colony) => Number(colony?.level ?? 0) > 0).length;
+}
+
+function getHighestColonyLevel(ctx) {
+  return Object.values(ctx.company?.colonies ?? {}).reduce((highest, colony) => Math.max(highest, Number(colony?.level ?? 0)), 0);
 }
 
 function formatDistance(value) {

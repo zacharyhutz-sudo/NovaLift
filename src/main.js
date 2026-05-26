@@ -36,6 +36,7 @@ const gameShellEl = document.querySelector("#gameShell");
 const toastStackEl = document.querySelector("#toastStack");
 const rewardOverlayEl = document.querySelector("#rewardOverlay");
 const toggleSoundButton = document.querySelector("#toggleSound");
+const toggleTestResourcesButton = document.querySelector("#toggleTestResources");
 const titleScreenEl = document.querySelector("#titleScreen");
 const titleContinueButton = document.querySelector("#titleContinue");
 const titleNewCompanyButton = document.querySelector("#titleNewCompany");
@@ -271,6 +272,11 @@ function bindBuilderEvents() {
     game.toggleEconomyMode();
     renderBuilder();
   });
+  bindActivation(toggleTestResourcesButton, () => {
+    game.toggleTestResources();
+    renderBuilder();
+    updateHud(game.getHudData());
+  });
   bindActivation(builderWorldViewButton, showWorldView);
   bindActivation(builderWorldViewHeroButton, showWorldView);
   bindActivation(builderJumpToPreviewButton, () => scrollBuilderSection(builderRocketSectionEl));
@@ -305,6 +311,11 @@ function bindBuilderEvents() {
   });
   bindDelegatedActivation(recommendedActionCardEl, "[data-recommended-target]", (button) => {
     handleRecommendedAction(button.dataset.recommendedTarget);
+  });
+  bindDelegatedActivation(planetRegistryListEl, "[data-colony-action]", (button) => {
+    game.upgradeColony(button.dataset.colonyAction);
+    renderBuilder();
+    updateHud(game.getHudData());
   });
   bindDelegatedActivation(researchTreeEl, "[data-buy-research]", (button) => {
     selectedResearchId = button.dataset.buyResearch || selectedResearchId;
@@ -659,8 +670,9 @@ function renderBuilder(highlightErrors = false) {
   const canAfford = game.canAffordLaunch(stats.cost);
 
   buildCostEl.textContent = formatMoney(stats.cost);
-  if (builderCashEl) builderCashEl.textContent = game.company.mode === "sandbox" ? "∞" : formatMoney(game?.company?.money ?? 0);
-  if (builderModeLabelEl) builderModeLabelEl.textContent = game.company.mode === "sandbox" ? "Sandbox Mode" : "Career Mode";
+  if (builderCashEl) builderCashEl.textContent = formatCashBalance(game.company);
+  if (builderModeLabelEl) builderModeLabelEl.textContent = formatCompanyMode(game.company);
+  updateTestResourceToggle(game.company);
   buildMassEl.textContent = `${formatStatNumber(stats.launchMass)}t`;
   buildFuelEl.textContent = Math.round(stats.fuelCapacity).toLocaleString();
   buildTwrEl.textContent = formatStatNumber(stats.twr, 2);
@@ -695,7 +707,7 @@ function renderBuilder(highlightErrors = false) {
   renderValidation(validation, highlightErrors, canAfford, stats.cost, lockedParts);
 
   launchBuiltRocketButton.disabled = !validation.valid || !canAfford || lockedParts.length > 0;
-  launchBuiltRocketButton.textContent = lockedParts.length ? "Unlock Parts to Launch" : !validation.valid ? "Fix Rocket to Launch" : !canAfford ? "Not Enough Cash" : game.company.mode === "sandbox" ? "Launch Rocket" : `Launch for ${formatMoney(stats.cost)}`;
+  launchBuiltRocketButton.textContent = lockedParts.length ? "Unlock Parts to Launch" : !validation.valid ? "Fix Rocket to Launch" : !canAfford ? "Not Enough Cash" : hasCostBypass(game.company) ? "Launch Rocket" : `Launch for ${formatMoney(stats.cost)}`;
   builderScreenEl?.classList.toggle("rocket-ready", validation.valid && canAfford && lockedParts.length === 0);
   builderScreenEl?.classList.toggle("rocket-needs-work", !validation.valid || lockedParts.length > 0);
   partCountLabelEl.textContent = `${builderStack.length}/${MAX_STACK_PARTS} parts`;
@@ -1173,7 +1185,8 @@ function getChapterIcon(id = "") {
     flight_school: "01",
     orbit_program: "02",
     orbital_business: "03",
-    exploration_program: "04"
+    exploration_program: "04",
+    colonization_program: "05"
   };
   return icons[id] ?? "NL";
 }
@@ -1194,7 +1207,7 @@ function renderEarthMines(data = game.getHudData()) {
   const company = data.company ?? game.company;
   const count = Math.max(0, Math.min(EARTH_MINE_MAX, Math.floor(Number(company.earthMineCount ?? 0))));
   const mineIncome = count * EARTH_MINE_INCOME_RATE;
-  const canBuy = count < EARTH_MINE_MAX && (company.mode === "sandbox" || Number(company.money ?? 0) >= EARTH_MINE_COST);
+  const canBuy = count < EARTH_MINE_MAX && (hasCostBypass(company) || Number(company.money ?? 0) >= EARTH_MINE_COST);
   const remaining = Math.max(0, EARTH_MINE_MAX - count);
   if (earthMineMiniStatusEl) earthMineMiniStatusEl.textContent = `${formatMoneyRate(mineIncome)}/s · ${remaining} left`;
 
@@ -1209,7 +1222,7 @@ function renderEarthMines(data = game.getHudData()) {
   buyEarthMineButton.disabled = !canBuy;
   buyEarthMineButton.textContent = count >= EARTH_MINE_MAX
     ? "All Mines Built"
-    : company.mode === "sandbox"
+    : hasCostBypass(company)
       ? `Add Mine (${count}/${EARTH_MINE_MAX})`
       : `Buy Mine for ${formatMoney(EARTH_MINE_COST)}`;
 }
@@ -1218,7 +1231,7 @@ function renderOrbitalNetwork(data = game.getHudData()) {
   if (!orbitalNetworkStatusEl || !orbitalNetworkPayloadsEl || !orbitalNetworkIncomeEl || !orbitalNetworkResearchEl || !orbitalNetworkScanEl || !orbitalNetworkSignalEl || !orbitalNetworkSignalBarEl) return;
   const payloads = (data.trackedObjects ?? []).filter((object) => object.kind === "payload" && object.online);
   const signal = data.nextPlanetSignal ?? {};
-  const scan = Number(data.company?.totalScanGenerated ?? 0);
+  const scan = Number(signal.current ?? data.company?.totalScanGenerated ?? 0);
   const scanRate = Number(data.company?.scanPerSecond ?? 0);
   const target = Number(signal.target ?? 500);
   const progress = Number(signal.progress ?? (target > 0 ? scan / target : 1));
@@ -1245,21 +1258,25 @@ function renderPlanetRegistry(data = game.getHudData()) {
   if (!planetRegistryStatusEl || !planetRegistryListEl || !planetSignalNameEl || !planetSignalBarEl || !planetSignalStatusEl) return;
   const planets = data.planets ?? [];
   const discovered = planets.filter((planet) => planet.discovered);
+  const colonized = planets.filter((planet) => planet.colony?.colonized);
   const signal = data.nextPlanetSignal ?? {};
-  const scan = Number(data.company?.totalScanGenerated ?? 0);
+  const scan = Number(signal.current ?? data.company?.totalScanGenerated ?? 0);
   const scanRate = Number(data.company?.scanPerSecond ?? 0);
 
-  planetRegistryStatusEl.textContent = `${Math.max(0, discovered.length - 1)} discovered`;
+  planetRegistryStatusEl.textContent = `${Math.max(0, discovered.length - 1)} discovered · ${colonized.length} colonies`;
   planetRegistryListEl.innerHTML = planets.map((planet) => {
     const progress = Math.round(Math.max(0, Math.min(1, Number(planet.progress ?? 0))) * 100);
     const color = planet.visualColor ?? "#a78bfa";
+    const colony = planet.colony ?? {};
+    const colonyHtml = renderColonyPanel(planet, colony);
     return `
-      <article class="planet-card ${planet.discovered ? "discovered" : "locked"}" style="--planet-color: ${escapeHtml(color)}">
+      <article class="planet-card ${planet.discovered ? "discovered" : "locked"} ${colony.colonized ? "colonized" : ""}" style="--planet-color: ${escapeHtml(color)}">
         <div class="planet-orb" aria-hidden="true"><span></span></div>
         <div class="planet-card-copy">
           <strong>${escapeHtml(planet.discovered ? planet.name : "Unknown Signal")}</strong>
           <span>${escapeHtml(planet.discovered ? planet.classification : `${Math.floor(planet.scanProgress ?? 0)} / ${planet.scanRequired.toLocaleString()} Scan`)}</span>
           ${planet.discovered ? `<p>${escapeHtml(planet.description ?? "Mapped destination.")}</p>` : `<div class="planet-card-progress"><span style="width:${progress}%"></span></div>`}
+          ${colonyHtml}
         </div>
         <div class="planet-tags">
           <span>${escapeHtml(planet.discovered ? planet.distanceLabel : "???")}</span>
@@ -1283,9 +1300,36 @@ function renderPlanetRegistry(data = game.getHudData()) {
     : `Need exploration satellite Scan to reach ${Number(signal.target ?? 0).toLocaleString()}.`;
 }
 
+function renderColonyPanel(planet, colony = {}) {
+  if (!planet.discovered || !colony.colonizable) return "";
+  const production = colony.production ?? {};
+  const nextProduction = colony.nextProduction ?? production;
+  const cost = colony.nextCost;
+  const outputText = colony.colonized
+    ? `${formatMoneyRate(production.cash ?? 0)}/s · ${formatResearchRate(production.research ?? 0)}R/s · ${formatScanRate(production.scan ?? 0)}/s Scan`
+    : `Projected: ${formatMoneyRate(nextProduction.cash ?? 0)}/s · ${formatResearchRate(nextProduction.research ?? 0)}R/s · ${formatScanRate(nextProduction.scan ?? 0)}/s Scan`;
+  const costText = cost ? formatColonyCost(cost) : "Fully upgraded";
+  const statusText = colony.colonized
+    ? `Level ${colony.level}/${colony.maxLevel} · ${escapeHtml(colony.tierName)}`
+    : escapeHtml(colony.role ?? "Robotic Outpost");
+  const button = colony.maxed
+    ? `<button type="button" class="mini-button colony-action-button" disabled>Max Colony</button>`
+    : `<button type="button" class="mini-button colony-action-button" data-colony-action="${escapeHtml(planet.id)}" ${colony.canAct ? "" : "disabled"}>${escapeHtml(colony.actionLabel)}</button>`;
+
+  return `
+    <div class="colony-panel ${colony.colonized ? "online" : "offline"}">
+      <div class="colony-copy">
+        <span>${statusText}</span>
+        <strong>${escapeHtml(outputText)}</strong>
+        <small>${escapeHtml(colony.canAct || colony.maxed ? costText : colony.actionLabel)}${cost && !colony.canAct && colony.roboticReady ? ` · ${escapeHtml(costText)}` : ""}</small>
+      </div>
+      ${button}
+    </div>`;
+}
+
 function renderResearchLab(data) {
   const company = data.company ?? game.company;
-  const researchPoints = company.researchPoints ?? 0;
+  const researchPoints = company.testResourcesEnabled ? 999999999 : (company.researchPoints ?? 0);
   const researchRate = company.researchPerSecond ?? 0;
   const nodes = data.research ?? [];
   const completed = nodes.filter((node) => node.complete).length;
@@ -1615,17 +1659,18 @@ function updateHud(data) {
   statusEl.textContent = screenMode === "builder" ? "Build" : screenMode === "world" ? "World" : compactStatus(data.status);
   statusEl.title = data.status;
   fpsEl.textContent = `${Math.round(data.fps)}`;
-  if (companyCashHudEl) companyCashHudEl.textContent = data.company?.mode === "sandbox" ? "∞" : formatMoney(data.company?.money ?? 0);
+  if (companyCashHudEl) companyCashHudEl.textContent = formatCashBalance(data.company);
   if (companyIncomeHudEl) companyIncomeHudEl.textContent = `${formatMoneyRate(data.company?.incomePerSecond ?? 0)}/s`;
-  if (companyResearchHudEl) companyResearchHudEl.textContent = `${formatResearch(data.company?.researchPoints ?? 0, 0)}R`;
-  if (companyScanHudEl) companyScanHudEl.textContent = `${Math.floor(data.company?.totalScanGenerated ?? 0).toLocaleString()}`;
+  if (companyResearchHudEl) companyResearchHudEl.textContent = formatResearchBalance(data.company);
+  if (companyScanHudEl) companyScanHudEl.textContent = formatScanBalance(data.company, data.nextPlanetSignal);
+  updateTestResourceToggle(data.company);
   if (screenMode === "builder" && researchScreenEl && !researchScreenEl.classList.contains("hidden") && performance.now() - lastResearchLiveRenderAt > 500) {
     lastResearchLiveRenderAt = performance.now();
     renderResearchLab(data);
   }
   gameShellEl.classList.toggle("income-active", (data.company?.incomePerSecond ?? 0) > 0);
-  if (builderCashEl) builderCashEl.textContent = data.company?.mode === "sandbox" ? "∞" : formatMoney(data.company?.money ?? 0);
-  if (builderModeLabelEl) builderModeLabelEl.textContent = data.company?.mode === "sandbox" ? "Sandbox Mode" : "Career Mode";
+  if (builderCashEl) builderCashEl.textContent = formatCashBalance(data.company);
+  if (builderModeLabelEl) builderModeLabelEl.textContent = formatCompanyMode(data.company);
   if (screenMode === "builder") {
     renderProgressionDashboard(data);
     renderEarthMines(data);
@@ -1643,7 +1688,7 @@ function updateHud(data) {
     missionResultEl.textContent = next ? `Next mission: ${next.title} — ${next.objective}` : "All starter missions complete. Keep expanding your orbital network.";
     missionResultEl.classList.remove("success");
   } else if (screenMode === "world") {
-    missionResultEl.textContent = `World view: ${data.savedOrbitalObjects} payloads · ${data.debrisCount} debris · ${formatMoneyRate(data.company?.incomePerSecond ?? 0)}/s · ${formatScanRate(data.company?.scanPerSecond ?? 0)}/s Scan. Use Track to inspect objects.`;
+    missionResultEl.textContent = `World view: ${data.savedOrbitalObjects} payloads · ${data.debrisCount} debris · ${formatMoneyRate(data.company?.incomePerSecond ?? 0)}/s · ${formatScanRate(data.company?.scanPerSecond ?? 0)}/s Scan · ${data.company?.totalColoniesBuilt ?? 0} colonies. Use Track to inspect objects.`;
     missionResultEl.classList.toggle("success", (data.company?.incomePerSecond ?? 0) > 0);
   } else if (data.stageMessage) {
     missionResultEl.textContent = data.stageMessage;
@@ -1952,6 +1997,47 @@ function getDefaultStageForPart(part) {
   if (part.stageAction === "decoupleBelow") return 1;
   if (part.stageAction === "deployPayload") return 2;
   return 3;
+}
+
+function hasCostBypass(company = {}) {
+  return Boolean(company?.mode === "sandbox" || company?.testResourcesEnabled);
+}
+
+function formatCompanyMode(company = {}) {
+  if (company?.mode === "sandbox" && company?.testResourcesEnabled) return "Sandbox · Infinite $/R/S";
+  if (company?.testResourcesEnabled) return "Career · Infinite $/R/S";
+  if (company?.mode === "sandbox") return "Sandbox Mode";
+  return "Career Mode";
+}
+
+function formatCashBalance(company = {}) {
+  return hasCostBypass(company) ? "∞" : formatMoney(company?.money ?? 0);
+}
+
+function formatResearchBalance(company = {}) {
+  return company?.testResourcesEnabled ? "∞R" : `${formatResearch(company?.researchPoints ?? 0, 0)}R`;
+}
+
+function formatScanBalance(company = {}, signal = null) {
+  if (company?.testResourcesEnabled) return "∞";
+  return `${Math.floor(signal?.current ?? company?.totalScanGenerated ?? 0).toLocaleString()}`;
+}
+
+function updateTestResourceToggle(company = {}) {
+  if (!toggleTestResourcesButton) return;
+  const active = Boolean(company?.testResourcesEnabled);
+  toggleTestResourcesButton.classList.toggle("is-active", active);
+  toggleTestResourcesButton.setAttribute("aria-pressed", String(active));
+  toggleTestResourcesButton.textContent = active ? "∞ $/R/S" : "TEST";
+  toggleTestResourcesButton.title = active ? "Disable infinite cash, Research, and Scan" : "Enable infinite cash, Research, and Scan";
+}
+
+function formatColonyCost(cost = {}) {
+  const pieces = [];
+  if (cost.cash) pieces.push(formatMoney(cost.cash));
+  if (cost.research) pieces.push(`${formatResearch(cost.research)}R`);
+  if (cost.scan) pieces.push(`${Math.round(cost.scan).toLocaleString()} Scan`);
+  return pieces.join(" · ");
 }
 
 function formatScanRate(value) {
